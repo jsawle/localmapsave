@@ -56,7 +56,6 @@
       flex:1 1 auto; min-width:0;
       display:flex; align-items:center; justify-content:center; gap:10px;
     }
-    /* Editable title that reads like a filename, not a form field */
     .doc-title{
       font-size:16px; font-weight:600; color:var(--ink);
       text-align:center;
@@ -86,13 +85,14 @@
     .btn:hover{ background:#f6f8fb; }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
     .btn.primary:hover{ background:var(--accent-hover); border-color:var(--accent-hover); }
+    .btn.full{ width:100%; }
     .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
 
     /* ---- Workspace ---- */
     .workspace{ display:flex; flex:1 1 auto; min-height:0; }
 
     .panel{
-      flex:0 0 304px; width:304px;
+      flex:0 0 312px; width:312px;
       background:var(--panel);
       border-right:1px solid var(--line);
       overflow-y:auto;
@@ -103,66 +103,98 @@
       margin:0 0 10px; font-size:11px; font-weight:700;
       letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
     }
+    .features-block{ flex:1 1 auto; }
 
-    .field-label{ display:block; font-size:13px; color:var(--ink); margin-bottom:6px; }
-    select{
+    .field-label{ display:block; font-size:13px; font-weight:500; color:var(--ink); margin:14px 0 6px; }
+    .field-label:first-of-type{ margin-top:0; }
+
+    select, .text-input, .text-area{
       width:100%; font-family:var(--font); font-size:14px; color:var(--ink);
       padding:9px 10px; border:1px solid var(--line); border-radius:7px; background:#fff;
     }
-    select:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+    .text-area{ resize:vertical; line-height:1.45; }
+    select:focus-visible, .text-input:focus, .text-area:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
 
-    .hint{ font-size:12.5px; line-height:1.5; color:var(--muted); margin:10px 0 0; }
+    .meta{ font-size:12px; color:var(--muted); margin:12px 0 0; }
+    .hint{ font-size:12.5px; line-height:1.5; color:var(--muted); margin:12px 0 0; }
 
-    /* Feature list */
+    /* ---- Feature list (master) ---- */
     .empty{ font-size:13px; line-height:1.55; color:var(--muted); margin:0; }
-    .feature{
-      display:grid;
-      grid-template-columns:1fr auto;
-      grid-template-areas:"title kind" "tools tools";
-      gap:7px 8px;
-      padding:10px; margin-bottom:8px;
-      border:1px solid var(--line); border-radius:var(--radius);
-      background:#fcfdfe;
+    #featureList{ display:flex; flex-direction:column; gap:6px; }
+    .feature-row{
+      display:flex; align-items:center; gap:9px;
+      width:100%; text-align:left;
+      padding:9px 10px; border:1px solid var(--line); border-radius:var(--radius);
+      background:#fcfdfe; color:var(--ink);
+      transition:background .12s ease, border-color .12s ease;
     }
-    .feature:last-child{ margin-bottom:0; }
-    .feature-title{
-      grid-area:title;
-      font-family:var(--font); font-size:13.5px; font-weight:500; color:var(--ink);
-      border:1px solid transparent; border-radius:5px; padding:4px 6px; min-width:0; background:transparent;
-    }
-    .feature-title:hover{ border-color:var(--line); background:#fff; }
-    .feature-title:focus{ outline:none; border-color:var(--accent); background:#fff; }
+    .feature-row:hover{ background:#f4f7fa; border-color:#d4dde7; }
+    .feature-row:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+    .dot{ flex:0 0 auto; width:12px; height:12px; border-radius:50%; box-shadow:0 0 0 1px rgba(0,0,0,.08) inset; }
+    .row-title{ flex:1 1 auto; font-size:13.5px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .img-icon{ flex:0 0 auto; width:14px; height:14px; color:var(--muted); }
     .kind{
-      grid-area:kind; align-self:center;
-      font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+      flex:0 0 auto;
+      font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
       color:var(--accent-hover); background:var(--accent-soft);
       padding:3px 7px; border-radius:999px; white-space:nowrap;
     }
-    .feature-tools{ grid-area:tools; display:flex; gap:6px; }
+
+    /* ---- Feature detail (editor) ---- */
+    .link-back{
+      border:none; background:none; color:var(--accent-hover);
+      font-size:13px; font-weight:600; padding:0; margin:0 0 14px; cursor:pointer;
+    }
+    .link-back:hover{ text-decoration:underline; }
+
+    .swatches{ display:flex; flex-wrap:wrap; gap:8px; }
+    .swatch{
+      width:26px; height:26px; border-radius:50%; border:2px solid #fff;
+      box-shadow:0 0 0 1px var(--line); padding:0; cursor:pointer;
+    }
+    .swatch:hover{ box-shadow:0 0 0 1px var(--muted); }
+    .swatch.active{ box-shadow:0 0 0 2px var(--accent); }
+    .swatch:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+    .image-area{ display:flex; flex-direction:column; gap:9px; }
+    .img-preview{ width:100%; max-height:170px; object-fit:cover; border-radius:var(--radius); border:1px solid var(--line); display:block; }
+    .img-buttons{ display:flex; gap:8px; }
+    .img-note{ font-size:11.5px; color:var(--muted); margin:0; line-height:1.45; }
+
+    .detail-actions{ display:flex; gap:8px; margin-top:18px; padding-top:14px; border-top:1px solid var(--line); }
+
     .mini{
       font-size:12px; font-weight:600; color:var(--ink);
-      padding:5px 10px; border:1px solid var(--line); border-radius:6px; background:#fff;
+      padding:6px 11px; border:1px solid var(--line); border-radius:6px; background:#fff;
     }
     .mini:hover{ background:#f4f6f9; }
+    .mini:disabled{ opacity:.6; cursor:default; }
     .mini.danger{ color:var(--danger); }
     .mini.danger:hover{ background:#fbeeec; border-color:#e7cdc9; }
     .mini:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
 
-    .status{ font-size:12.5px; line-height:1.5; color:var(--muted); min-height:18px; }
+    .status{ font-size:12.5px; line-height:1.5; color:var(--muted); min-height:18px; margin:10px 0 0; }
     .status.error{ color:var(--danger); }
 
-    .about{ font-size:12.5px; line-height:1.55; color:var(--muted); }
+    .about{ font-size:12.5px; line-height:1.55; color:var(--muted); margin:0; }
     .about strong{ color:var(--ink); font-weight:600; }
+    .about code{ background:#eef1f5; padding:1px 5px; border-radius:4px; font-size:11.5px; }
 
     #viewDiv{ flex:1 1 auto; min-width:0; }
 
-    /* ---- Responsive: stack on narrow screens ---- */
-    @media (max-width:720px){
+    /* ---- Pop-up content ---- */
+    .mm-popup-text{ margin:0 0 8px; font-size:13.5px; line-height:1.5; color:var(--ink); white-space:pre-wrap; }
+    .mm-popup-img{ display:block; max-width:100%; height:auto; border-radius:6px; }
+    .mm-popup-empty{ margin:0; font-size:13px; color:var(--muted); font-style:italic; }
+
+    /* ---- Responsive ---- */
+    @media (max-width:760px){
       .workspace{ flex-direction:column; }
-      .panel{ flex:0 0 auto; width:100%; max-height:42vh; border-right:none; border-bottom:1px solid var(--line); }
-      #viewDiv{ min-height:48vh; }
+      .panel{ flex:0 0 auto; width:100%; max-height:44vh; border-right:none; border-bottom:1px solid var(--line); }
+      #viewDiv{ min-height:46vh; }
       .doc{ justify-content:flex-start; }
       .brand{ display:none; }
+      .btn{ padding:8px 11px; }
     }
     @media (prefers-reduced-motion:reduce){
       *{ transition:none !important; }
@@ -179,6 +211,7 @@
         <span id="saveState" class="state saved">Saved</span>
       </div>
       <div class="actions">
+        <button id="newBtn" class="btn" type="button">New</button>
         <button id="openBtn" class="btn" type="button">Open file…</button>
         <button id="saveBtn" class="btn primary" type="button">Save to file</button>
         <input id="fileInput" type="file" accept=".mmap,.json,application/json" hidden />
@@ -188,8 +221,8 @@
     <div class="workspace">
       <aside class="panel">
         <div class="block">
-          <h2>Basemap</h2>
-          <label class="field-label" for="basemapSelect">Background map</label>
+          <h2>Map</h2>
+          <label class="field-label" for="basemapSelect">Basemap</label>
           <select id="basemapSelect" aria-label="Basemap">
             <option value="topo-vector">Topographic</option>
             <option value="streets-vector">Streets</option>
@@ -201,19 +234,24 @@
             <option value="osm">OpenStreetMap</option>
             <option value="terrain">Terrain with labels</option>
           </select>
+          <button id="exportBtn" class="btn full" type="button" style="margin-top:12px;">Export as GeoJSON</button>
+          <p id="metaLine" class="meta">0 features</p>
         </div>
 
-        <div class="block" style="flex:1 1 auto;">
-          <h2>Features</h2>
-          <div id="featureList">
-            <p class="empty">No features yet. Use the tools at the top-right of the map to draw points, lines, or areas, then give each one a name.</p>
+        <div class="block features-block">
+          <div id="listView">
+            <h2>Features</h2>
+            <div id="featureList">
+              <p class="empty">No features yet. Use the tools at the top-right of the map to draw a point, line, or area — then add a name, note, and photo.</p>
+            </div>
+            <p class="hint">Stop drawing (press Esc) and click a feature on the map, or a row above, to edit it.</p>
           </div>
-          <p class="hint">Tip: stop drawing (press Esc) and click a feature on the map to see its name.</p>
+          <div id="detailView" hidden></div>
         </div>
 
         <div class="block">
           <h2>About this demo</h2>
-          <p class="about"><strong>This is a concept demo.</strong> Build a map, then use <em>Save to file</em> to download it as a <code>.mmap</code> file on this computer. Reopen it any time with <em>Open file…</em> and pick up where you left off — no sign-in or online account needed. Nothing you draw is stored in an ArcGIS account.</p>
+          <p class="about"><strong>This is a concept demo.</strong> Draw features, give each one a name, a note, and a photo, then use <em>Save to file</em> to download your map as a <code>.mmap</code> file on this computer. Reopen it any time with <em>Open file…</em> — no sign-in or online account needed. Your photos are saved inside the file, so nothing is stored in an ArcGIS account.</p>
           <p id="status" class="status" role="status" aria-live="polite"></p>
         </div>
       </aside>
@@ -228,13 +266,23 @@
       "esri/views/MapView",
       "esri/layers/GraphicsLayer",
       "esri/widgets/Sketch",
-      "esri/Graphic"
-    ], function (Map, MapView, GraphicsLayer, Sketch, Graphic) {
+      "esri/Graphic",
+      "esri/symbols/SimpleMarkerSymbol",
+      "esri/symbols/SimpleLineSymbol",
+      "esri/symbols/SimpleFillSymbol",
+      "esri/geometry/support/webMercatorUtils"
+    ], function (Map, MapView, GraphicsLayer, Sketch, Graphic,
+                 SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, webMercatorUtils) {
 
       var DOC_TYPE = "MapMakerLocalDocument";
-      var DOC_VERSION = 1;
+      var DOC_VERSION = 2;
+      var PALETTE = ["#0e7c66","#1f6feb","#d4572a","#8250df","#b4453a","#1a7f37","#9a6700","#e3116c","#5d6b7e"];
+      var DEFAULT_COLOR = PALETTE[0];
+
       var featureSeq = 0;
       var dirty = false;
+      var sketching = false;
+      var selectedGraphic = null;
 
       var $ = function (id) { return document.getElementById(id); };
 
@@ -249,23 +297,106 @@
       var view = new MapView({
         container: "viewDiv",
         map: map,
-        center: [-2.5, 53.5],   // UK-centred start
+        center: [-2.5, 53.5],
         zoom: 5
       });
 
       var sketch = new Sketch({
         layer: graphicsLayer,
         view: view,
+        creationMode: "single",
         visibleElements: { settingsMenu: false }
       });
       view.ui.add(sketch, "top-right");
 
-      // ---- Per-graphic pop-up ----
-      function popupTemplate() {
-        return { title: "{title}", content: "Feature type: {kind}" };
+      // ---- Symbols / colour ----
+      function hexToRgb(hex) {
+        var h = String(hex).replace("#", "");
+        if (h.length === 3) h = h.split("").map(function (c) { return c + c; }).join("");
+        var n = parseInt(h, 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      }
+      function symbolFor(kind, hex) {
+        var rgb = hexToRgb(hex);
+        if (kind === "polyline") {
+          return new SimpleLineSymbol({ color: hex, width: 3 });
+        }
+        if (kind === "polygon" || kind === "extent") {
+          return new SimpleFillSymbol({
+            color: [rgb[0], rgb[1], rgb[2], 0.25],
+            outline: { color: hex, width: 2 }
+          });
+        }
+        return new SimpleMarkerSymbol({
+          style: "circle", color: hex, size: 10,
+          outline: { color: "#ffffff", width: 1.5 }
+        });
+      }
+      function applyColor(graphic, hex) {
+        var kind = (graphic.geometry && graphic.geometry.type) || "point";
+        graphic.symbol = symbolFor(kind, hex);
+        graphic.attributes = graphic.attributes || {};
+        graphic.attributes.color = hex;
       }
 
-      // ---- Status + saved-state UI ----
+      // ---- Pop-up (text + image) ----
+      function popupContent(event) {
+        var attr = (event && event.graphic && event.graphic.attributes) || {};
+        var wrap = document.createElement("div");
+        if (attr.description) {
+          var p = document.createElement("p");
+          p.className = "mm-popup-text";
+          p.textContent = attr.description;
+          wrap.appendChild(p);
+        }
+        if (attr.image) {
+          var img = document.createElement("img");
+          img.className = "mm-popup-img";
+          img.src = attr.image;
+          img.alt = attr.title || "Feature image";
+          wrap.appendChild(img);
+        }
+        if (!attr.description && !attr.image) {
+          var em = document.createElement("p");
+          em.className = "mm-popup-empty";
+          em.textContent = "No description yet — select this feature to add one.";
+          wrap.appendChild(em);
+        }
+        return wrap;
+      }
+      function makePopupTemplate() {
+        return { title: "{title}", content: popupContent };
+      }
+
+      // ---- Image import: resize + compress to a data URL ----
+      function fileToResizedDataURL(file, maxDim, quality) {
+        return new Promise(function (resolve, reject) {
+          if (!file || !file.type || file.type.indexOf("image/") !== 0) {
+            reject(new Error("not an image")); return;
+          }
+          var reader = new FileReader();
+          reader.onload = function () {
+            var img = new Image();
+            img.onload = function () {
+              var w = img.naturalWidth, h = img.naturalHeight;
+              var scale = Math.min(1, maxDim / Math.max(w, h));
+              var cw = Math.max(1, Math.round(w * scale));
+              var ch = Math.max(1, Math.round(h * scale));
+              var canvas = document.createElement("canvas");
+              canvas.width = cw; canvas.height = ch;
+              canvas.getContext("2d").drawImage(img, 0, 0, cw, ch);
+              try { resolve(canvas.toDataURL("image/jpeg", quality)); }
+              catch (e) { reject(e); }
+            };
+            img.onerror = function () { reject(new Error("decode failed")); };
+            img.src = reader.result;
+          };
+          reader.onerror = function () { reject(new Error("read failed")); };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      // ---- Status / saved-state / meta ----
       function setStatus(msg, isError) {
         var el = $("status");
         el.textContent = msg || "";
@@ -279,106 +410,253 @@
       function markDirty() { dirty = true; updateSaveState(); }
       function markClean() { dirty = false; updateSaveState(); }
 
-      // ---- Feature list ----
-      function renderFeatureList() {
+      function formatBytes(b) {
+        if (b < 1024) return b + " B";
+        if (b < 1048576) return (b / 1024).toFixed(0) + " KB";
+        return (b / 1048576).toFixed(1) + " MB";
+      }
+      function updateMeta() {
+        var count = graphicsLayer.graphics.length;
+        var sizeStr = "";
+        try { sizeStr = formatBytes(new Blob([JSON.stringify(buildDocument())]).size); }
+        catch (e) { sizeStr = "—"; }
+        $("metaLine").textContent = count + (count === 1 ? " feature" : " features") + " · about " + sizeStr + " saved";
+      }
+
+      // ---- Feature list (master) ----
+      function imgIcon() {
+        var ns = "http://www.w3.org/2000/svg";
+        var s = document.createElementNS(ns, "svg");
+        s.setAttribute("viewBox", "0 0 24 24");
+        s.setAttribute("class", "img-icon");
+        var p = document.createElementNS(ns, "path");
+        p.setAttribute("d", "M4 7h3l1.5-2h7L17 7h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm8 3.2a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6z");
+        p.setAttribute("fill", "currentColor");
+        s.appendChild(p);
+        return s;
+      }
+      function renderList() {
         var list = $("featureList");
         list.innerHTML = "";
-        var graphics = graphicsLayer.graphics;
-
-        if (graphics.length === 0) {
+        var gs = graphicsLayer.graphics;
+        if (gs.length === 0) {
           var p = document.createElement("p");
           p.className = "empty";
-          p.textContent = "No features yet. Use the tools at the top-right of the map to draw points, lines, or areas, then give each one a name.";
+          p.textContent = "No features yet. Use the tools at the top-right of the map to draw a point, line, or area — then add a name, note, and photo.";
           list.appendChild(p);
           return;
         }
+        gs.forEach(function (g, i) {
+          var a = g.attributes || (g.attributes = {});
+          var row = document.createElement("button");
+          row.type = "button"; row.className = "feature-row";
 
-        graphics.forEach(function (g, i) {
-          g.attributes = g.attributes || {};
-          var kind = (g.geometry && g.geometry.type) || "feature";
-          g.attributes.kind = kind;
-          if (!g.attributes.title) g.attributes.title = "Feature " + (i + 1);
+          var dot = document.createElement("span");
+          dot.className = "dot"; dot.style.background = a.color || DEFAULT_COLOR;
 
-          var row = document.createElement("div");
-          row.className = "feature";
+          var name = document.createElement("span");
+          name.className = "row-title"; name.textContent = a.title || ("Feature " + (i + 1));
 
-          var title = document.createElement("input");
-          title.className = "feature-title";
-          title.value = g.attributes.title;
-          title.setAttribute("aria-label", "Feature name");
-          title.addEventListener("input", function () {
-            g.attributes.title = title.value;
-            markDirty();
-          });
+          var kind = document.createElement("span");
+          kind.className = "kind"; kind.textContent = (g.geometry && g.geometry.type) || "feature";
 
-          var badge = document.createElement("span");
-          badge.className = "kind";
-          badge.textContent = kind;
-
-          var tools = document.createElement("div");
-          tools.className = "feature-tools";
-
-          var zoomBtn = document.createElement("button");
-          zoomBtn.className = "mini";
-          zoomBtn.type = "button";
-          zoomBtn.textContent = "Zoom to";
-          zoomBtn.addEventListener("click", function () {
-            if (g.geometry) {
-              var target = { target: g.geometry };
-              if (g.geometry.type === "point") target.zoom = Math.max(view.zoom, 12);
-              view.goTo(target).catch(function () {});
-            }
-          });
-
-          var delBtn = document.createElement("button");
-          delBtn.className = "mini danger";
-          delBtn.type = "button";
-          delBtn.textContent = "Delete";
-          delBtn.addEventListener("click", function () {
-            graphicsLayer.remove(g);
-            renderFeatureList();
-            markDirty();
-          });
-
-          tools.appendChild(zoomBtn);
-          tools.appendChild(delBtn);
-          row.appendChild(title);
-          row.appendChild(badge);
-          row.appendChild(tools);
+          row.appendChild(dot);
+          row.appendChild(name);
+          if (a.image) row.appendChild(imgIcon());
+          row.appendChild(kind);
+          row.addEventListener("click", function () { selectFeature(g); });
           list.appendChild(row);
         });
       }
 
+      // ---- Feature detail (editor) ----
+      function fieldLabel(text) {
+        var l = document.createElement("label");
+        l.className = "field-label"; l.textContent = text;
+        return l;
+      }
+      function fileButton(label, g, wrap) {
+        var span = document.createElement("span");
+        var btn = document.createElement("button");
+        btn.type = "button"; btn.className = "mini"; btn.textContent = label;
+        var input = document.createElement("input");
+        input.type = "file"; input.accept = "image/*"; input.hidden = true;
+        btn.addEventListener("click", function () { input.click(); });
+        input.addEventListener("change", function (e) {
+          var f = e.target.files && e.target.files[0];
+          e.target.value = "";
+          if (!f) return;
+          btn.disabled = true; btn.textContent = "Adding…";
+          fileToResizedDataURL(f, 1200, 0.82).then(function (dataURL) {
+            g.attributes = g.attributes || {};
+            g.attributes.image = dataURL;
+            renderImageArea(wrap, g);
+            updateMeta(); markDirty();
+            setStatus("", false);
+          }).catch(function () {
+            btn.disabled = false; btn.textContent = label;
+            setStatus("That image couldn't be added. Try a JPG or PNG.", true);
+          });
+        });
+        span.appendChild(btn);
+        span.appendChild(input);
+        return span;
+      }
+      function renderImageArea(wrap, g) {
+        wrap.innerHTML = "";
+        var a = g.attributes || {};
+        if (a.image) {
+          var img = document.createElement("img");
+          img.className = "img-preview"; img.src = a.image; img.alt = a.title || "Feature image";
+          wrap.appendChild(img);
+          var row = document.createElement("div");
+          row.className = "img-buttons";
+          row.appendChild(fileButton("Replace", g, wrap));
+          var rem = document.createElement("button");
+          rem.type = "button"; rem.className = "mini danger"; rem.textContent = "Remove";
+          rem.addEventListener("click", function () {
+            a.image = ""; renderImageArea(wrap, g); updateMeta(); markDirty();
+          });
+          row.appendChild(rem);
+          wrap.appendChild(row);
+        } else {
+          wrap.appendChild(fileButton("Add image", g, wrap));
+          var note = document.createElement("p");
+          note.className = "img-note";
+          note.textContent = "Photos are resized and saved inside your map file.";
+          wrap.appendChild(note);
+        }
+      }
+      function renderDetail(g) {
+        var a = g.attributes || (g.attributes = {});
+        var host = $("detailView");
+        host.innerHTML = "";
+
+        var back = document.createElement("button");
+        back.type = "button"; back.className = "link-back"; back.textContent = "‹ All features";
+        back.addEventListener("click", showList);
+        host.appendChild(back);
+
+        host.appendChild(fieldLabel("Name"));
+        var name = document.createElement("input");
+        name.className = "text-input"; name.value = a.title || "";
+        name.setAttribute("aria-label", "Feature name");
+        name.addEventListener("input", function () { a.title = name.value; markDirty(); });
+        host.appendChild(name);
+
+        host.appendChild(fieldLabel("Description"));
+        var desc = document.createElement("textarea");
+        desc.className = "text-area"; desc.rows = 3; desc.value = a.description || "";
+        desc.placeholder = "What is this place? This text shows in the pop-up.";
+        desc.addEventListener("input", function () { a.description = desc.value; markDirty(); });
+        host.appendChild(desc);
+
+        host.appendChild(fieldLabel("Colour"));
+        var sw = document.createElement("div");
+        sw.className = "swatches";
+        PALETTE.forEach(function (hex) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "swatch" + ((a.color || DEFAULT_COLOR) === hex ? " active" : "");
+          b.style.background = hex; b.title = hex;
+          b.setAttribute("aria-label", "Colour " + hex);
+          b.addEventListener("click", function () {
+            applyColor(g, hex);
+            Array.prototype.forEach.call(sw.children, function (c) { c.classList.remove("active"); });
+            b.classList.add("active");
+            markDirty();
+          });
+          sw.appendChild(b);
+        });
+        host.appendChild(sw);
+
+        host.appendChild(fieldLabel("Image"));
+        var imgWrap = document.createElement("div");
+        imgWrap.className = "image-area";
+        renderImageArea(imgWrap, g);
+        host.appendChild(imgWrap);
+
+        var actions = document.createElement("div");
+        actions.className = "detail-actions";
+        var zoom = document.createElement("button");
+        zoom.type = "button"; zoom.className = "mini"; zoom.textContent = "Zoom to";
+        zoom.addEventListener("click", function () {
+          if (g.geometry) {
+            var t = { target: g.geometry };
+            if (g.geometry.type === "point") t.zoom = Math.max(view.zoom, 13);
+            view.goTo(t).catch(function () {});
+          }
+        });
+        var del = document.createElement("button");
+        del.type = "button"; del.className = "mini danger"; del.textContent = "Delete feature";
+        del.addEventListener("click", function () {
+          graphicsLayer.remove(g);
+          showList();
+          updateMeta(); markDirty();
+          setStatus("Feature deleted.", false);
+        });
+        actions.appendChild(zoom);
+        actions.appendChild(del);
+        host.appendChild(actions);
+      }
+
+      function selectFeature(g) {
+        selectedGraphic = g;
+        renderDetail(g);
+        $("listView").hidden = true;
+        $("detailView").hidden = false;
+      }
+      function showList() {
+        selectedGraphic = null;
+        $("detailView").hidden = true;
+        $("listView").hidden = false;
+        renderList();
+      }
+
       // ---- Sketch events ----
       sketch.on("create", function (event) {
+        if (event.state === "start" || event.state === "active") sketching = true;
+        if (event.state === "cancel") sketching = false;
         if (event.state === "complete" && event.graphic) {
+          sketching = false;
           featureSeq += 1;
           var g = event.graphic;
           g.attributes = {
             title: "Feature " + featureSeq,
-            kind: (g.geometry && g.geometry.type) || "feature",
-            notes: ""
+            description: "",
+            image: "",
+            color: DEFAULT_COLOR,
+            kind: (g.geometry && g.geometry.type) || "feature"
           };
-          g.popupTemplate = popupTemplate();
-          renderFeatureList();
-          markDirty();
+          applyColor(g, DEFAULT_COLOR);
+          g.popupTemplate = makePopupTemplate();
+          updateMeta(); markDirty();
+          selectFeature(g);
         }
       });
       sketch.on("update", function (event) {
-        if (event.state === "complete") { renderFeatureList(); markDirty(); }
+        if (event.state === "start" || event.state === "active") sketching = true;
+        if (event.state === "complete") { sketching = false; updateMeta(); markDirty(); }
       });
-      sketch.on("delete", function () { renderFeatureList(); markDirty(); });
+      sketch.on("delete", function () { showList(); updateMeta(); markDirty(); });
 
-      // ---- Basemap ----
+      // ---- Click a feature on the map to edit it ----
+      view.on("click", function (event) {
+        if (sketching) return;
+        view.hitTest(event, { include: graphicsLayer }).then(function (resp) {
+          var hit = resp.results && resp.results[0];
+          if (hit && hit.graphic) selectFeature(hit.graphic);
+        }).catch(function () {});
+      });
+
+      // ---- Basemap + title ----
       $("basemapSelect").addEventListener("change", function (e) {
         map.basemap = e.target.value;
         markDirty();
       });
-
-      // ---- Title ----
       $("mapTitle").addEventListener("input", markDirty);
 
-      // ---- Save (download a .mmap file) ----
+      // ---- Save / open (.mmap) ----
       function buildDocument() {
         return {
           type: DOC_TYPE,
@@ -393,36 +671,30 @@
           graphics: graphicsLayer.graphics.toArray().map(function (g) { return g.toJSON(); })
         };
       }
-
+      function safeName() {
+        return (($("mapTitle").value) || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
+      }
+      function downloadText(text, filename, mime) {
+        var blob = new Blob([text], { type: mime || "text/plain" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
       function saveToFile() {
         try {
           var doc = buildDocument();
-          var text = JSON.stringify(doc, null, 2);
-          var blob = new Blob([text], { type: "application/json" });
-          var url = URL.createObjectURL(blob);
-          var safe = (doc.title || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
-          var a = document.createElement("a");
-          a.href = url;
-          a.download = safe + ".mmap";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
+          downloadText(JSON.stringify(doc, null, 2), safeName() + ".mmap", "application/json");
           markClean();
           setStatus("Saved “" + doc.title + "” to your downloads.", false);
         } catch (err) {
           setStatus("Couldn't save the file. Try again.", true);
         }
       }
-
-      // ---- Open (read a .mmap file) ----
       function loadDocument(doc) {
         $("mapTitle").value = doc.title || "Untitled map";
-
-        if (doc.basemap) {
-          $("basemapSelect").value = doc.basemap;
-          map.basemap = doc.basemap;
-        }
+        if (doc.basemap) { $("basemapSelect").value = doc.basemap; map.basemap = doc.basemap; }
 
         graphicsLayer.removeAll();
         (doc.graphics || []).forEach(function (gj) {
@@ -430,7 +702,10 @@
           g.attributes = g.attributes || {};
           if (!g.attributes.kind) g.attributes.kind = (g.geometry && g.geometry.type) || "feature";
           if (!g.attributes.title) g.attributes.title = "Feature";
-          g.popupTemplate = popupTemplate();
+          if (g.attributes.description == null) g.attributes.description = "";
+          if (g.attributes.image == null) g.attributes.image = "";
+          if (!g.symbol && g.attributes.color) applyColor(g, g.attributes.color);
+          g.popupTemplate = makePopupTemplate();
           graphicsLayer.add(g);
         });
         featureSeq = graphicsLayer.graphics.length;
@@ -438,13 +713,10 @@
         if (doc.viewpoint && doc.viewpoint.center) {
           view.goTo({ center: doc.viewpoint.center, zoom: doc.viewpoint.zoom }).catch(function () {});
         }
-
-        renderFeatureList();
-        markClean();
-        setStatus("Opened “" + (doc.title || "map") + "” — " +
-                  graphicsLayer.graphics.length + " feature(s).", false);
+        showList();
+        updateMeta(); markClean();
+        setStatus("Opened “" + (doc.title || "map") + "” — " + graphicsLayer.graphics.length + " feature(s).", false);
       }
-
       function openFromFile(file) {
         var reader = new FileReader();
         reader.onload = function () {
@@ -464,24 +736,85 @@
         reader.readAsText(file);
       }
 
-      // ---- Wire buttons ----
+      // ---- Export GeoJSON (WGS84) ----
+      function esriToGeoJSONGeometry(geom) {
+        var g = geom;
+        if (geom.spatialReference && geom.spatialReference.isWebMercator) {
+          g = webMercatorUtils.webMercatorToGeographic(geom);
+        }
+        if (g.type === "point") return { type: "Point", coordinates: [g.longitude, g.latitude] };
+        if (g.type === "polyline") {
+          var paths = g.paths || [];
+          return paths.length === 1
+            ? { type: "LineString", coordinates: paths[0] }
+            : { type: "MultiLineString", coordinates: paths };
+        }
+        if (g.type === "polygon") {
+          return { type: "Polygon", coordinates: g.rings || [] };
+        }
+        return null;
+      }
+      function exportGeoJSON() {
+        var features = [];
+        graphicsLayer.graphics.toArray().forEach(function (g) {
+          if (!g.geometry) return;
+          var geom = esriToGeoJSONGeometry(g.geometry);
+          if (!geom) return;
+          var a = g.attributes || {};
+          features.push({
+            type: "Feature",
+            properties: {
+              name: a.title || "",
+              description: a.description || "",
+              type: a.kind || g.geometry.type,
+              color: a.color || ""
+            },
+            geometry: geom
+          });
+        });
+        if (features.length === 0) {
+          setStatus("Nothing to export yet — draw a feature first.", true);
+          return;
+        }
+        var fc = { type: "FeatureCollection", features: features };
+        downloadText(JSON.stringify(fc, null, 2), safeName() + ".geojson", "application/geo+json");
+        setStatus("Exported " + features.length + " feature(s) as GeoJSON. Photos aren't included in GeoJSON.", false);
+      }
+
+      // ---- New map ----
+      function newMap() {
+        if (dirty && !window.confirm("Start a new map? Unsaved changes will be lost.")) return;
+        graphicsLayer.removeAll();
+        featureSeq = 0;
+        $("mapTitle").value = "Untitled map";
+        $("basemapSelect").value = "topo-vector";
+        map.basemap = "topo-vector";
+        view.goTo({ center: [-2.5, 53.5], zoom: 5 }).catch(function () {});
+        showList();
+        updateMeta(); markClean();
+        setStatus("New map ready.", false);
+      }
+
+      // ---- Wire up ----
       $("saveBtn").addEventListener("click", saveToFile);
       $("openBtn").addEventListener("click", function () { $("fileInput").click(); });
       $("fileInput").addEventListener("change", function (e) {
         var f = e.target.files && e.target.files[0];
         if (f) openFromFile(f);
-        e.target.value = "";   // allow reopening the same file
+        e.target.value = "";
       });
+      $("exportBtn").addEventListener("click", exportGeoJSON);
+      $("newBtn").addEventListener("click", newMap);
 
-      // Warn before leaving with unsaved changes (document-app behaviour)
       window.addEventListener("beforeunload", function (e) {
         if (dirty) { e.preventDefault(); e.returnValue = ""; }
       });
 
       view.when(function () {
-        renderFeatureList();
+        renderList();
+        updateMeta();
         updateSaveState();
-        setStatus("Draw something, then Save to file.", false);
+        setStatus("Draw a feature, then give it a name, note, and photo.", false);
       });
     });
   </script>
