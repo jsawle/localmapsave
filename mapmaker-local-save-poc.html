@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>MapMaker — Local Save (concept demo)</title>
+
+  <link rel="stylesheet" href="https://js.arcgis.com/4.34/esri/themes/light/main.css" />
+  <script src="https://js.arcgis.com/4.34/"></script>
+
+  <style>
+    :root{
+      --ink:#16263a;
+      --muted:#5d6b7e;
+      --line:#e4e9f0;
+      --panel:#ffffff;
+      --canvas:#f3f5f8;
+      --accent:#0e7c66;
+      --accent-hover:#0a6353;
+      --accent-soft:#e7f3ef;
+      --danger:#b4453a;
+      --warn-bg:#fdf3e3;
+      --warn-ink:#8a5a08;
+      --radius:8px;
+      --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; }
+    body{
+      font-family:var(--font);
+      color:var(--ink);
+      background:var(--canvas);
+      -webkit-font-smoothing:antialiased;
+    }
+
+    #app{ display:flex; flex-direction:column; height:100vh; }
+
+    /* ---- App bar: framed as a document editor ---- */
+    .appbar{
+      display:flex; align-items:center; gap:18px;
+      height:58px; padding:0 18px;
+      background:var(--panel);
+      border-bottom:1px solid var(--line);
+      flex:0 0 auto;
+      z-index:5;
+    }
+    .brand{
+      font-size:12.5px; font-weight:700; letter-spacing:.14em;
+      text-transform:uppercase; color:var(--ink);
+      white-space:nowrap;
+    }
+    .brand span{ color:var(--accent); }
+
+    .doc{
+      flex:1 1 auto; min-width:0;
+      display:flex; align-items:center; justify-content:center; gap:10px;
+    }
+    /* Editable title that reads like a filename, not a form field */
+    .doc-title{
+      font-size:16px; font-weight:600; color:var(--ink);
+      text-align:center;
+      border:1px solid transparent; border-radius:6px;
+      padding:6px 10px; min-width:120px; max-width:420px;
+      background:transparent;
+    }
+    .doc-title:hover{ border-color:var(--line); }
+    .doc-title:focus{ outline:none; border-color:var(--accent); background:#fff; }
+
+    .state{
+      font-size:11.5px; font-weight:600; letter-spacing:.02em;
+      padding:3px 9px; border-radius:999px; white-space:nowrap;
+    }
+    .state.saved{ background:var(--accent-soft); color:var(--accent-hover); }
+    .state.unsaved{ background:var(--warn-bg); color:var(--warn-ink); }
+
+    .actions{ display:flex; gap:9px; flex:0 0 auto; }
+
+    button{ font-family:var(--font); cursor:pointer; }
+    .btn{
+      font-size:13.5px; font-weight:600;
+      padding:8px 15px; border-radius:7px;
+      border:1px solid var(--line); background:#fff; color:var(--ink);
+      transition:background .15s ease, border-color .15s ease;
+    }
+    .btn:hover{ background:#f6f8fb; }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+    .btn.primary:hover{ background:var(--accent-hover); border-color:var(--accent-hover); }
+    .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+    /* ---- Workspace ---- */
+    .workspace{ display:flex; flex:1 1 auto; min-height:0; }
+
+    .panel{
+      flex:0 0 304px; width:304px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      overflow-y:auto;
+      display:flex; flex-direction:column;
+    }
+    .block{ padding:16px 18px; border-bottom:1px solid var(--line); }
+    .block h2{
+      margin:0 0 10px; font-size:11px; font-weight:700;
+      letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+    }
+
+    .field-label{ display:block; font-size:13px; color:var(--ink); margin-bottom:6px; }
+    select{
+      width:100%; font-family:var(--font); font-size:14px; color:var(--ink);
+      padding:9px 10px; border:1px solid var(--line); border-radius:7px; background:#fff;
+    }
+    select:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+    .hint{ font-size:12.5px; line-height:1.5; color:var(--muted); margin:10px 0 0; }
+
+    /* Feature list */
+    .empty{ font-size:13px; line-height:1.55; color:var(--muted); margin:0; }
+    .feature{
+      display:grid;
+      grid-template-columns:1fr auto;
+      grid-template-areas:"title kind" "tools tools";
+      gap:7px 8px;
+      padding:10px; margin-bottom:8px;
+      border:1px solid var(--line); border-radius:var(--radius);
+      background:#fcfdfe;
+    }
+    .feature:last-child{ margin-bottom:0; }
+    .feature-title{
+      grid-area:title;
+      font-family:var(--font); font-size:13.5px; font-weight:500; color:var(--ink);
+      border:1px solid transparent; border-radius:5px; padding:4px 6px; min-width:0; background:transparent;
+    }
+    .feature-title:hover{ border-color:var(--line); background:#fff; }
+    .feature-title:focus{ outline:none; border-color:var(--accent); background:#fff; }
+    .kind{
+      grid-area:kind; align-self:center;
+      font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+      color:var(--accent-hover); background:var(--accent-soft);
+      padding:3px 7px; border-radius:999px; white-space:nowrap;
+    }
+    .feature-tools{ grid-area:tools; display:flex; gap:6px; }
+    .mini{
+      font-size:12px; font-weight:600; color:var(--ink);
+      padding:5px 10px; border:1px solid var(--line); border-radius:6px; background:#fff;
+    }
+    .mini:hover{ background:#f4f6f9; }
+    .mini.danger{ color:var(--danger); }
+    .mini.danger:hover{ background:#fbeeec; border-color:#e7cdc9; }
+    .mini:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+    .status{ font-size:12.5px; line-height:1.5; color:var(--muted); min-height:18px; }
+    .status.error{ color:var(--danger); }
+
+    .about{ font-size:12.5px; line-height:1.55; color:var(--muted); }
+    .about strong{ color:var(--ink); font-weight:600; }
+
+    #viewDiv{ flex:1 1 auto; min-width:0; }
+
+    /* ---- Responsive: stack on narrow screens ---- */
+    @media (max-width:720px){
+      .workspace{ flex-direction:column; }
+      .panel{ flex:0 0 auto; width:100%; max-height:42vh; border-right:none; border-bottom:1px solid var(--line); }
+      #viewDiv{ min-height:48vh; }
+      .doc{ justify-content:flex-start; }
+      .brand{ display:none; }
+    }
+    @media (prefers-reduced-motion:reduce){
+      *{ transition:none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header class="appbar">
+      <div class="brand">MapMaker <span>· Local</span></div>
+      <div class="doc">
+        <input id="mapTitle" class="doc-title" value="Untitled map"
+               aria-label="Map name" spellcheck="false" />
+        <span id="saveState" class="state saved">Saved</span>
+      </div>
+      <div class="actions">
+        <button id="openBtn" class="btn" type="button">Open file…</button>
+        <button id="saveBtn" class="btn primary" type="button">Save to file</button>
+        <input id="fileInput" type="file" accept=".mmap,.json,application/json" hidden />
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="panel">
+        <div class="block">
+          <h2>Basemap</h2>
+          <label class="field-label" for="basemapSelect">Background map</label>
+          <select id="basemapSelect" aria-label="Basemap">
+            <option value="topo-vector">Topographic</option>
+            <option value="streets-vector">Streets</option>
+            <option value="satellite">Imagery</option>
+            <option value="hybrid">Imagery with labels</option>
+            <option value="gray-vector">Light gray canvas</option>
+            <option value="dark-gray-vector">Dark gray canvas</option>
+            <option value="oceans">Oceans</option>
+            <option value="osm">OpenStreetMap</option>
+            <option value="terrain">Terrain with labels</option>
+          </select>
+        </div>
+
+        <div class="block" style="flex:1 1 auto;">
+          <h2>Features</h2>
+          <div id="featureList">
+            <p class="empty">No features yet. Use the tools at the top-right of the map to draw points, lines, or areas, then give each one a name.</p>
+          </div>
+          <p class="hint">Tip: stop drawing (press Esc) and click a feature on the map to see its name.</p>
+        </div>
+
+        <div class="block">
+          <h2>About this demo</h2>
+          <p class="about"><strong>This is a concept demo.</strong> Build a map, then use <em>Save to file</em> to download it as a <code>.mmap</code> file on this computer. Reopen it any time with <em>Open file…</em> and pick up where you left off — no sign-in or online account needed. Nothing you draw is stored in an ArcGIS account.</p>
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+        </div>
+      </aside>
+
+      <div id="viewDiv"></div>
+    </div>
+  </div>
+
+  <script>
+    require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/layers/GraphicsLayer",
+      "esri/widgets/Sketch",
+      "esri/Graphic"
+    ], function (Map, MapView, GraphicsLayer, Sketch, Graphic) {
+
+      var DOC_TYPE = "MapMakerLocalDocument";
+      var DOC_VERSION = 1;
+      var featureSeq = 0;
+      var dirty = false;
+
+      var $ = function (id) { return document.getElementById(id); };
+
+      // ---- Map + view ----
+      var graphicsLayer = new GraphicsLayer({ title: "My features" });
+
+      var map = new Map({
+        basemap: $("basemapSelect").value,
+        layers: [graphicsLayer]
+      });
+
+      var view = new MapView({
+        container: "viewDiv",
+        map: map,
+        center: [-2.5, 53.5],   // UK-centred start
+        zoom: 5
+      });
+
+      var sketch = new Sketch({
+        layer: graphicsLayer,
+        view: view,
+        visibleElements: { settingsMenu: false }
+      });
+      view.ui.add(sketch, "top-right");
+
+      // ---- Per-graphic pop-up ----
+      function popupTemplate() {
+        return { title: "{title}", content: "Feature type: {kind}" };
+      }
+
+      // ---- Status + saved-state UI ----
+      function setStatus(msg, isError) {
+        var el = $("status");
+        el.textContent = msg || "";
+        el.className = "status" + (isError ? " error" : "");
+      }
+      function updateSaveState() {
+        var el = $("saveState");
+        if (dirty) { el.textContent = "Unsaved changes"; el.className = "state unsaved"; }
+        else { el.textContent = "Saved"; el.className = "state saved"; }
+      }
+      function markDirty() { dirty = true; updateSaveState(); }
+      function markClean() { dirty = false; updateSaveState(); }
+
+      // ---- Feature list ----
+      function renderFeatureList() {
+        var list = $("featureList");
+        list.innerHTML = "";
+        var graphics = graphicsLayer.graphics;
+
+        if (graphics.length === 0) {
+          var p = document.createElement("p");
+          p.className = "empty";
+          p.textContent = "No features yet. Use the tools at the top-right of the map to draw points, lines, or areas, then give each one a name.";
+          list.appendChild(p);
+          return;
+        }
+
+        graphics.forEach(function (g, i) {
+          g.attributes = g.attributes || {};
+          var kind = (g.geometry && g.geometry.type) || "feature";
+          g.attributes.kind = kind;
+          if (!g.attributes.title) g.attributes.title = "Feature " + (i + 1);
+
+          var row = document.createElement("div");
+          row.className = "feature";
+
+          var title = document.createElement("input");
+          title.className = "feature-title";
+          title.value = g.attributes.title;
+          title.setAttribute("aria-label", "Feature name");
+          title.addEventListener("input", function () {
+            g.attributes.title = title.value;
+            markDirty();
+          });
+
+          var badge = document.createElement("span");
+          badge.className = "kind";
+          badge.textContent = kind;
+
+          var tools = document.createElement("div");
+          tools.className = "feature-tools";
+
+          var zoomBtn = document.createElement("button");
+          zoomBtn.className = "mini";
+          zoomBtn.type = "button";
+          zoomBtn.textContent = "Zoom to";
+          zoomBtn.addEventListener("click", function () {
+            if (g.geometry) {
+              var target = { target: g.geometry };
+              if (g.geometry.type === "point") target.zoom = Math.max(view.zoom, 12);
+              view.goTo(target).catch(function () {});
+            }
+          });
+
+          var delBtn = document.createElement("button");
+          delBtn.className = "mini danger";
+          delBtn.type = "button";
+          delBtn.textContent = "Delete";
+          delBtn.addEventListener("click", function () {
+            graphicsLayer.remove(g);
+            renderFeatureList();
+            markDirty();
+          });
+
+          tools.appendChild(zoomBtn);
+          tools.appendChild(delBtn);
+          row.appendChild(title);
+          row.appendChild(badge);
+          row.appendChild(tools);
+          list.appendChild(row);
+        });
+      }
+
+      // ---- Sketch events ----
+      sketch.on("create", function (event) {
+        if (event.state === "complete" && event.graphic) {
+          featureSeq += 1;
+          var g = event.graphic;
+          g.attributes = {
+            title: "Feature " + featureSeq,
+            kind: (g.geometry && g.geometry.type) || "feature",
+            notes: ""
+          };
+          g.popupTemplate = popupTemplate();
+          renderFeatureList();
+          markDirty();
+        }
+      });
+      sketch.on("update", function (event) {
+        if (event.state === "complete") { renderFeatureList(); markDirty(); }
+      });
+      sketch.on("delete", function () { renderFeatureList(); markDirty(); });
+
+      // ---- Basemap ----
+      $("basemapSelect").addEventListener("change", function (e) {
+        map.basemap = e.target.value;
+        markDirty();
+      });
+
+      // ---- Title ----
+      $("mapTitle").addEventListener("input", markDirty);
+
+      // ---- Save (download a .mmap file) ----
+      function buildDocument() {
+        return {
+          type: DOC_TYPE,
+          version: DOC_VERSION,
+          title: $("mapTitle").value || "Untitled map",
+          savedAt: new Date().toISOString(),
+          basemap: $("basemapSelect").value,
+          viewpoint: {
+            center: [view.center.longitude, view.center.latitude],
+            zoom: view.zoom
+          },
+          graphics: graphicsLayer.graphics.toArray().map(function (g) { return g.toJSON(); })
+        };
+      }
+
+      function saveToFile() {
+        try {
+          var doc = buildDocument();
+          var text = JSON.stringify(doc, null, 2);
+          var blob = new Blob([text], { type: "application/json" });
+          var url = URL.createObjectURL(blob);
+          var safe = (doc.title || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = safe + ".mmap";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          markClean();
+          setStatus("Saved “" + doc.title + "” to your downloads.", false);
+        } catch (err) {
+          setStatus("Couldn't save the file. Try again.", true);
+        }
+      }
+
+      // ---- Open (read a .mmap file) ----
+      function loadDocument(doc) {
+        $("mapTitle").value = doc.title || "Untitled map";
+
+        if (doc.basemap) {
+          $("basemapSelect").value = doc.basemap;
+          map.basemap = doc.basemap;
+        }
+
+        graphicsLayer.removeAll();
+        (doc.graphics || []).forEach(function (gj) {
+          var g = Graphic.fromJSON(gj);
+          g.attributes = g.attributes || {};
+          if (!g.attributes.kind) g.attributes.kind = (g.geometry && g.geometry.type) || "feature";
+          if (!g.attributes.title) g.attributes.title = "Feature";
+          g.popupTemplate = popupTemplate();
+          graphicsLayer.add(g);
+        });
+        featureSeq = graphicsLayer.graphics.length;
+
+        if (doc.viewpoint && doc.viewpoint.center) {
+          view.goTo({ center: doc.viewpoint.center, zoom: doc.viewpoint.zoom }).catch(function () {});
+        }
+
+        renderFeatureList();
+        markClean();
+        setStatus("Opened “" + (doc.title || "map") + "” — " +
+                  graphicsLayer.graphics.length + " feature(s).", false);
+      }
+
+      function openFromFile(file) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          var doc;
+          try { doc = JSON.parse(reader.result); }
+          catch (err) {
+            setStatus("Couldn't read that file — it may be damaged. Try another .mmap file.", true);
+            return;
+          }
+          if (!doc || doc.type !== DOC_TYPE) {
+            setStatus("That isn't a MapMaker Local map. Open a .mmap file you saved here.", true);
+            return;
+          }
+          loadDocument(doc);
+        };
+        reader.onerror = function () { setStatus("Couldn't open that file. Try again.", true); };
+        reader.readAsText(file);
+      }
+
+      // ---- Wire buttons ----
+      $("saveBtn").addEventListener("click", saveToFile);
+      $("openBtn").addEventListener("click", function () { $("fileInput").click(); });
+      $("fileInput").addEventListener("change", function (e) {
+        var f = e.target.files && e.target.files[0];
+        if (f) openFromFile(f);
+        e.target.value = "";   // allow reopening the same file
+      });
+
+      // Warn before leaving with unsaved changes (document-app behaviour)
+      window.addEventListener("beforeunload", function (e) {
+        if (dirty) { e.preventDefault(); e.returnValue = ""; }
+      });
+
+      view.when(function () {
+        renderFeatureList();
+        updateSaveState();
+        setStatus("Draw something, then Save to file.", false);
+      });
+    });
+  </script>
+</body>
+</html>
