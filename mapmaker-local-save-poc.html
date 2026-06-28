@@ -329,6 +329,15 @@
 
       var $ = function (id) { return document.getElementById(id); };
 
+      function newUid() { return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+      function findByUid(uid) {
+        var found = null;
+        graphicsLayer.graphics.forEach(function (g) {
+          if (g.attributes && g.attributes.uid === uid) found = g;
+        });
+        return found;
+      }
+
       // ---- Map + view ----
       var graphicsLayer = new GraphicsLayer({ title: "My features" });
 
@@ -438,13 +447,14 @@
         if (!attr.description && !attr.image) {
           var em = document.createElement("p");
           em.className = "mm-popup-empty";
-          em.textContent = "No description yet — click this feature's row to add one.";
+          em.textContent = "No details yet — use Edit to add a note or photo.";
           wrap.appendChild(em);
         }
         return wrap;
       }
+      var EDIT_ACTION = { id: "edit-feature", title: "Edit", className: "esri-icon-edit" };
       function makePopupTemplate() {
-        return { title: "{title}", content: popupContent };
+        return { title: "{title}", content: popupContent, actions: [EDIT_ACTION] };
       }
 
       // ---- Image import: resize + compress to a data URL ----
@@ -690,6 +700,7 @@
       }
 
       function selectFeature(g) {
+        try { view.closePopup(); } catch (e) {}
         selectedGraphic = g;
         renderDetail(g);
         $("listView").hidden = true;
@@ -714,6 +725,7 @@
           featureSeq += 1;
           var g = event.graphic;
           g.attributes = {
+            uid: newUid(),
             title: "Feature " + featureSeq,
             description: "",
             image: "",
@@ -741,7 +753,7 @@
           var tg = new Graphic({
             geometry: event.mapPoint,
             symbol: textSymbolFor("Text", DEFAULT_COLOR),
-            attributes: { title: "Text", description: "", image: "", color: DEFAULT_COLOR, kind: "text" },
+            attributes: { uid: newUid(), title: "Text", description: "", image: "", color: DEFAULT_COLOR, kind: "text" },
             popupTemplate: makePopupTemplate()
           });
           graphicsLayer.add(tg);
@@ -754,6 +766,8 @@
         view.hitTest(event, { include: graphicsLayer }).then(function (resp) {
           var hit = resp.results && resp.results[0];
           if (hit && hit.graphic) {
+            try { sketch.cancel(); } catch (e) {}   // dismiss any reshape handles
+            showList();                              // a click is "interact", not "edit"
             view.openPopup({ features: [hit.graphic], location: event.mapPoint });
           } else {
             view.closePopup();
@@ -872,6 +886,7 @@
         (doc.graphics || []).forEach(function (gj) {
           var g = Graphic.fromJSON(gj);
           g.attributes = g.attributes || {};
+          if (!g.attributes.uid) g.attributes.uid = newUid();
           if (!g.attributes.kind) g.attributes.kind = (g.geometry && g.geometry.type) || "feature";
           if (!g.attributes.title) g.attributes.title = "Feature";
           if (g.attributes.description == null) g.attributes.description = "";
@@ -969,11 +984,21 @@
       });
 
       view.when(function () {
-        if (view.popup) view.popup.autoOpenEnabled = false;
+        if (view.popup) {
+          view.popup.autoOpenEnabled = false;
+          view.popup.on("trigger-action", function (event) {
+            if (event.action && event.action.id === "edit-feature") {
+              var sel = view.popup.selectedFeature;
+              var uid = sel && sel.attributes && sel.attributes.uid;
+              var g = (uid && findByUid(uid)) || sel;
+              if (g) selectFeature(g);   // selectFeature also closes the pop-up
+            }
+          });
+        }
         renderList();
         updateMeta();
         updateSaveState();
-        setStatus("Draw a feature or add text, then give it a name, note, and photo.", false);
+        setStatus("Draw a feature or add text. Click a feature to see its pop-up; use Edit to change it.", false);
       });
     });
   </script>
