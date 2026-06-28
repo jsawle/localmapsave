@@ -60,7 +60,7 @@
       font-size:16px; font-weight:600; color:var(--ink);
       text-align:center;
       border:1px solid transparent; border-radius:6px;
-      padding:6px 10px; min-width:120px; max-width:420px;
+      padding:6px 10px; min-width:90px; max-width:420px;
       background:transparent;
     }
     .doc-title:hover{ border-color:var(--line); }
@@ -73,13 +73,14 @@
     .state.saved{ background:var(--accent-soft); color:var(--accent-hover); }
     .state.unsaved{ background:var(--warn-bg); color:var(--warn-ink); }
 
-    .actions{ display:flex; gap:9px; flex:0 0 auto; }
+    .actions{ display:flex; gap:8px; flex:0 0 auto; }
 
     button{ font-family:var(--font); cursor:pointer; }
     .btn{
       font-size:13.5px; font-weight:600;
-      padding:8px 15px; border-radius:7px;
+      padding:8px 14px; border-radius:7px;
       border:1px solid var(--line); background:#fff; color:var(--ink);
+      white-space:nowrap;
       transition:background .15s ease, border-color .15s ease;
     }
     .btn:hover{ background:#f6f8fb; }
@@ -141,11 +142,7 @@
     }
 
     /* ---- Feature detail (editor) ---- */
-    .link-back{
-      border:none; background:none; color:var(--accent-hover);
-      font-size:13px; font-weight:600; padding:0; margin:0 0 14px; cursor:pointer;
-    }
-    .link-back:hover{ text-decoration:underline; }
+    .done-btn{ margin-bottom:18px; }
 
     .swatches{ display:flex; flex-wrap:wrap; gap:8px; }
     .swatch{
@@ -173,6 +170,20 @@
     .mini.danger:hover{ background:#fbeeec; border-color:#e7cdc9; }
     .mini:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
 
+    /* ---- Text tool button (sits with the sketch tools) ---- */
+    .text-tool-btn{
+      display:flex; align-items:center; gap:6px;
+      background:#fff; color:var(--ink);
+      border:1px solid rgba(0,0,0,.14); border-radius:4px;
+      padding:7px 11px; font-size:13px; font-weight:600;
+      box-shadow:0 1px 2px rgba(0,0,0,.13);
+      font-family:var(--font);
+    }
+    .text-tool-btn:hover{ background:#f4f6f9; }
+    .text-tool-btn.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+    .tt-icon{ font-weight:800; font-size:14px; line-height:1; }
+    .text-tool-btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
     .status{ font-size:12.5px; line-height:1.5; color:var(--muted); min-height:18px; margin:10px 0 0; }
     .status.error{ color:var(--danger); }
 
@@ -187,6 +198,19 @@
     .mm-popup-img{ display:block; max-width:100%; height:auto; border-radius:6px; }
     .mm-popup-empty{ margin:0; font-size:13px; color:var(--muted); font-style:italic; }
 
+    /* ---- Save dialog (fallback naming) ---- */
+    .modal{ position:fixed; inset:0; background:rgba(22,38,59,.45); display:flex; align-items:center; justify-content:center; z-index:50; padding:20px; }
+    .modal[hidden]{ display:none; }
+    .modal-card{ background:#fff; border-radius:12px; padding:22px; width:100%; max-width:380px; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+    .modal-card h3{ margin:0 0 14px; font-size:16px; }
+    .filename-row{ display:flex; align-items:stretch; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+    .filename-row:focus-within{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+    .filename-row .text-input{ border:none; border-radius:0; }
+    .filename-row .text-input:focus{ box-shadow:none; }
+    .ext{ padding:0 12px; font-size:14px; color:var(--muted); background:#f4f6f9; display:flex; align-items:center; border-left:1px solid var(--line); }
+    .modal-note{ font-size:12px; color:var(--muted); line-height:1.45; margin:12px 0 0; }
+    .modal-actions{ display:flex; justify-content:flex-end; gap:9px; margin-top:18px; }
+
     /* ---- Responsive ---- */
     @media (max-width:760px){
       .workspace{ flex-direction:column; }
@@ -194,7 +218,8 @@
       #viewDiv{ min-height:46vh; }
       .doc{ justify-content:flex-start; }
       .brand{ display:none; }
-      .btn{ padding:8px 11px; }
+      .appbar{ gap:10px; }
+      .btn{ padding:8px 10px; font-size:13px; }
     }
     @media (prefers-reduced-motion:reduce){
       *{ transition:none !important; }
@@ -212,8 +237,9 @@
       </div>
       <div class="actions">
         <button id="newBtn" class="btn" type="button">New</button>
-        <button id="openBtn" class="btn" type="button">Open file…</button>
-        <button id="saveBtn" class="btn primary" type="button">Save to file</button>
+        <button id="openBtn" class="btn" type="button">Open</button>
+        <button id="saveBtn" class="btn primary" type="button">Save</button>
+        <button id="saveAsBtn" class="btn" type="button">Save as…</button>
         <input id="fileInput" type="file" accept=".mmap,.json,application/json" hidden />
       </div>
     </header>
@@ -234,7 +260,6 @@
             <option value="osm">OpenStreetMap</option>
             <option value="terrain">Terrain with labels</option>
           </select>
-          <button id="exportBtn" class="btn full" type="button" style="margin-top:12px;">Export as GeoJSON</button>
           <p id="metaLine" class="meta">0 features</p>
         </div>
 
@@ -242,21 +267,37 @@
           <div id="listView">
             <h2>Features</h2>
             <div id="featureList">
-              <p class="empty">No features yet. Use the tools at the top-right of the map to draw a point, line, or area — then add a name, note, and photo.</p>
+              <p class="empty">No features yet. Use the tools at the top-right of the map to draw a point, line, area, or text label — then add a name, note, and photo.</p>
             </div>
-            <p class="hint">Stop drawing (press Esc) and click a feature on the map, or a row above, to edit it.</p>
+            <p class="hint">Click a feature on the map to open its pop-up. Click a row above to edit it.</p>
           </div>
           <div id="detailView" hidden></div>
         </div>
 
         <div class="block">
           <h2>About this demo</h2>
-          <p class="about"><strong>This is a concept demo.</strong> Draw features, give each one a name, a note, and a photo, then use <em>Save to file</em> to download your map as a <code>.mmap</code> file on this computer. Reopen it any time with <em>Open file…</em> — no sign-in or online account needed. Your photos are saved inside the file, so nothing is stored in an ArcGIS account.</p>
+          <p class="about"><strong>This is a concept demo.</strong> Draw features, give each one a name, a note, and a photo, then use <em>Save</em> to keep your map as a <code>.mmap</code> file on this computer. Reopen it any time with <em>Open</em> — no sign-in or online account needed. Your photos are saved inside the file, so nothing is stored in an ArcGIS account.</p>
           <p id="status" class="status" role="status" aria-live="polite"></p>
         </div>
       </aside>
 
       <div id="viewDiv"></div>
+    </div>
+  </div>
+
+  <div id="nameModal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="nameModalTitle">
+      <h3 id="nameModalTitle">Save your map</h3>
+      <label class="field-label" for="fileNameInput">File name</label>
+      <div class="filename-row">
+        <input id="fileNameInput" class="text-input" spellcheck="false" aria-label="File name" />
+        <span class="ext">.mmap</span>
+      </div>
+      <p class="modal-note">This browser saves files to its Downloads folder. To choose a folder yourself, open this page in Chrome or Edge.</p>
+      <div class="modal-actions">
+        <button id="nameCancel" class="btn" type="button">Cancel</button>
+        <button id="nameConfirm" class="btn primary" type="button">Save</button>
+      </div>
     </div>
   </div>
 
@@ -270,9 +311,9 @@
       "esri/symbols/SimpleMarkerSymbol",
       "esri/symbols/SimpleLineSymbol",
       "esri/symbols/SimpleFillSymbol",
-      "esri/geometry/support/webMercatorUtils"
+      "esri/symbols/TextSymbol"
     ], function (Map, MapView, GraphicsLayer, Sketch, Graphic,
-                 SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, webMercatorUtils) {
+                 SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol) {
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
@@ -282,7 +323,9 @@
       var featureSeq = 0;
       var dirty = false;
       var sketching = false;
+      var placingText = false;
       var selectedGraphic = null;
+      var currentFileHandle = null;   // File System Access handle, when supported
 
       var $ = function (id) { return document.getElementById(id); };
 
@@ -305,9 +348,37 @@
         layer: graphicsLayer,
         view: view,
         creationMode: "single",
+        updateOnGraphicClick: false,
         visibleElements: { settingsMenu: false }
       });
       view.ui.add(sketch, "top-right");
+
+      // ---- Text tool (custom, sits beside the sketch tools) ----
+      var textBtn = document.createElement("button");
+      textBtn.type = "button";
+      textBtn.className = "text-tool-btn";
+      textBtn.title = "Add a text label: click here, then click the map";
+      var ttIcon = document.createElement("span");
+      ttIcon.className = "tt-icon";
+      ttIcon.textContent = "T";
+      textBtn.appendChild(ttIcon);
+      textBtn.appendChild(document.createTextNode(" Text"));
+      textBtn.addEventListener("click", toggleTextPlacement);
+      view.ui.add(textBtn, "top-right");
+
+      function setTextBtnActive(on) {
+        if (on) textBtn.classList.add("active");
+        else textBtn.classList.remove("active");
+      }
+      function toggleTextPlacement() {
+        if (placingText) {
+          placingText = false; setTextBtnActive(false); setStatus("", false);
+          return;
+        }
+        placingText = true; setTextBtnActive(true);
+        try { sketch.cancel(); } catch (e) {}
+        setStatus("Click on the map to place your text label.", false);
+      }
 
       // ---- Symbols / colour ----
       function hexToRgb(hex) {
@@ -316,11 +387,19 @@
         var n = parseInt(h, 16);
         return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
       }
-      function symbolFor(kind, hex) {
+      function textSymbolFor(text, hex) {
+        return new TextSymbol({
+          text: text || "Text",
+          color: hex,
+          haloColor: "#ffffff",
+          haloSize: 1.5,
+          font: { size: 14, weight: "bold" }
+        });
+      }
+      function symbolFor(kind, hex, textValue) {
         var rgb = hexToRgb(hex);
-        if (kind === "polyline") {
-          return new SimpleLineSymbol({ color: hex, width: 3 });
-        }
+        if (kind === "text") return textSymbolFor(textValue, hex);
+        if (kind === "polyline") return new SimpleLineSymbol({ color: hex, width: 3 });
         if (kind === "polygon" || kind === "extent") {
           return new SimpleFillSymbol({
             color: [rgb[0], rgb[1], rgb[2], 0.25],
@@ -333,9 +412,9 @@
         });
       }
       function applyColor(graphic, hex) {
-        var kind = (graphic.geometry && graphic.geometry.type) || "point";
-        graphic.symbol = symbolFor(kind, hex);
         graphic.attributes = graphic.attributes || {};
+        var kind = graphic.attributes.kind || (graphic.geometry && graphic.geometry.type) || "point";
+        graphic.symbol = symbolFor(kind, hex, graphic.attributes.title);
         graphic.attributes.color = hex;
       }
 
@@ -359,7 +438,7 @@
         if (!attr.description && !attr.image) {
           var em = document.createElement("p");
           em.className = "mm-popup-empty";
-          em.textContent = "No description yet — select this feature to add one.";
+          em.textContent = "No description yet — click this feature's row to add one.";
           wrap.appendChild(em);
         }
         return wrap;
@@ -442,7 +521,7 @@
         if (gs.length === 0) {
           var p = document.createElement("p");
           p.className = "empty";
-          p.textContent = "No features yet. Use the tools at the top-right of the map to draw a point, line, or area — then add a name, note, and photo.";
+          p.textContent = "No features yet. Use the tools at the top-right of the map to draw a point, line, area, or text label — then add a name, note, and photo.";
           list.appendChild(p);
           return;
         }
@@ -458,7 +537,7 @@
           name.className = "row-title"; name.textContent = a.title || ("Feature " + (i + 1));
 
           var kind = document.createElement("span");
-          kind.className = "kind"; kind.textContent = (g.geometry && g.geometry.type) || "feature";
+          kind.className = "kind"; kind.textContent = a.kind || (g.geometry && g.geometry.type) || "feature";
 
           row.appendChild(dot);
           row.appendChild(name);
@@ -529,19 +608,29 @@
       }
       function renderDetail(g) {
         var a = g.attributes || (g.attributes = {});
+        var isText = a.kind === "text";
         var host = $("detailView");
         host.innerHTML = "";
 
-        var back = document.createElement("button");
-        back.type = "button"; back.className = "link-back"; back.textContent = "‹ All features";
-        back.addEventListener("click", showList);
-        host.appendChild(back);
+        var done = document.createElement("button");
+        done.type = "button";
+        done.className = "btn primary full done-btn";
+        done.textContent = "Done";
+        done.addEventListener("click", function () {
+          showList();
+          setStatus("Feature saved. Pick a tool — or Text — to add another.", false);
+        });
+        host.appendChild(done);
 
-        host.appendChild(fieldLabel("Name"));
+        host.appendChild(fieldLabel(isText ? "Text" : "Name"));
         var name = document.createElement("input");
         name.className = "text-input"; name.value = a.title || "";
-        name.setAttribute("aria-label", "Feature name");
-        name.addEventListener("input", function () { a.title = name.value; markDirty(); });
+        name.setAttribute("aria-label", isText ? "Label text" : "Feature name");
+        name.addEventListener("input", function () {
+          a.title = name.value;
+          if (a.kind === "text") applyColor(g, a.color || DEFAULT_COLOR);
+          markDirty();
+        });
         host.appendChild(name);
 
         host.appendChild(fieldLabel("Description"));
@@ -551,7 +640,7 @@
         desc.addEventListener("input", function () { a.description = desc.value; markDirty(); });
         host.appendChild(desc);
 
-        host.appendChild(fieldLabel("Colour"));
+        host.appendChild(fieldLabel(isText ? "Text colour" : "Colour"));
         var sw = document.createElement("div");
         sw.className = "swatches";
         PALETTE.forEach(function (hex) {
@@ -615,7 +704,10 @@
 
       // ---- Sketch events ----
       sketch.on("create", function (event) {
-        if (event.state === "start" || event.state === "active") sketching = true;
+        if (event.state === "start" || event.state === "active") {
+          sketching = true;
+          if (placingText) { placingText = false; setTextBtnActive(false); }
+        }
         if (event.state === "cancel") sketching = false;
         if (event.state === "complete" && event.graphic) {
           sketching = false;
@@ -640,13 +732,40 @@
       });
       sketch.on("delete", function () { showList(); updateMeta(); markDirty(); });
 
-      // ---- Click a feature on the map to edit it ----
+      // ---- Map click: place text, or open a feature's pop-up ----
       view.on("click", function (event) {
+        if (placingText) {
+          event.stopPropagation();
+          placingText = false; setTextBtnActive(false);
+          featureSeq += 1;
+          var tg = new Graphic({
+            geometry: event.mapPoint,
+            symbol: textSymbolFor("Text", DEFAULT_COLOR),
+            attributes: { title: "Text", description: "", image: "", color: DEFAULT_COLOR, kind: "text" },
+            popupTemplate: makePopupTemplate()
+          });
+          graphicsLayer.add(tg);
+          updateMeta(); markDirty();
+          setStatus("", false);
+          selectFeature(tg);
+          return;
+        }
         if (sketching) return;
         view.hitTest(event, { include: graphicsLayer }).then(function (resp) {
           var hit = resp.results && resp.results[0];
-          if (hit && hit.graphic) selectFeature(hit.graphic);
+          if (hit && hit.graphic) {
+            view.openPopup({ features: [hit.graphic], location: event.mapPoint });
+          } else {
+            view.closePopup();
+          }
         }).catch(function () {});
+      });
+
+      // ---- Escape cancels text placement ----
+      view.on("key-down", function (event) {
+        if (event.key === "Escape" && placingText) {
+          placingText = false; setTextBtnActive(false); setStatus("", false);
+        }
       });
 
       // ---- Basemap + title ----
@@ -656,7 +775,7 @@
       });
       $("mapTitle").addEventListener("input", markDirty);
 
-      // ---- Save / open (.mmap) ----
+      // ---- Document model ----
       function buildDocument() {
         return {
           type: DOC_TYPE,
@@ -682,16 +801,69 @@
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
-      function saveToFile() {
+      function fallbackDownload() {
         try {
-          var doc = buildDocument();
-          downloadText(JSON.stringify(doc, null, 2), safeName() + ".mmap", "application/json");
+          downloadText(JSON.stringify(buildDocument(), null, 2), safeName() + ".mmap", "application/json");
           markClean();
-          setStatus("Saved “" + doc.title + "” to your downloads.", false);
-        } catch (err) {
-          setStatus("Couldn't save the file. Try again.", true);
-        }
+          setStatus("Saved “" + safeName() + ".mmap” to your downloads.", false);
+        } catch (e) { setStatus("Couldn't save the file. Try again.", true); }
       }
+
+      // ---- Save: pick name + location (or write back to the open file) ----
+      function doPickerSave(forceNew) {
+        var text = JSON.stringify(buildDocument(), null, 2);
+
+        if (!window.showSaveFilePicker) {     // Safari / Firefox: name it, then download
+          openNameDialog();
+          return;
+        }
+
+        Promise.resolve()
+          .then(function () {
+            if (forceNew || !currentFileHandle) {
+              return window.showSaveFilePicker({
+                suggestedName: safeName() + ".mmap",
+                types: [{ description: "MapMaker map", accept: { "application/json": [".mmap"] } }]
+              }).then(function (handle) { currentFileHandle = handle; });
+            }
+          })
+          .then(function () {
+            return currentFileHandle.createWritable();
+          })
+          .then(function (writable) {
+            return writable.write(text).then(function () { return writable.close(); });
+          })
+          .then(function () {
+            markClean();
+            setStatus("Saved “" + (currentFileHandle.name || (safeName() + ".mmap")) + "”.", false);
+          })
+          .catch(function (err) {
+            if (err && err.name === "AbortError") return;   // user cancelled the dialog
+            currentFileHandle = null;
+            fallbackDownload();                              // blocked context: still save
+          });
+      }
+      function saveToFile() { doPickerSave(false); }
+      function saveAs() { doPickerSave(true); }
+
+      // ---- Fallback save dialog (name only; no folder picker available) ----
+      function openNameDialog() {
+        $("fileNameInput").value = safeName();
+        $("nameModal").hidden = false;
+        setTimeout(function () { $("fileNameInput").focus(); $("fileNameInput").select(); }, 0);
+      }
+      function closeNameDialog() { $("nameModal").hidden = true; }
+      function confirmNameDialog() {
+        var name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
+        closeNameDialog();
+        try {
+          downloadText(JSON.stringify(buildDocument(), null, 2), name + ".mmap", "application/json");
+          markClean();
+          setStatus("Saved “" + name + ".mmap” to your downloads.", false);
+        } catch (e) { setStatus("Couldn't save the file. Try again.", true); }
+      }
+
+      // ---- Open: native file picker (gives a writable handle), else file input ----
       function loadDocument(doc) {
         $("mapTitle").value = doc.title || "Untitled map";
         if (doc.basemap) { $("basemapSelect").value = doc.basemap; map.basemap = doc.basemap; }
@@ -717,68 +889,42 @@
         updateMeta(); markClean();
         setStatus("Opened “" + (doc.title || "map") + "” — " + graphicsLayer.graphics.length + " feature(s).", false);
       }
+      function parseAndLoad(text) {
+        var doc;
+        try { doc = JSON.parse(text); }
+        catch (err) { setStatus("Couldn't read that file — it may be damaged. Try another .mmap file.", true); return false; }
+        if (!doc || doc.type !== DOC_TYPE) {
+          setStatus("That isn't a MapMaker Local map. Open a .mmap file you saved here.", true); return false;
+        }
+        loadDocument(doc);
+        return true;
+      }
+      function openMap() {
+        if (window.showOpenFilePicker) {
+          window.showOpenFilePicker({
+            multiple: false,
+            types: [{ description: "MapMaker map", accept: { "application/json": [".mmap", ".json"] } }]
+          }).then(function (handles) {
+            var handle = handles[0];
+            return handle.getFile().then(function (file) {
+              return file.text().then(function (text) {
+                if (parseAndLoad(text)) currentFileHandle = handle;   // future Saves write back here
+              });
+            });
+          }).catch(function (err) {
+            if (err && err.name === "AbortError") return;
+            $("fileInput").click();   // fall back if the picker fails
+          });
+        } else {
+          $("fileInput").click();
+        }
+      }
       function openFromFile(file) {
+        currentFileHandle = null;   // file-input open gives no writable handle
         var reader = new FileReader();
-        reader.onload = function () {
-          var doc;
-          try { doc = JSON.parse(reader.result); }
-          catch (err) {
-            setStatus("Couldn't read that file — it may be damaged. Try another .mmap file.", true);
-            return;
-          }
-          if (!doc || doc.type !== DOC_TYPE) {
-            setStatus("That isn't a MapMaker Local map. Open a .mmap file you saved here.", true);
-            return;
-          }
-          loadDocument(doc);
-        };
+        reader.onload = function () { parseAndLoad(reader.result); };
         reader.onerror = function () { setStatus("Couldn't open that file. Try again.", true); };
         reader.readAsText(file);
-      }
-
-      // ---- Export GeoJSON (WGS84) ----
-      function esriToGeoJSONGeometry(geom) {
-        var g = geom;
-        if (geom.spatialReference && geom.spatialReference.isWebMercator) {
-          g = webMercatorUtils.webMercatorToGeographic(geom);
-        }
-        if (g.type === "point") return { type: "Point", coordinates: [g.longitude, g.latitude] };
-        if (g.type === "polyline") {
-          var paths = g.paths || [];
-          return paths.length === 1
-            ? { type: "LineString", coordinates: paths[0] }
-            : { type: "MultiLineString", coordinates: paths };
-        }
-        if (g.type === "polygon") {
-          return { type: "Polygon", coordinates: g.rings || [] };
-        }
-        return null;
-      }
-      function exportGeoJSON() {
-        var features = [];
-        graphicsLayer.graphics.toArray().forEach(function (g) {
-          if (!g.geometry) return;
-          var geom = esriToGeoJSONGeometry(g.geometry);
-          if (!geom) return;
-          var a = g.attributes || {};
-          features.push({
-            type: "Feature",
-            properties: {
-              name: a.title || "",
-              description: a.description || "",
-              type: a.kind || g.geometry.type,
-              color: a.color || ""
-            },
-            geometry: geom
-          });
-        });
-        if (features.length === 0) {
-          setStatus("Nothing to export yet — draw a feature first.", true);
-          return;
-        }
-        var fc = { type: "FeatureCollection", features: features };
-        downloadText(JSON.stringify(fc, null, 2), safeName() + ".geojson", "application/geo+json");
-        setStatus("Exported " + features.length + " feature(s) as GeoJSON. Photos aren't included in GeoJSON.", false);
       }
 
       // ---- New map ----
@@ -786,6 +932,8 @@
         if (dirty && !window.confirm("Start a new map? Unsaved changes will be lost.")) return;
         graphicsLayer.removeAll();
         featureSeq = 0;
+        currentFileHandle = null;
+        placingText = false; setTextBtnActive(false);
         $("mapTitle").value = "Untitled map";
         $("basemapSelect").value = "topo-vector";
         map.basemap = "topo-vector";
@@ -797,24 +945,35 @@
 
       // ---- Wire up ----
       $("saveBtn").addEventListener("click", saveToFile);
-      $("openBtn").addEventListener("click", function () { $("fileInput").click(); });
+      $("saveAsBtn").addEventListener("click", saveAs);
+      $("openBtn").addEventListener("click", openMap);
+      $("newBtn").addEventListener("click", newMap);
       $("fileInput").addEventListener("change", function (e) {
         var f = e.target.files && e.target.files[0];
         if (f) openFromFile(f);
         e.target.value = "";
       });
-      $("exportBtn").addEventListener("click", exportGeoJSON);
-      $("newBtn").addEventListener("click", newMap);
+
+      $("nameCancel").addEventListener("click", closeNameDialog);
+      $("nameConfirm").addEventListener("click", confirmNameDialog);
+      $("fileNameInput").addEventListener("keydown", function (e) {
+        if (e.key === "Enter") confirmNameDialog();
+        if (e.key === "Escape") closeNameDialog();
+      });
+      $("nameModal").addEventListener("click", function (e) {
+        if (e.target === $("nameModal")) closeNameDialog();
+      });
 
       window.addEventListener("beforeunload", function (e) {
         if (dirty) { e.preventDefault(); e.returnValue = ""; }
       });
 
       view.when(function () {
+        if (view.popup) view.popup.autoOpenEnabled = false;
         renderList();
         updateMeta();
         updateSaveState();
-        setStatus("Draw a feature, then give it a name, note, and photo.", false);
+        setStatus("Draw a feature or add text, then give it a name, note, and photo.", false);
       });
     });
   </script>
