@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Map app — local save concept (mock-up)</title>
+
+  <link rel="stylesheet" href="https://js.arcgis.com/4.34/esri/themes/light/main.css" />
+  <script src="https://js.arcgis.com/4.34/"></script>
+
+  <style>
+    :root{
+      --ink:#323232; --ink2:#4c4c4c; --muted:#8a8a8a;
+      --line:#e1e1e1; --line2:#d6d6d6;
+      --blue:#0079c1; --blue-soft:#cfe9f6; --blue-tint:#eef6fb;
+      --font:"Avenir Next W00","Avenir Next","Helvetica Neue",Arial,sans-serif;
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; }
+    body{ font-family:var(--font); color:var(--ink); background:#fff; -webkit-font-smoothing:antialiased; }
+
+    #app{ display:flex; flex-direction:column; height:100vh; }
+
+    /* ---- Top bar (no branding) ---- */
+    .topbar{
+      height:54px; flex:0 0 auto;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 18px; background:#fff; border-bottom:1px solid var(--line); z-index:10;
+    }
+    .topbar-left{ display:flex; align-items:center; gap:12px; color:var(--muted); font-size:13px; }
+    .logo-placeholder{
+      width:140px; height:24px; border:1px dashed #d0d0d0; border-radius:4px;
+      display:flex; align-items:center; justify-content:center; font-size:10px; color:#bdbdbd; letter-spacing:.04em;
+    }
+    .topbar-right{ display:flex; align-items:center; }
+    .mock-note{ font-size:12px; color:var(--muted); }
+    .ver{ font-size:11px; color:#a8a8a8; margin-left:10px; }
+    .help{ font-size:13px; color:var(--muted); margin-left:16px; cursor:default; }
+
+    /* ---- Map ---- */
+    .map-wrap{ position:relative; flex:1 1 auto; min-height:0; }
+    #viewDiv{ position:absolute; inset:0; }
+
+    .left-btn{
+      width:34px; height:34px; background:#fff; border:none; border-radius:2px;
+      box-shadow:0 1px 2px rgba(0,0,0,.3); display:flex; align-items:center; justify-content:center;
+      color:var(--ink2); cursor:pointer;
+    }
+    .left-btn:hover{ background:#f3f3f3; }
+    .left-btn svg{ width:18px; height:18px; }
+
+    /* ---- Bottom toolbar (MapMaker style) ---- */
+    .toolbar{
+      position:absolute; left:50%; bottom:18px; transform:translateX(-50%);
+      display:flex; align-items:stretch; gap:2px;
+      background:#fff; border:1px solid var(--line); border-radius:6px;
+      box-shadow:0 2px 12px rgba(0,0,0,.18); padding:6px; z-index:20;
+      max-width:calc(100% - 24px); overflow-x:auto;
+    }
+    .tool{
+      display:flex; flex-direction:column; align-items:center; gap:5px;
+      min-width:64px; padding:8px 10px; border:none; background:transparent; border-radius:5px;
+      color:var(--ink2); cursor:pointer; font-size:11px; font-family:var(--font); white-space:nowrap;
+    }
+    .tool svg{ width:22px; height:22px; }
+    .tool:hover{ background:#f3f3f3; }
+    .tool.active{ background:var(--blue); color:#fff; }
+
+    .toggle{ display:flex; flex-direction:column; gap:3px; justify-content:center; padding:4px 2px; }
+    .toggle button{
+      font-size:11px; font-weight:600; border:none; border-radius:4px; padding:5px 14px;
+      cursor:pointer; font-family:var(--font);
+    }
+    .toggle .on{ background:var(--blue-soft); color:var(--blue); }
+    .toggle .off{ background:transparent; color:#9a9a9a; }
+
+    /* ---- Side panels ---- */
+    .side-panel{
+      position:absolute; top:16px; right:16px; width:344px; max-height:calc(100% - 32px);
+      overflow-y:auto; background:#fff; border:1px solid var(--line2); border-radius:4px;
+      box-shadow:0 2px 16px rgba(0,0,0,.2); z-index:25;
+    }
+    .panel-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid #ededed; }
+    .panel-head h2{ margin:0; font-size:16px; font-weight:600; color:var(--ink); }
+    .panel-close{ border:none; background:none; font-size:20px; line-height:1; color:#6e6e6e; cursor:pointer; padding:2px 7px; border-radius:4px; }
+    .panel-close:hover{ background:#f3f3f3; }
+    .panel-body{ padding:16px; }
+
+    .section{ margin-bottom:22px; }
+    .section:last-child{ margin-bottom:0; }
+    .section-label{ font-size:13px; font-weight:600; color:var(--ink); margin:0 0 10px; }
+
+    .tools-row{ display:flex; gap:8px; flex-wrap:wrap; }
+    .tbtn{ width:40px; height:40px; border:1px solid var(--line2); border-radius:4px; background:#fff; color:var(--ink2); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .tbtn svg{ width:20px; height:20px; }
+    .tbtn:hover{ background:#f3f3f3; }
+    .tbtn.active{ border-color:var(--blue); color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
+
+    .popup-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .remove-btn{ display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line2); border-radius:4px; background:#fff; padding:6px 13px; font-size:12.5px; color:var(--ink2); cursor:pointer; font-family:var(--font); }
+    .remove-btn:hover{ background:#f3f3f3; }
+    .remove-btn:disabled{ opacity:.5; cursor:default; }
+
+    .field{ width:100%; padding:9px 10px; border:1px solid var(--line2); border-radius:3px; font-size:14px; color:var(--ink); margin-bottom:10px; font-family:var(--font); }
+    .field:focus{ outline:none; border-color:var(--blue); }
+    .field:disabled{ background:#f7f7f7; color:#bbb; }
+    textarea.field{ resize:vertical; min-height:64px; line-height:1.45; margin-bottom:0; }
+    .popup-hint{ font-size:12px; color:var(--muted); margin:0 0 12px; line-height:1.45; }
+
+    .swatches{ display:flex; gap:9px; flex-wrap:wrap; }
+    .swatch{ width:30px; height:30px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--line2); cursor:pointer; padding:0; }
+    .swatch:hover{ box-shadow:0 0 0 1px var(--muted); }
+    .swatch.active{ box-shadow:0 0 0 2px var(--blue); }
+
+    .slider-row{ display:flex; align-items:center; gap:12px; }
+    .slider-row input[type=range]{ flex:1; accent-color:var(--blue); }
+    .slider-val{ font-size:13px; color:var(--ink2); width:34px; text-align:right; }
+
+    /* ---- Save panel ---- */
+    .save-tiles{ display:flex; gap:14px; margin-bottom:18px; }
+    .save-tile{ flex:1; display:flex; flex-direction:column; align-items:center; gap:11px; padding:18px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; font-size:14px; color:var(--ink); font-family:var(--font); }
+    .save-tile:hover{ background:#f7f7f7; }
+    .tile-icon{ width:50px; height:50px; border-radius:9px; display:flex; align-items:center; justify-content:center; }
+    .tile-icon svg{ width:26px; height:26px; }
+    .save-tile.primary .tile-icon{ background:var(--blue); color:#fff; }
+    .save-tile.ghost .tile-icon{ background:#eef0f2; color:#5b5b5b; }
+    .save-note{ font-size:13px; line-height:1.55; color:var(--ink2); margin:0; }
+    .save-note strong{ color:var(--ink); }
+    .save-note a{ color:var(--blue); cursor:pointer; text-decoration:none; }
+    .save-note a:hover{ text-decoration:underline; }
+
+    /* ---- Toast ---- */
+    .toast{ position:absolute; left:50%; bottom:98px; transform:translateX(-50%); background:#323232; color:#fff; font-size:13px; padding:9px 16px; border-radius:18px; z-index:40; box-shadow:0 2px 10px rgba(0,0,0,.28); }
+    .toast[hidden]{ display:none; }
+
+    /* ---- Pop-up content ---- */
+    .mm-popup-text{ margin:0 0 8px; font-size:13.5px; line-height:1.5; color:var(--ink); white-space:pre-wrap; }
+    .mm-popup-img{ display:block; max-width:100%; height:auto; border-radius:5px; }
+    .mm-popup-empty{ margin:0; font-size:13px; color:var(--muted); font-style:italic; }
+
+    /* ---- Fallback save dialog ---- */
+    .modal{ position:fixed; inset:0; background:rgba(40,40,40,.45); display:flex; align-items:center; justify-content:center; z-index:60; padding:20px; }
+    .modal[hidden]{ display:none; }
+    .modal-card{ background:#fff; border-radius:8px; padding:22px; width:100%; max-width:380px; box-shadow:0 12px 40px rgba(0,0,0,.3); }
+    .modal-card h3{ margin:0 0 14px; font-size:16px; }
+    .filename-row{ display:flex; align-items:stretch; border:1px solid var(--line2); border-radius:4px; overflow:hidden; }
+    .filename-row:focus-within{ border-color:var(--blue); }
+    .filename-row .field{ border:none; border-radius:0; margin:0; }
+    .ext{ padding:0 12px; font-size:14px; color:var(--muted); background:#f4f6f9; display:flex; align-items:center; border-left:1px solid var(--line2); }
+    .modal-note{ font-size:12px; color:var(--muted); line-height:1.45; margin:12px 0 0; }
+    .modal-actions{ display:flex; justify-content:flex-end; gap:9px; margin-top:18px; }
+    .mbtn{ font-size:13.5px; font-weight:600; padding:8px 15px; border-radius:5px; border:1px solid var(--line2); background:#fff; color:var(--ink); cursor:pointer; font-family:var(--font); }
+    .mbtn.primary{ background:var(--blue); border-color:var(--blue); color:#fff; }
+
+    @media (max-width:780px){ .side-panel{ width:calc(100% - 32px); } }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="logo-placeholder">no branding</div>
+      </div>
+      <div class="topbar-right">
+        <span class="mock-note">Concept mock-up — Sketch &amp; Save are live</span>
+        <span class="ver" id="appVer"></span>
+        <span class="help">Help</span>
+      </div>
+    </header>
+
+    <div class="map-wrap">
+      <div id="viewDiv"></div>
+
+      <!-- Bottom toolbar -->
+      <div class="toolbar" id="toolbar">
+        <button class="tool" data-mock="Basemaps" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 0h7v7h-7v-7z"/></svg>
+          <span>Basemaps</span>
+        </button>
+        <button class="tool" id="openTool" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>
+          <span>Open map</span>
+        </button>
+        <button class="tool" data-mock="Map layers" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5zM3 13l9 5 9-5M3 18l9 5 9-5"/></svg>
+          <span>Map layers</span>
+        </button>
+        <button class="tool" data-mock="Add layer" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+          <span>Add layer</span>
+        </button>
+        <button class="tool" data-mock="Legend" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2v2H3V5zm4 0h14v2H7V5zM3 11h2v2H3v-2zm4 0h14v2H7v-2zM3 17h2v2H3v-2zm4 0h14v2H7v-2z"/></svg>
+          <span>Legend</span>
+        </button>
+        <button class="tool" data-mock="Measure" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8h18v8H3z"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4" stroke-width="1.6"/></svg>
+          <span>Measure</span>
+        </button>
+        <button class="tool" id="sketchTool" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          <span>Sketch</span>
+        </button>
+        <div class="toggle">
+          <button class="on" type="button" data-mock="2D view">2D</button>
+          <button class="off" type="button" data-mock="3D view">3D</button>
+        </div>
+        <button class="tool" data-mock="Bookmarks" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 2h12a1 1 0 0 1 1 1v18l-7-4-7 4V3a1 1 0 0 1 1-1z"/></svg>
+          <span>Bookmarks</span>
+        </button>
+        <button class="tool" id="saveTool" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg>
+          <span>Save</span>
+        </button>
+      </div>
+
+      <!-- Sketch panel -->
+      <div class="side-panel" id="sketchPanel" hidden>
+        <div class="panel-head"><h2>Sketch</h2><button class="panel-close" id="sketchClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <div class="section">
+            <p class="section-label">Tools</p>
+            <div class="tools-row">
+              <button class="tbtn" id="tPoint" type="button" title="Point"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg></button>
+              <button class="tbtn" id="tLine" type="button" title="Line"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-5 4 3 7-8"/></svg></button>
+              <button class="tbtn" id="tPolygon" type="button" title="Polygon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l9 6.5-3.4 10.5H6.4L3 9.5z"/></svg></button>
+              <button class="tbtn" id="tCircle" type="button" title="Circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/></svg></button>
+              <button class="tbtn" id="tText" type="button" title="Text"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 19l5-14h2.1l5 14h-2.3l-1.25-3.7H8.55L7.3 19H5zm4.2-5.6h4.1l-2.05-6.05L9.2 13.4z"/></svg></button>
+              <button class="tbtn" id="tSelect" type="button" title="Select"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l15 7.5-6.4 2.1-2.1 6.4L5 3z"/></svg></button>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="popup-head">
+              <p class="section-label" style="margin:0;">Pop-up</p>
+              <button class="remove-btn" id="removePopup" type="button">&minus;&nbsp; Remove</button>
+            </div>
+            <p class="popup-hint" id="popupHint">Draw a feature, or click one on the map, to add its pop-up.</p>
+            <input class="field" id="fImage" type="text" placeholder="Add image URL (optional)" />
+            <input class="field" id="fTitle" type="text" placeholder="Title (optional)" />
+            <textarea class="field" id="fDesc" placeholder="Description (optional)"></textarea>
+          </div>
+
+          <div class="section">
+            <p class="section-label">Symbol</p>
+            <div class="swatches" id="swatches"></div>
+          </div>
+
+          <div class="section">
+            <p class="section-label">Size</p>
+            <div class="slider-row">
+              <input type="range" id="fSize" min="6" max="48" value="12" />
+              <span class="slider-val" id="sizeVal">12</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <p class="section-label">Rotation</p>
+            <div class="slider-row">
+              <input type="range" id="fRot" min="0" max="360" value="0" />
+              <span class="slider-val" id="rotVal">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save panel (local-save concept, replacing the sign-in flow) -->
+      <div class="side-panel" id="savePanel" hidden style="width:300px;">
+        <div class="panel-head"><h2>Save</h2><button class="panel-close" id="saveClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <div class="save-tiles">
+            <button class="save-tile ghost" id="screenshotTile" type="button">
+              <span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm8 3.2A3.3 3.3 0 1 0 12 16.8 3.3 3.3 0 0 0 12 10.2z"/></svg></span>
+              Screenshot
+            </button>
+            <button class="save-tile primary" id="saveMapTile" type="button">
+              <span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg></span>
+              Save map
+            </button>
+          </div>
+          <p class="save-note"><strong>No sign-in needed.</strong> Your map saves to a <code>.mmap</code> file on this device — choose a name and folder, then reopen it any time. <a id="openMapLink">Open a saved map</a></p>
+        </div>
+      </div>
+
+      <div id="toast" class="toast" hidden></div>
+    </div>
+  </div>
+
+  <!-- Fallback save dialog (browsers without the folder picker) -->
+  <div id="nameModal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <h3>Save your map</h3>
+      <div class="filename-row">
+        <input id="fileNameInput" class="field" spellcheck="false" aria-label="File name" />
+        <span class="ext">.mmap</span>
+      </div>
+      <p class="modal-note">This browser saves files to its Downloads folder. To choose a folder, open this page in Chrome or Edge.</p>
+      <div class="modal-actions">
+        <button id="nameCancel" class="mbtn" type="button">Cancel</button>
+        <button id="nameConfirm" class="mbtn primary" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/layers/GraphicsLayer",
+      "esri/Graphic",
+      "esri/widgets/Sketch/SketchViewModel",
+      "esri/symbols/SimpleMarkerSymbol",
+      "esri/symbols/SimpleLineSymbol",
+      "esri/symbols/SimpleFillSymbol",
+      "esri/symbols/TextSymbol",
+      "esri/widgets/Home",
+      "esri/widgets/Compass"
+    ], function (Map, MapView, GraphicsLayer, Graphic, SketchViewModel,
+                 SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol, Home, Compass) {
+
+      var DOC_TYPE = "MapMakerLocalDocument";
+      var DOC_VERSION = 2;
+      var APP_VERSION = "1.0";
+      var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
+      var DEFAULT_COLOR = PALETTE[0];
+
+      var $ = function (id) { return document.getElementById(id); };
+      function newUid() { return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+      var featureSeq = 0;
+      var dirty = false;
+      var drawing = false;
+      var placingText = false;
+      var sketchPanelOpen = false;
+      var selectedFeature = null;
+      var currentTool = null;
+      var currentFileHandle = null;
+      var pendingStyle = { color: DEFAULT_COLOR, size: 12, rotation: 0 };
+
+      var graphicsLayer = new GraphicsLayer();
+      var map = new Map({ basemap: "topo-vector", layers: [graphicsLayer] });
+      var view = new MapView({ container: "viewDiv", map: map, center: [-30, 35], zoom: 2 });
+
+      // Left controls: search (inert) + home + compass + default zoom
+      var searchBtn = document.createElement("button");
+      searchBtn.className = "left-btn";
+      searchBtn.type = "button";
+      searchBtn.title = "Search (not active in this mock-up)";
+      searchBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+      searchBtn.addEventListener("click", function () { toast("Search isn't wired up in this concept mock-up."); });
+      view.ui.add(searchBtn, { position: "top-left", index: 0 });
+      view.ui.add(new Home({ view: view }), { position: "top-left", index: 1 });
+      view.ui.add(new Compass({ view: view }), "bottom-left");
+
+      var sketchVM = new SketchViewModel({ view: view, layer: graphicsLayer, updateOnGraphicClick: false });
+
+      // ---- Symbols ----
+      function hexToRgb(hex) {
+        var h = String(hex).replace("#", "");
+        if (h.length === 3) h = h.split("").map(function (c) { return c + c; }).join("");
+        var n = parseInt(h, 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      }
+      function symbolFor(kind, o) {
+        var rgb = hexToRgb(o.color);
+        if (kind === "text") {
+          return new TextSymbol({ text: o.text || "Text", color: o.color, haloColor: "#ffffff", haloSize: 1.5,
+            font: { size: Math.max(10, o.size || 16), weight: "bold" }, angle: o.rotation || 0 });
+        }
+        if (kind === "polyline") return new SimpleLineSymbol({ color: o.color, width: Math.max(2, Math.round((o.size || 12) / 4)) });
+        if (kind === "polygon" || kind === "extent") {
+          return new SimpleFillSymbol({ color: [rgb[0], rgb[1], rgb[2], 0.25], outline: { color: o.color, width: 2 } });
+        }
+        return new SimpleMarkerSymbol({ style: "circle", color: o.color, size: o.size || 12, angle: o.rotation || 0,
+          outline: { color: "#ffffff", width: 1.5 } });
+      }
+      function applyStyle(g) {
+        var a = g.attributes || (g.attributes = {});
+        var kind = a.kind || (g.geometry && g.geometry.type) || "point";
+        g.symbol = symbolFor(kind, { color: a.color || DEFAULT_COLOR, size: a.size || 12, rotation: a.rotation || 0, text: a.title });
+      }
+
+      // ---- Pop-up ----
+      function popupContent(event) {
+        var a = (event && event.graphic && event.graphic.attributes) || {};
+        var wrap = document.createElement("div");
+        if (a.description) { var p = document.createElement("p"); p.className = "mm-popup-text"; p.textContent = a.description; wrap.appendChild(p); }
+        if (a.imageUrl) { var img = document.createElement("img"); img.className = "mm-popup-img"; img.src = a.imageUrl; img.alt = a.title || "image"; wrap.appendChild(img); }
+        if (!a.description && !a.imageUrl) { var em = document.createElement("p"); em.className = "mm-popup-empty"; em.textContent = "No pop-up details yet."; wrap.appendChild(em); }
+        return wrap;
+      }
+      function makePopupTemplate() { return { title: "{title}", content: popupContent }; }
+
+      // ---- Toast ----
+      function toast(msg) {
+        var t = $("toast"); t.textContent = msg; t.hidden = false;
+        clearTimeout(t._timer); t._timer = setTimeout(function () { t.hidden = true; }, 2600);
+      }
+      function markDirty() { dirty = true; }
+      function markClean() { dirty = false; }
+
+      // ---- Sketch panel: field binding ----
+      function popupFieldsEnabled(on) {
+        $("fImage").disabled = !on; $("fTitle").disabled = !on; $("fDesc").disabled = !on; $("removePopup").disabled = !on;
+        $("popupHint").style.display = on ? "none" : "block";
+      }
+      function highlightSwatch(hex) {
+        var kids = $("swatches").children;
+        for (var i = 0; i < kids.length; i++) {
+          if (kids[i].getAttribute("data-color") === hex) kids[i].classList.add("active");
+          else kids[i].classList.remove("active");
+        }
+      }
+      function populatePanel() {
+        var sel = selectedFeature;
+        popupFieldsEnabled(!!sel);
+        $("fImage").value = sel ? (sel.attributes.imageUrl || "") : "";
+        $("fTitle").value = sel ? (sel.attributes.title || "") : "";
+        $("fDesc").value = sel ? (sel.attributes.description || "") : "";
+        var color = sel ? (sel.attributes.color || DEFAULT_COLOR) : pendingStyle.color;
+        var size = sel ? (sel.attributes.size || 12) : pendingStyle.size;
+        var rot = sel ? (sel.attributes.rotation || 0) : pendingStyle.rotation;
+        highlightSwatch(color);
+        $("fSize").value = size; $("sizeVal").textContent = size;
+        $("fRot").value = rot; $("rotVal").textContent = rot;
+      }
+      function selectForEdit(g) { selectedFeature = g; populatePanel(); }
+
+      // Build swatches
+      (function () {
+        var box = $("swatches");
+        PALETTE.forEach(function (hex) {
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "swatch"; b.style.background = hex;
+          b.setAttribute("data-color", hex); b.setAttribute("aria-label", "Colour " + hex); b.title = hex;
+          b.addEventListener("click", function () {
+            if (selectedFeature) { selectedFeature.attributes.color = hex; applyStyle(selectedFeature); markDirty(); }
+            else { pendingStyle.color = hex; }
+            highlightSwatch(hex);
+          });
+          box.appendChild(b);
+        });
+      })();
+
+      // Pop-up field handlers
+      $("fTitle").addEventListener("input", function () {
+        if (!selectedFeature) return;
+        selectedFeature.attributes.title = this.value;
+        if (selectedFeature.attributes.kind === "text") applyStyle(selectedFeature);
+        markDirty();
+      });
+      $("fDesc").addEventListener("input", function () {
+        if (!selectedFeature) return; selectedFeature.attributes.description = this.value; markDirty();
+      });
+      $("fImage").addEventListener("input", function () {
+        if (!selectedFeature) return; selectedFeature.attributes.imageUrl = this.value; markDirty();
+      });
+      $("removePopup").addEventListener("click", function () {
+        if (!selectedFeature) return;
+        selectedFeature.attributes.description = "";
+        selectedFeature.attributes.imageUrl = "";
+        if (selectedFeature.attributes.kind !== "text") selectedFeature.attributes.title = "";
+        populatePanel(); markDirty();
+      });
+      $("fSize").addEventListener("input", function () {
+        var v = parseInt(this.value, 10); $("sizeVal").textContent = v;
+        if (selectedFeature) { selectedFeature.attributes.size = v; applyStyle(selectedFeature); markDirty(); }
+        else pendingStyle.size = v;
+      });
+      $("fRot").addEventListener("input", function () {
+        var v = parseInt(this.value, 10); $("rotVal").textContent = v;
+        if (selectedFeature) { selectedFeature.attributes.rotation = v; applyStyle(selectedFeature); markDirty(); }
+        else pendingStyle.rotation = v;
+      });
+
+      // ---- Tools ----
+      function updateToolButtons() {
+        var map2 = { point: "tPoint", polyline: "tLine", polygon: "tPolygon", circle: "tCircle", text: "tText", select: "tSelect" };
+        Object.keys(map2).forEach(function (k) {
+          var el = $(map2[k]); if (!el) return;
+          if (currentTool === k) el.classList.add("active"); else el.classList.remove("active");
+        });
+      }
+      function setTool(tool) {
+        currentTool = tool;
+        try { sketchVM.cancel(); } catch (e) {}
+        placingText = false;
+        updateToolButtons();
+        if (tool === "point" || tool === "polyline" || tool === "polygon" || tool === "circle") {
+          sketchVM.create(tool);
+        } else if (tool === "text") {
+          placingText = true;
+          toast("Click on the map to place your text.");
+        }
+        // "select" / null: nothing — clicking a feature selects it for editing
+      }
+      $("tPoint").addEventListener("click", function () { setTool("point"); });
+      $("tLine").addEventListener("click", function () { setTool("polyline"); });
+      $("tPolygon").addEventListener("click", function () { setTool("polygon"); });
+      $("tCircle").addEventListener("click", function () { setTool("circle"); });
+      $("tText").addEventListener("click", function () { setTool("text"); });
+      $("tSelect").addEventListener("click", function () { setTool("select"); });
+
+      sketchVM.on("create", function (event) {
+        if (event.state === "start" || event.state === "active") drawing = true;
+        if (event.state === "cancel") drawing = false;
+        if (event.state === "complete" && event.graphic) {
+          drawing = false;
+          featureSeq += 1;
+          var g = event.graphic;
+          g.attributes = { uid: newUid(), kind: (g.geometry && g.geometry.type) || "feature",
+            title: "", description: "", imageUrl: "",
+            color: pendingStyle.color, size: pendingStyle.size, rotation: pendingStyle.rotation };
+          applyStyle(g);
+          g.popupTemplate = makePopupTemplate();
+          setTool("select");
+          selectForEdit(g);
+          markDirty();
+        }
+      });
+      sketchVM.on("update", function (event) {
+        // No reshape in this mock-up: cancel any update the moment it begins.
+        if (event.state === "start") { try { sketchVM.cancel(); } catch (e) {} }
+      });
+
+      // ---- Map click: place text / select-to-edit / show pop-up ----
+      view.on("click", function (event) {
+        if (placingText) {
+          event.stopPropagation();
+          placingText = false; setTool("select");
+          featureSeq += 1;
+          var tg = new Graphic({
+            geometry: event.mapPoint,
+            attributes: { uid: newUid(), kind: "text", title: "Text", description: "", imageUrl: "",
+              color: pendingStyle.color, size: Math.max(14, pendingStyle.size), rotation: pendingStyle.rotation },
+            popupTemplate: makePopupTemplate()
+          });
+          applyStyle(tg);
+          graphicsLayer.add(tg);
+          selectForEdit(tg);
+          markDirty();
+          return;
+        }
+        if (drawing) return;
+        view.hitTest(event, { include: graphicsLayer }).then(function (resp) {
+          var hit = resp.results && resp.results[0];
+          if (sketchPanelOpen) {
+            selectForEdit(hit && hit.graphic ? hit.graphic : null);   // edit mode
+          } else if (hit && hit.graphic) {
+            view.openPopup({ features: [hit.graphic], location: event.mapPoint });   // view mode
+          } else {
+            view.closePopup();
+          }
+        }).catch(function () {});
+      });
+      view.on("key-down", function (event) {
+        if (event.key === "Escape") { placingText = false; if (sketchPanelOpen) setTool("select"); }
+      });
+
+      // ---- Panels ----
+      function setToolbarActive(which, on) {
+        var el = which === "sketch" ? $("sketchTool") : $("saveTool");
+        if (on) el.classList.add("active"); else el.classList.remove("active");
+      }
+      function openPanel(which) {
+        sketchPanelOpen = (which === "sketch");
+        $("sketchPanel").hidden = which !== "sketch";
+        $("savePanel").hidden = which !== "save";
+        setToolbarActive("sketch", which === "sketch");
+        setToolbarActive("save", which === "save");
+        try { view.closePopup(); } catch (e) {}
+        if (which === "sketch") { setTool("select"); selectForEdit(null); }
+        else { try { sketchVM.cancel(); } catch (e) {} placingText = false; currentTool = null; updateToolButtons(); }
+      }
+      function closePanels() {
+        sketchPanelOpen = false;
+        $("sketchPanel").hidden = true; $("savePanel").hidden = true;
+        setToolbarActive("sketch", false); setToolbarActive("save", false);
+        try { sketchVM.cancel(); } catch (e) {} placingText = false; currentTool = null; updateToolButtons();
+        selectedFeature = null;
+      }
+      $("sketchTool").addEventListener("click", function () { sketchPanelOpen ? closePanels() : openPanel("sketch"); });
+      $("saveTool").addEventListener("click", function () { $("savePanel").hidden ? openPanel("save") : closePanels(); });
+      $("sketchClose").addEventListener("click", closePanels);
+      $("saveClose").addEventListener("click", closePanels);
+
+      // Inert mock buttons
+      var mocks = document.querySelectorAll("[data-mock]");
+      for (var i = 0; i < mocks.length; i++) {
+        (function (el) {
+          el.addEventListener("click", function () { toast(el.getAttribute("data-mock") + " isn't wired up in this concept mock-up."); });
+        })(mocks[i]);
+      }
+
+      // ---- Document model + save/open ----
+      function buildDocument() {
+        return {
+          type: DOC_TYPE, version: DOC_VERSION, title: "Untitled map", savedAt: new Date().toISOString(),
+          basemap: map.basemap && map.basemap.id ? map.basemap.id : "topo-vector",
+          viewpoint: { center: [view.center.longitude, view.center.latitude], zoom: view.zoom },
+          graphics: graphicsLayer.graphics.toArray().map(function (g) {
+            return { attributes: g.attributes, geometry: g.geometry.toJSON() };
+          })
+        };
+      }
+      function downloadText(text, filename, mime) {
+        var blob = new Blob([text], { type: mime || "text/plain" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a"); a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      }
+      function downloadDataUrl(dataUrl, filename) {
+        var a = document.createElement("a"); a.href = dataUrl; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      }
+      function fallbackDownload() {
+        try { downloadText(JSON.stringify(buildDocument(), null, 2), "my-map.mmap", "application/json"); markClean(); toast("Saved my-map.mmap to your downloads."); }
+        catch (e) { toast("Couldn't save the file."); }
+      }
+      function saveMap() {
+        var text = JSON.stringify(buildDocument(), null, 2);
+        if (!window.showSaveFilePicker) { openNameDialog(); return; }
+        Promise.resolve().then(function () {
+          if (!currentFileHandle) {
+            return window.showSaveFilePicker({ suggestedName: "my-map.mmap",
+              types: [{ description: "Map", accept: { "application/json": [".mmap"] } }] })
+              .then(function (h) { currentFileHandle = h; });
+          }
+        }).then(function () { return currentFileHandle.createWritable(); })
+          .then(function (w) { return w.write(text).then(function () { return w.close(); }); })
+          .then(function () { markClean(); toast("Saved " + (currentFileHandle.name || "your map") + "."); })
+          .catch(function (err) { if (err && err.name === "AbortError") return; currentFileHandle = null; fallbackDownload(); });
+      }
+      function takeScreenshot() {
+        view.takeScreenshot({ format: "png" }).then(function (s) { downloadDataUrl(s.dataUrl, "map.png"); toast("Screenshot saved to your downloads."); })
+          .catch(function () { toast("Couldn't take a screenshot."); });
+      }
+
+      function loadDocument(doc) {
+        if (doc.basemap) map.basemap = doc.basemap;
+        graphicsLayer.removeAll();
+        (doc.graphics || []).forEach(function (gj) {
+          try {
+            var g = Graphic.fromJSON ? Graphic.fromJSON({ geometry: gj.geometry, attributes: gj.attributes }) : new Graphic();
+            if (!g.geometry && gj.geometry) g.geometry = gj.geometry;
+            g.attributes = gj.attributes || {};
+            if (!g.attributes.uid) g.attributes.uid = newUid();
+            if (!g.attributes.kind) g.attributes.kind = (g.geometry && g.geometry.type) || "feature";
+            applyStyle(g);
+            g.popupTemplate = makePopupTemplate();
+            graphicsLayer.add(g);
+          } catch (e) {}
+        });
+        featureSeq = graphicsLayer.graphics.length;
+        if (doc.viewpoint && doc.viewpoint.center) view.goTo({ center: doc.viewpoint.center, zoom: doc.viewpoint.zoom }).catch(function () {});
+        selectedFeature = null;
+        if (sketchPanelOpen) populatePanel();
+        markClean();
+        toast("Opened map — " + graphicsLayer.graphics.length + " feature(s).");
+      }
+      function parseAndLoad(text) {
+        var doc;
+        try { doc = JSON.parse(text); } catch (e) { toast("Couldn't read that file."); return; }
+        if (!doc || doc.type !== DOC_TYPE) { toast("That isn't a saved map (.mmap) from here."); return; }
+        loadDocument(doc);
+      }
+      function openMap() {
+        if (window.showOpenFilePicker) {
+          window.showOpenFilePicker({ multiple: false, types: [{ description: "Map", accept: { "application/json": [".mmap", ".json"] } }] })
+            .then(function (handles) {
+              var h = handles[0];
+              return h.getFile().then(function (f) { return f.text().then(function (t) { parseAndLoad(t); currentFileHandle = h; }); });
+            }).catch(function (err) { if (err && err.name === "AbortError") return; pickViaInput(); });
+        } else { pickViaInput(); }
+      }
+      function pickViaInput() {
+        var input = document.createElement("input");
+        input.type = "file"; input.accept = ".mmap,.json,application/json";
+        input.addEventListener("change", function (e) {
+          var f = e.target.files && e.target.files[0];
+          if (!f) return;
+          currentFileHandle = null;
+          var r = new FileReader(); r.onload = function () { parseAndLoad(r.result); }; r.readAsText(f);
+        });
+        input.click();
+      }
+
+      // Fallback save dialog
+      function openNameDialog() { $("fileNameInput").value = "my-map"; $("nameModal").hidden = false; setTimeout(function () { $("fileNameInput").focus(); $("fileNameInput").select(); }, 0); }
+      function closeNameDialog() { $("nameModal").hidden = true; }
+      function confirmNameDialog() {
+        var name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
+        closeNameDialog();
+        try { downloadText(JSON.stringify(buildDocument(), null, 2), name + ".mmap", "application/json"); markClean(); toast("Saved " + name + ".mmap to your downloads."); }
+        catch (e) { toast("Couldn't save the file."); }
+      }
+      $("nameCancel").addEventListener("click", closeNameDialog);
+      $("nameConfirm").addEventListener("click", confirmNameDialog);
+      $("fileNameInput").addEventListener("keydown", function (e) { if (e.key === "Enter") confirmNameDialog(); if (e.key === "Escape") closeNameDialog(); });
+      $("nameModal").addEventListener("click", function (e) { if (e.target === $("nameModal")) closeNameDialog(); });
+
+      // Wire save panel + open toolbar button
+      $("saveMapTile").addEventListener("click", saveMap);
+      $("screenshotTile").addEventListener("click", takeScreenshot);
+      $("openMapLink").addEventListener("click", openMap);
+      $("openTool").addEventListener("click", openMap);
+
+      window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+      view.when(function () {
+        if (view.popup) view.popup.autoOpenEnabled = false;
+        var v = $("appVer"); if (v) v.textContent = "v" + APP_VERSION;
+      });
+    });
+  </script>
+</body>
+</html>
