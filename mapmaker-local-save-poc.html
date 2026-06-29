@@ -51,6 +51,7 @@
       white-space:nowrap;
     }
     .brand span{ color:var(--accent); }
+    .brand .ver{ margin-left:8px; color:var(--muted); font-weight:600; font-size:11px; letter-spacing:0; text-transform:none; }
 
     .doc{
       flex:1 1 auto; min-width:0;
@@ -229,7 +230,7 @@
 <body>
   <div id="app">
     <header class="appbar">
-      <div class="brand">MapMaker <span>· Local</span></div>
+      <div class="brand">MapMaker <span>· Local</span><span class="ver" id="appVer"></span></div>
       <div class="doc">
         <input id="mapTitle" class="doc-title" value="Untitled map"
                aria-label="Map name" spellcheck="false" />
@@ -319,6 +320,7 @@
       var DOC_VERSION = 2;
       var PALETTE = ["#0e7c66","#1f6feb","#d4572a","#8250df","#b4453a","#1a7f37","#9a6700","#e3116c","#5d6b7e"];
       var DEFAULT_COLOR = PALETTE[0];
+      var APP_VERSION = "1.0";
 
       var featureSeq = 0;
       var dirty = false;
@@ -358,7 +360,10 @@
         view: view,
         creationMode: "single",
         updateOnGraphicClick: false,
-        visibleElements: { settingsMenu: false }
+        visibleElements: {
+          settingsMenu: false,
+          selectionTools: { "rectangle-selection": false, "lasso-selection": false }
+        }
       });
       view.ui.add(sketch, "top-right");
 
@@ -739,8 +744,9 @@
         }
       });
       sketch.on("update", function (event) {
-        if (event.state === "start" || event.state === "active") sketching = true;
-        if (event.state === "complete") { sketching = false; updateMeta(); markDirty(); }
+        // Reshaping isn't part of this demo: cancel any update the Sketch tries to start,
+        // so clicking a feature opens its pop-up rather than showing edit handles.
+        if (event.state === "start") { try { sketch.cancel(); } catch (e) {} }
       });
       sketch.on("delete", function () { showList(); updateMeta(); markDirty(); });
 
@@ -959,6 +965,7 @@
       }
 
       // ---- Wire up ----
+      (function () { var v = $("appVer"); if (v) v.textContent = "v" + APP_VERSION; })();
       $("saveBtn").addEventListener("click", saveToFile);
       $("saveAsBtn").addEventListener("click", saveAs);
       $("openBtn").addEventListener("click", openMap);
