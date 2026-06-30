@@ -152,6 +152,35 @@
     .mbtn{ font-size:13.5px; font-weight:600; padding:8px 15px; border-radius:5px; border:1px solid var(--line2); background:#fff; color:var(--ink); cursor:pointer; font-family:var(--font); }
     .mbtn.primary{ background:var(--blue); border-color:var(--blue); color:#fff; }
 
+    /* ---- Open map dialog ---- */
+    .open-modal{ align-items:flex-start; padding-top:60px; }
+    .open-card{ background:#fff; border-radius:8px; width:100%; max-width:920px; max-height:calc(100vh - 92px); display:flex; flex-direction:column; box-shadow:0 16px 50px rgba(0,0,0,.32); overflow:hidden; }
+    .open-head{ display:flex; align-items:flex-start; justify-content:space-between; padding:20px 22px 6px; }
+    .open-head h2{ margin:0; font-size:19px; font-weight:600; color:var(--ink); }
+    .open-head p{ margin:4px 0 0; font-size:13px; color:var(--muted); }
+    .open-tabs{ display:flex; gap:26px; padding:10px 22px 0; border-bottom:1px solid var(--line); }
+    .open-tab{ border:none; background:none; padding:10px 2px; font-size:14px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; font-family:var(--font); }
+    .open-tab:hover{ color:var(--ink2); }
+    .open-tab.active{ color:var(--blue); border-bottom-color:var(--blue); }
+    .open-search{ position:relative; padding:16px 22px 0; }
+    .open-search .search-ic{ position:absolute; left:34px; top:25px; color:var(--muted); }
+    .open-search .search-ic svg{ width:16px; height:16px; }
+    .open-search input{ width:100%; padding:9px 12px 9px 38px; border:1px solid var(--line2); border-radius:4px; font-size:14px; font-family:var(--font); }
+    .open-search input:focus{ outline:none; border-color:var(--blue); }
+    .open-body{ flex:1 1 auto; overflow-y:auto; padding:18px 22px 22px; }
+    .open-pane[hidden]{ display:none; }
+    .map-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:18px; }
+    .map-card{ border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; display:flex; flex-direction:column; }
+    .card-thumb{ height:148px; background:#e9eef2 center/cover no-repeat; }
+    .card-body{ padding:12px 14px 14px; display:flex; flex-direction:column; gap:9px; }
+    .card-title{ font-size:14.5px; font-weight:600; color:var(--ink); line-height:1.3; }
+    .card-select{ align-self:flex-start; display:inline-flex; align-items:center; gap:7px; border:none; background:none; color:var(--blue); font-size:13.5px; font-weight:600; cursor:pointer; padding:3px 0; font-family:var(--font); }
+    .card-select svg{ width:16px; height:16px; }
+    .card-select:hover{ text-decoration:underline; }
+    .grid-status{ font-size:13px; color:var(--muted); padding:22px 4px; margin:0; }
+    .mine-box{ max-width:470px; padding:14px 4px; }
+    .mine-lead{ font-size:14px; line-height:1.55; color:var(--ink2); margin:0 0 16px; }
+    .mine-hint{ font-size:12px; color:var(--muted); margin:12px 0 0; }
     @media (max-width:780px){ .side-panel{ width:calc(100% - 32px); } }
   </style>
 </head>
@@ -162,7 +191,7 @@
         <div class="logo-placeholder">no branding</div>
       </div>
       <div class="topbar-right">
-        <span class="mock-note">Concept mock-up — Sketch &amp; Save are live</span>
+        <span class="mock-note">Concept mock-up — Sketch, Open &amp; Save are live</span>
         <span class="ver" id="appVer"></span>
         <span class="help">Help</span>
       </div>
@@ -287,6 +316,40 @@
     </div>
   </div>
 
+  <!-- Open map dialog (MapMaker group maps + My Maps) -->
+  <div id="openModal" class="modal open-modal" hidden>
+    <div class="open-card" role="dialog" aria-modal="true">
+      <div class="open-head">
+        <div>
+          <h2>Open map</h2>
+          <p>Select a map to open and explore it in the map view.</p>
+        </div>
+        <button class="panel-close" id="openModalClose" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="open-tabs">
+        <button class="open-tab active" id="tabGroup" type="button">MapMaker maps</button>
+        <button class="open-tab" id="tabMine" type="button">My Maps</button>
+      </div>
+      <div class="open-search" id="groupSearchRow">
+        <span class="search-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+        <input id="groupSearch" type="text" placeholder="Search" />
+      </div>
+      <div class="open-body">
+        <div id="groupPane" class="open-pane">
+          <div id="groupGrid" class="map-grid"></div>
+          <p id="groupStatus" class="grid-status">Loading maps&hellip;</p>
+        </div>
+        <div id="minePane" class="open-pane" hidden>
+          <div class="mine-box">
+            <p class="mine-lead"><strong>Your maps</strong> are the <code>.mmap</code> files saved on this device — no account, no cloud.</p>
+            <button class="mbtn primary" id="browseDevice" type="button">Browse your device&hellip;</button>
+            <p class="mine-hint">The file picker should have opened. If you closed it, use the button above.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Fallback save dialog (browsers without the folder picker) -->
   <div id="nameModal" class="modal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true">
@@ -306,6 +369,7 @@
   <script>
     require([
       "esri/Map",
+      "esri/WebMap",
       "esri/views/MapView",
       "esri/layers/GraphicsLayer",
       "esri/Graphic",
@@ -316,12 +380,14 @@
       "esri/symbols/TextSymbol",
       "esri/widgets/Home",
       "esri/widgets/Compass"
-    ], function (Map, MapView, GraphicsLayer, Graphic, SketchViewModel,
+    ], function (Map, WebMap, MapView, GraphicsLayer, Graphic, SketchViewModel,
                  SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol, Home, Compass) {
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "1.0";
+      var APP_VERSION = "1.1";
+      var PORTAL = "https://www.arcgis.com";
+      var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
       var DEFAULT_COLOR = PALETTE[0];
 
@@ -336,6 +402,7 @@
       var selectedFeature = null;
       var currentTool = null;
       var currentFileHandle = null;
+      var groupLoaded = false;
       var pendingStyle = { color: DEFAULT_COLOR, size: 12, rotation: 0 };
 
       var graphicsLayer = new GraphicsLayer();
@@ -597,7 +664,7 @@
       function buildDocument() {
         return {
           type: DOC_TYPE, version: DOC_VERSION, title: "Untitled map", savedAt: new Date().toISOString(),
-          basemap: map.basemap && map.basemap.id ? map.basemap.id : "topo-vector",
+          basemap: view.map && view.map.basemap && view.map.basemap.id ? view.map.basemap.id : "topo-vector",
           viewpoint: { center: [view.center.longitude, view.center.latitude], zoom: view.zoom },
           graphics: graphicsLayer.graphics.toArray().map(function (g) {
             return { attributes: g.attributes, geometry: g.geometry.toJSON() };
@@ -638,8 +705,9 @@
       }
 
       function loadDocument(doc) {
-        if (doc.basemap) map.basemap = doc.basemap;
+        detachGraphics();
         graphicsLayer.removeAll();
+        view.map = new Map({ basemap: doc.basemap || "topo-vector", layers: [graphicsLayer] });
         (doc.graphics || []).forEach(function (gj) {
           try {
             var g = Graphic.fromJSON ? Graphic.fromJSON({ geometry: gj.geometry, attributes: gj.attributes }) : new Graphic();
@@ -656,6 +724,8 @@
         if (doc.viewpoint && doc.viewpoint.center) view.goTo({ center: doc.viewpoint.center, zoom: doc.viewpoint.zoom }).catch(function () {});
         selectedFeature = null;
         if (sketchPanelOpen) populatePanel();
+        if (view.popup) view.popup.autoOpenEnabled = false;
+        closeOpenModal();
         markClean();
         toast("Opened map — " + graphicsLayer.graphics.length + " feature(s).");
       }
@@ -686,6 +756,75 @@
         input.click();
       }
 
+      // ---- Open map dialog: MapMaker group maps + My Maps ----
+      function detachGraphics() { try { if (view.map) view.map.remove(graphicsLayer); } catch (e) {} }
+      function openOpenModal(tab) {
+        $("openModal").hidden = false;
+        switchOpenTab(tab || "group");
+        if ((tab || "group") === "group" && !groupLoaded) { loadGroupMaps(""); groupLoaded = true; }
+      }
+      function closeOpenModal() { var m = $("openModal"); if (m) m.hidden = true; }
+      function switchOpenTab(tab) {
+        var g = (tab !== "mine");
+        $("tabGroup").classList.toggle("active", g);
+        $("tabMine").classList.toggle("active", !g);
+        $("groupPane").hidden = !g;
+        $("minePane").hidden = g;
+        $("groupSearchRow").style.display = g ? "" : "none";
+        if (!g) { openMap(); }                       // My Maps tab -> device file picker
+      }
+      function thumbUrl(item) {
+        if (!item || !item.thumbnail) return null;
+        return PORTAL + "/sharing/rest/content/items/" + item.id + "/info/" + item.thumbnail;
+      }
+      function makeMapCard(item) {
+        var card = document.createElement("div"); card.className = "map-card";
+        var thumb = document.createElement("div"); thumb.className = "card-thumb";
+        var t = thumbUrl(item); if (t) thumb.style.backgroundImage = "url('" + t + "')";
+        var body = document.createElement("div"); body.className = "card-body";
+        var title = document.createElement("div"); title.className = "card-title"; title.textContent = item.title || "Untitled map";
+        var btn = document.createElement("button"); btn.type = "button"; btn.className = "card-select";
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h6M5 5v6M5 5l7 7"/><path d="M19 19h-6M19 19v-6M19 19l-7-7"/></svg> Select map';
+        btn.addEventListener("click", function () { selectGroupMap(item.id, item.title); });
+        body.appendChild(title); body.appendChild(btn);
+        card.appendChild(thumb); card.appendChild(body);
+        return card;
+      }
+      function loadGroupMaps(query) {
+        var grid = $("groupGrid"); var status = $("groupStatus");
+        grid.innerHTML = ""; status.style.display = "block"; status.textContent = "Loading maps\u2026";
+        var q = 'group:' + GROUP_ID + ' type:"Web Map"';
+        if (query) q += ' AND title:"' + query.replace(/"/g, "") + '"';
+        var url = PORTAL + "/sharing/rest/search?f=json&num=24&sortField=title&sortOrder=asc&q=" + encodeURIComponent(q);
+        fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+          var results = (data && data.results) || [];
+          if (!results.length) { status.textContent = query ? "No maps match that search." : "No maps found in the group."; return; }
+          status.style.display = "none";
+          results.forEach(function (item) { grid.appendChild(makeMapCard(item)); });
+        }).catch(function () { status.textContent = "Couldn't reach the group. Check the group ID and that its maps are shared publicly."; });
+      }
+      var groupSearchTimer = null;
+      function onGroupSearch() {
+        clearTimeout(groupSearchTimer);
+        var v = $("groupSearch").value.trim();
+        groupSearchTimer = setTimeout(function () { loadGroupMaps(v); }, 350);
+      }
+      function selectGroupMap(itemId, title) {
+        closeOpenModal();
+        toast("Opening \u201C" + (title || "map") + "\u201D\u2026");
+        var wm = new WebMap({ portalItem: { id: itemId } });
+        wm.load().then(function () {
+          detachGraphics();
+          wm.add(graphicsLayer);                     // keep sketch layer on top
+          view.map = wm;
+          if (view.popup) view.popup.autoOpenEnabled = false;
+          var vp = wm.initialViewProperties && wm.initialViewProperties.viewpoint;
+          if (vp) view.goTo(vp).catch(function () {});
+          markClean();
+          toast("Opened: " + (title || "map"));
+        }).catch(function () { toast("Couldn't open that map (it may not be shared publicly)."); });
+      }
+
       // Fallback save dialog
       function openNameDialog() { $("fileNameInput").value = "my-map"; $("nameModal").hidden = false; setTimeout(function () { $("fileNameInput").focus(); $("fileNameInput").select(); }, 0); }
       function closeNameDialog() { $("nameModal").hidden = true; }
@@ -703,8 +842,14 @@
       // Wire save panel + open toolbar button
       $("saveMapTile").addEventListener("click", saveMap);
       $("screenshotTile").addEventListener("click", takeScreenshot);
-      $("openMapLink").addEventListener("click", openMap);
-      $("openTool").addEventListener("click", openMap);
+      $("openMapLink").addEventListener("click", function () { closePanels(); openOpenModal("mine"); });
+      $("openTool").addEventListener("click", function () { openOpenModal("group"); });
+      $("tabGroup").addEventListener("click", function () { switchOpenTab("group"); if (!groupLoaded) { loadGroupMaps(""); groupLoaded = true; } });
+      $("tabMine").addEventListener("click", function () { switchOpenTab("mine"); });
+      $("openModalClose").addEventListener("click", closeOpenModal);
+      $("browseDevice").addEventListener("click", openMap);
+      $("groupSearch").addEventListener("input", onGroupSearch);
+      $("openModal").addEventListener("click", function (e) { if (e.target === $("openModal")) closeOpenModal(); });
 
       window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 
