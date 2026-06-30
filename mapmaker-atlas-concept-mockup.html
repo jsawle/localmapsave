@@ -400,7 +400,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "1.3";
+      var APP_VERSION = "1.4";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -761,21 +761,17 @@
           .catch(function () { toast("Couldn't take a screenshot."); });
       }
 
-      // Frame the actual data on open. We wait for the freshly-swapped map to be
-      // ready first — otherwise the map finishing its load resets the view back to
-      // world AFTER an early goTo. Falls back to the stored viewpoint if no graphics.
-      function zoomToData(doc) {
+      // Frame the data extent (the loaded graphics), falling back to the stored
+      // viewpoint only if there are none.
+      function frameData(doc) {
         var gs = graphicsLayer.graphics.toArray();
-        var go = function () {
-          if (gs.length) view.goTo(gs, { animate: false }).catch(function () {});
-          else if (doc && doc.viewpoint && doc.viewpoint.center) view.goTo({ center: doc.viewpoint.center, zoom: doc.viewpoint.zoom }, { animate: false }).catch(function () {});
-        };
-        if (view.map && view.map.when) view.map.when(go, go); else go();
+        if (gs.length) view.goTo(gs, { animate: false }).catch(function () {});
+        else if (doc && doc.viewpoint && doc.viewpoint.center) view.goTo({ center: doc.viewpoint.center, zoom: doc.viewpoint.zoom }, { animate: false }).catch(function () {});
       }
       function loadDocument(doc) {
         detachGraphics();
         graphicsLayer.removeAll();
-        view.map = new Map({ basemap: doc.basemap || "topo-vector", layers: [graphicsLayer] });
+        var newMap = new Map({ basemap: doc.basemap || "topo-vector", layers: [graphicsLayer] });
         (doc.graphics || []).forEach(function (gj) {
           try {
             var g = Graphic.fromJSON ? Graphic.fromJSON({ geometry: gj.geometry, attributes: gj.attributes }) : new Graphic();
@@ -789,13 +785,23 @@
           } catch (e) {}
         });
         featureSeq = graphicsLayer.graphics.length;
-        zoomToData(doc);
         selectedFeature = null;
         if (sketchPanelOpen) populatePanel();
         if (view.popup) view.popup.autoOpenEnabled = false;
         closeOpenModal();
         markClean();
-        toast("Opened map — " + graphicsLayer.graphics.length + " feature(s).");
+
+        // Swap to the new map only AFTER its basemap has loaded, then frame the data.
+        // Assigning an unloaded Map and calling goTo immediately is rejected by the
+        // mid-swap view (that left the map at its world starting view). This mirrors
+        // the group-map path, which loads the map before assigning + goTo.
+        var apply = function () {
+          view.map = newMap;
+          frameData(doc);
+          toast("Opened map — " + graphicsLayer.graphics.length + " feature(s).");
+        };
+        if (newMap.basemap && newMap.basemap.load) newMap.basemap.load().then(apply, apply);
+        else apply();
       }
       function parseAndLoad(text) {
         var doc;
