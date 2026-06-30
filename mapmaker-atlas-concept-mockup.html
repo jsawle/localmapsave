@@ -400,7 +400,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "1.4";
+      var APP_VERSION = "1.5";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -423,6 +423,7 @@
       var graphicsLayer = new GraphicsLayer();
       var map = new Map({ basemap: "topo-vector", layers: [graphicsLayer] });
       var view = new MapView({ container: "viewDiv", map: map, center: [-30, 35], zoom: 2 });
+      var currentBasemapId = "topo-vector";
 
       // Left controls: search (inert) + home + compass + default zoom
       var searchBtn = document.createElement("button");
@@ -761,17 +762,34 @@
           .catch(function () { toast("Couldn't take a screenshot."); });
       }
 
-      // Frame the data extent (the loaded graphics), falling back to the stored
-      // viewpoint only if there are none.
+      // Frame the data extent: the loaded graphics. If that goTo can't resolve
+      // (e.g. a point-only extent), fall back to the stored viewpoint, which the
+      // fieldwork export already sets to the data extent.
       function frameData(doc) {
         var gs = graphicsLayer.graphics.toArray();
-        if (gs.length) view.goTo(gs, { animate: false }).catch(function () {});
-        else if (doc && doc.viewpoint && doc.viewpoint.center) view.goTo({ center: doc.viewpoint.center, zoom: doc.viewpoint.zoom }, { animate: false }).catch(function () {});
+        var vp = (doc && doc.viewpoint && doc.viewpoint.center) ? { center: doc.viewpoint.center, zoom: doc.viewpoint.zoom } : null;
+        if (gs.length) {
+          view.goTo(gs, { animate: false }).catch(function () { if (vp) view.goTo(vp, { animate: false }).catch(function () {}); });
+        } else if (vp) {
+          view.goTo(vp, { animate: false }).catch(function () {});
+        }
       }
       function loadDocument(doc) {
-        detachGraphics();
         graphicsLayer.removeAll();
-        var newMap = new Map({ basemap: doc.basemap || "topo-vector", layers: [graphicsLayer] });
+        // Reuse the ONE persistent map instead of swapping in a new Map. Swapping the
+        // map/basemap leaves goTo unable to frame the data until the new basemap's LODs
+        // load — which is why the view stayed at world. The persistent map is already
+        // live in the view, so goTo against it works. (Only swap back when returning
+        // from a group web map.)
+        if (view.map !== map) {
+          try { if (view.map) view.map.remove(graphicsLayer); } catch (e) {}
+          try { map.removeAll(); } catch (e) {}
+          view.map = map;
+        }
+        if (!map.layers.includes(graphicsLayer)) map.add(graphicsLayer);
+        if (doc.basemap && doc.basemap !== currentBasemapId) {
+          try { map.basemap = doc.basemap; currentBasemapId = doc.basemap; } catch (e) {}
+        }
         (doc.graphics || []).forEach(function (gj) {
           try {
             var g = Graphic.fromJSON ? Graphic.fromJSON({ geometry: gj.geometry, attributes: gj.attributes }) : new Graphic();
@@ -790,18 +808,8 @@
         if (view.popup) view.popup.autoOpenEnabled = false;
         closeOpenModal();
         markClean();
-
-        // Swap to the new map only AFTER its basemap has loaded, then frame the data.
-        // Assigning an unloaded Map and calling goTo immediately is rejected by the
-        // mid-swap view (that left the map at its world starting view). This mirrors
-        // the group-map path, which loads the map before assigning + goTo.
-        var apply = function () {
-          view.map = newMap;
-          frameData(doc);
-          toast("Opened map — " + graphicsLayer.graphics.length + " feature(s).");
-        };
-        if (newMap.basemap && newMap.basemap.load) newMap.basemap.load().then(apply, apply);
-        else apply();
+        frameData(doc);
+        toast("Opened map — " + graphicsLayer.graphics.length + " feature(s).");
       }
       function parseAndLoad(text) {
         var doc;
