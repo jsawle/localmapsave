@@ -105,6 +105,14 @@
     .field:focus{ outline:none; border-color:var(--blue); }
     .field:disabled{ background:#f7f7f7; color:#bbb; }
     textarea.field{ resize:vertical; min-height:64px; line-height:1.45; margin-bottom:0; }
+    .img-upload{ margin-bottom:10px; }
+    .img-pick{ width:100%; padding:9px 10px; border:1px dashed var(--line2); border-radius:3px; background:#fafafa; color:var(--muted); font-size:14px; font-family:var(--font); cursor:pointer; text-align:left; }
+    .img-pick:hover{ border-color:var(--blue); color:var(--ink); }
+    .img-pick:disabled{ background:#f7f7f7; color:#bbb; cursor:not-allowed; }
+    .img-preview{ position:relative; margin-bottom:10px; }
+    .img-preview img{ display:block; max-width:100%; height:auto; border-radius:4px; border:1px solid var(--line2); }
+    .img-remove{ position:absolute; top:6px; right:6px; width:24px; height:24px; border:none; border-radius:50%; background:rgba(0,0,0,0.55); color:#fff; font-size:15px; line-height:1; cursor:pointer; }
+    .img-remove:hover{ background:rgba(0,0,0,0.8); }
     .popup-hint{ font-size:12px; color:var(--muted); margin:0 0 12px; line-height:1.45; }
 
     .swatches{ display:flex; gap:9px; flex-wrap:wrap; }
@@ -266,7 +274,14 @@
               <button class="remove-btn" id="removePopup" type="button">&minus;&nbsp; Remove</button>
             </div>
             <p class="popup-hint" id="popupHint">Draw a feature, or click one on the map, to add its pop-up.</p>
-            <input class="field" id="fImage" type="text" placeholder="Add image URL (optional)" />
+            <div class="img-upload">
+              <input id="fImageFile" type="file" accept="image/*" hidden />
+              <button class="img-pick" id="imgPick" type="button">Add image (optional)</button>
+              <div class="img-preview" id="imgPreview" hidden>
+                <img id="imgThumb" alt="pop-up image preview" />
+                <button class="img-remove" id="imgRemove" type="button" title="Remove image">&times;</button>
+              </div>
+            </div>
             <input class="field" id="fTitle" type="text" placeholder="Title (optional)" />
             <textarea class="field" id="fDesc" placeholder="Description (optional)"></textarea>
           </div>
@@ -385,7 +400,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "1.1";
+      var APP_VERSION = "1.2";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -433,7 +448,8 @@
         var rgb = hexToRgb(o.color);
         if (kind === "text") {
           return new TextSymbol({ text: o.text || "Text", color: o.color, haloColor: "#ffffff", haloSize: 1.5,
-            font: { size: Math.max(10, o.size || 16), weight: "bold" }, angle: o.rotation || 0 });
+            font: { size: Math.max(10, o.size || 16), weight: "bold" }, angle: o.rotation || 0,
+            yoffset: 14 });
         }
         if (kind === "polyline") return new SimpleLineSymbol({ color: o.color, width: Math.max(2, Math.round((o.size || 12) / 4)) });
         if (kind === "polygon" || kind === "extent") {
@@ -469,7 +485,7 @@
 
       // ---- Sketch panel: field binding ----
       function popupFieldsEnabled(on) {
-        $("fImage").disabled = !on; $("fTitle").disabled = !on; $("fDesc").disabled = !on; $("removePopup").disabled = !on;
+        $("imgPick").disabled = !on; $("fTitle").disabled = !on; $("fDesc").disabled = !on; $("removePopup").disabled = !on;
         $("popupHint").style.display = on ? "none" : "block";
       }
       function highlightSwatch(hex) {
@@ -482,7 +498,7 @@
       function populatePanel() {
         var sel = selectedFeature;
         popupFieldsEnabled(!!sel);
-        $("fImage").value = sel ? (sel.attributes.imageUrl || "") : "";
+        setImagePreview(sel ? (sel.attributes.imageUrl || "") : "");
         $("fTitle").value = sel ? (sel.attributes.title || "") : "";
         $("fDesc").value = sel ? (sel.attributes.description || "") : "";
         var color = sel ? (sel.attributes.color || DEFAULT_COLOR) : pendingStyle.color;
@@ -520,8 +536,49 @@
       $("fDesc").addEventListener("input", function () {
         if (!selectedFeature) return; selectedFeature.attributes.description = this.value; markDirty();
       });
-      $("fImage").addEventListener("input", function () {
-        if (!selectedFeature) return; selectedFeature.attributes.imageUrl = this.value; markDirty();
+      // Image is a LOCAL upload now (embedded as a data URL), not a URL field.
+      function setImagePreview(dataUrl) {
+        var prev = $("imgPreview"), thumb = $("imgThumb"), pick = $("imgPick");
+        if (dataUrl) { thumb.src = dataUrl; prev.hidden = false; pick.textContent = "Replace image"; }
+        else { thumb.removeAttribute("src"); prev.hidden = true; pick.textContent = "Add image (optional)"; }
+      }
+      // Downscale on import (max 1200px, JPEG) so embedded images don't bloat the .mmap.
+      function fileToDataUrl(file, cb) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          var img = new Image();
+          img.onload = function () {
+            try {
+              var max = 1200, w = img.width, h = img.height;
+              if (w > max || h > max) { var s = Math.min(max / w, max / h); w = Math.round(w * s); h = Math.round(h * s); }
+              var c = document.createElement("canvas"); c.width = w; c.height = h;
+              c.getContext("2d").drawImage(img, 0, 0, w, h);
+              cb(c.toDataURL("image/jpeg", 0.85));
+            } catch (e) { cb(reader.result); }   // fallback: original data URL
+          };
+          img.onerror = function () { cb(reader.result); };
+          img.src = reader.result;
+        };
+        reader.onerror = function () { toast("Couldn't read that image."); };
+        reader.readAsDataURL(file);
+      }
+      $("imgPick").addEventListener("click", function () { if (!$("imgPick").disabled) $("fImageFile").click(); });
+      $("fImageFile").addEventListener("change", function () {
+        var file = this.files && this.files[0];
+        this.value = "";
+        if (!file || !selectedFeature) return;
+        if (!/^image\//.test(file.type)) { toast("Please choose an image file."); return; }
+        fileToDataUrl(file, function (dataUrl) {
+          selectedFeature.attributes.imageUrl = dataUrl;
+          setImagePreview(dataUrl);
+          markDirty();
+        });
+      });
+      $("imgRemove").addEventListener("click", function () {
+        if (!selectedFeature) return;
+        selectedFeature.attributes.imageUrl = "";
+        setImagePreview("");
+        markDirty();
       });
       $("removePopup").addEventListener("click", function () {
         if (!selectedFeature) return;
