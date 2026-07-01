@@ -387,6 +387,7 @@
       "esri/WebMap",
       "esri/views/MapView",
       "esri/layers/GraphicsLayer",
+      "esri/layers/FeatureLayer",
       "esri/Graphic",
       "esri/widgets/Sketch/SketchViewModel",
       "esri/symbols/SimpleMarkerSymbol",
@@ -395,12 +396,12 @@
       "esri/symbols/TextSymbol",
       "esri/widgets/Home",
       "esri/widgets/Compass"
-    ], function (Map, WebMap, MapView, GraphicsLayer, Graphic, SketchViewModel,
+    ], function (Map, WebMap, MapView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel,
                  SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol, Home, Compass) {
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "1.6";
+      var APP_VERSION = "1.7";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -428,6 +429,7 @@
       // clutter. The label graphics are still saved in the .mmap; the real build will
       // add proper label management. Flip to true (or replace) when that lands.
       var SHOW_LABELS = false;
+      var dataLayers = []; // client-side FeatureLayers from v3 feature-collection docs
 
       // Left controls: search (inert) + home + compass + default zoom
       var searchBtn = document.createElement("button");
@@ -766,13 +768,35 @@
           .catch(function () { toast("Couldn't take a screenshot."); });
       }
 
-      // Frame the data extent: the loaded graphics. If that goTo can't resolve
-      // (e.g. a point-only extent), fall back to the stored viewpoint, which the
-      // fieldwork export already sets to the data extent.
+      // Frame the data extent. For v3 data layers, union their queried extents (they
+      // must load first); otherwise frame the sketch graphics. Fall back to the stored
+      // viewpoint if neither yields an extent.
       function frameData(doc) {
         var gs = graphicsLayer.graphics.toArray();
+        if (dataLayers.length) {
+          var extents = [];
+          var pending = dataLayers.map(function (fl) {
+            return fl.when()
+              .then(function () { return fl.queryExtent(); })
+              .then(function (r) { if (r && r.extent) extents.push(r.extent); }, function () {});
+          });
+          Promise.all(pending).then(function () {
+            if (extents.length) {
+              var ext = extents[0];
+              for (var i = 1; i < extents.length; i++) { try { ext = ext.union(extents[i]); } catch (e) {} }
+              try { if (ext.expand) ext = ext.expand(1.15); } catch (e) {}
+              view.goTo(ext, { animate: false }).catch(function () { frameFallback(doc, gs); });
+            } else {
+              frameFallback(doc, gs);
+            }
+          });
+        } else {
+          frameFallback(doc, gs);
+        }
+      }
+      function frameFallback(doc, gs) {
         var vp = (doc && doc.viewpoint && doc.viewpoint.center) ? { center: doc.viewpoint.center, zoom: doc.viewpoint.zoom } : null;
-        if (gs.length) {
+        if (gs && gs.length) {
           view.goTo(gs, { animate: false }).catch(function () { if (vp) view.goTo(vp, { animate: false }).catch(function () {}); });
         } else if (vp) {
           view.goTo(vp, { animate: false }).catch(function () {});
@@ -780,6 +804,9 @@
       }
       function loadDocument(doc) {
         graphicsLayer.removeAll();
+        // Clear any FeatureLayers from a previous open (v3 feature-collection docs).
+        dataLayers.forEach(function (fl) { try { map.remove(fl); } catch (e) {} });
+        dataLayers = [];
         // Reuse the ONE persistent map instead of swapping in a new Map. Swapping the
         // map/basemap leaves goTo unable to frame the data until the new basemap's LODs
         // load — which is why the view stayed at world. The persistent map is already
@@ -794,7 +821,8 @@
         if (doc.basemap && doc.basemap !== currentBasemapId) {
           try { map.basemap = doc.basemap; currentBasemapId = doc.basemap; } catch (e) {}
         }
-        (doc.graphics || []).forEach(function (gj) {
+        // Baked sketch graphics (hand-drawn) — accept either `graphics` (v2) or `sketch` (v3).
+        (doc.graphics || doc.sketch || []).forEach(function (gj) {
           try {
             if (!SHOW_LABELS && gj.attributes && gj.attributes.kind === "text") return;
             var g = Graphic.fromJSON ? Graphic.fromJSON({ geometry: gj.geometry, attributes: gj.attributes }) : new Graphic();
@@ -807,6 +835,12 @@
             graphicsLayer.add(g);
           } catch (e) {}
         });
+        // Data layers (v3 feature collections) — real FeatureLayers with a renderer
+        // (incl. pie-chart) and proper labelingInfo. renderer/labelingInfo autocast from JSON.
+        (doc.layers || []).forEach(function (ld) {
+          try { dataLayers.push(buildDataLayer(ld)); } catch (e) {}
+        });
+        dataLayers.forEach(function (fl) { map.add(fl); });
         featureSeq = graphicsLayer.graphics.length;
         selectedFeature = null;
         if (sketchPanelOpen) populatePanel();
@@ -814,7 +848,39 @@
         closeOpenModal();
         markClean();
         frameData(doc);
-        toast("Opened map — " + graphicsLayer.graphics.length + " feature(s).");
+        var dataCount = (doc.layers || []).reduce(function (n, ld) { return n + ((ld.features && ld.features.length) || 0); }, 0);
+        toast("Opened map — " + (graphicsLayer.graphics.length + dataCount) + " feature(s).");
+      }
+
+      // Build a client-side FeatureLayer from a feature-collection layer definition.
+      // renderer (incl. {type:"pie-chart"}) and labelingInfo autocast from plain JSON.
+      function buildDataLayer(ld) {
+        var gtype = ld.geometryType || "point";
+        var oidField = ld.objectIdField || "__oid";
+        var fields = (ld.fields && ld.fields.length) ? ld.fields.slice() : [];
+        if (!fields.some(function (fd) { return fd.name === oidField; })) {
+          fields.unshift({ name: oidField, alias: oidField, type: "oid" });
+        }
+        var feats = (ld.features || []).map(function (f, i) {
+          var gj = f.geometry || null;
+          if (gj && !gj.type) { gj = Object.assign({}, gj, { type: gtype }); }
+          var attrs = f.attributes ? Object.assign({}, f.attributes) : {};
+          if (attrs[oidField] == null) attrs[oidField] = i + 1;
+          return new Graphic({ geometry: gj, attributes: attrs });
+        });
+        var props = {
+          source: feats,
+          objectIdField: oidField,
+          fields: fields,
+          geometryType: gtype,
+          spatialReference: ld.spatialReference || { wkid: 102100 },
+          title: ld.title || "Data",
+          popupEnabled: true
+        };
+        if (ld.renderer) props.renderer = ld.renderer;
+        if (ld.labelingInfo) props.labelingInfo = ld.labelingInfo;
+        if (ld.popupInfo) props.popupTemplate = ld.popupInfo;
+        return new FeatureLayer(props);
       }
       function parseAndLoad(text) {
         var doc;
