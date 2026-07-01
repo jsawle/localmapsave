@@ -21,17 +21,20 @@
 
     #app{ display:flex; flex-direction:column; height:100vh; }
 
-    /* ---- Top bar (no branding) ---- */
+    /* ---- Top bar ---- */
     .topbar{
       height:54px; flex:0 0 auto;
       display:flex; align-items:center; justify-content:space-between;
       padding:0 18px; background:#fff; border-bottom:1px solid var(--line); z-index:10;
     }
     .topbar-left{ display:flex; align-items:center; gap:12px; color:var(--muted); font-size:13px; }
-    .logo-placeholder{
-      width:140px; height:24px; border:1px dashed #d0d0d0; border-radius:4px;
-      display:flex; align-items:center; justify-content:center; font-size:10px; color:#bdbdbd; letter-spacing:.04em;
+    .doc-title{
+      border:1px solid transparent; border-radius:5px; background:transparent;
+      font-family:inherit; font-size:14px; font-weight:600; color:#333; padding:5px 9px;
+      width:280px; max-width:42vw;
     }
+    .doc-title:hover{ background:#f2f2f2; }
+    .doc-title:focus{ outline:none; border-color:#c3c3c3; background:#fff; }
     .topbar-right{ display:flex; align-items:center; }
     .mock-note{ font-size:12px; color:var(--muted); }
     .ver{ font-size:11px; color:#a8a8a8; margin-left:10px; }
@@ -196,7 +199,7 @@
   <div id="app">
     <header class="topbar">
       <div class="topbar-left">
-        <div class="logo-placeholder">no branding</div>
+        <input id="docTitle" class="doc-title" type="text" value="Untitled map" spellcheck="false" aria-label="Map title" title="Map title (editable)" />
       </div>
       <div class="topbar-right">
         <span class="mock-note">Concept mock-up — Sketch, Open &amp; Save are live</span>
@@ -406,7 +409,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "1.8";
+      var APP_VERSION = "1.9";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -459,6 +462,10 @@
           if (!dataLayers.length) toast("The legend shows data layers — open a map that has data to fill it.");
         }
       });
+
+      // Editing the title marks the document dirty.
+      var titleEl = $("docTitle");
+      if (titleEl) titleEl.addEventListener("input", markDirty);
 
       var sketchVM = new SketchViewModel({ view: view, layer: graphicsLayer, updateOnGraphicClick: false });
 
@@ -743,15 +750,21 @@
       }
 
       // ---- Document model + save/open ----
+      function currentTitle() { var el = $("docTitle"); var t = el ? (el.value || "").trim() : ""; return t || "Untitled map"; }
+      function setTitle(t) { var el = $("docTitle"); if (el) el.value = (t && String(t).trim()) || "Untitled map"; }
+      function titleSlug() { return (currentTitle().replace(/[^\w\-]+/g, "_").slice(0, 60)) || "map"; }
       function buildDocument() {
-        return {
-          type: DOC_TYPE, version: DOC_VERSION, title: "Untitled map", savedAt: new Date().toISOString(),
+        var layers = dataLayers.map(function (fl) { return fl._srcDef; }).filter(Boolean);
+        var doc = {
+          type: DOC_TYPE, version: layers.length ? 3 : DOC_VERSION, title: currentTitle(), savedAt: new Date().toISOString(),
           basemap: view.map && view.map.basemap && view.map.basemap.id ? view.map.basemap.id : "topo-vector",
           viewpoint: { center: [view.center.longitude, view.center.latitude], zoom: view.zoom },
           graphics: graphicsLayer.graphics.toArray().map(function (g) {
             return { attributes: g.attributes, geometry: g.geometry.toJSON() };
           })
         };
+        if (layers.length) doc.layers = layers;
+        return doc;
       }
       function downloadText(text, filename, mime) {
         var blob = new Blob([text], { type: mime || "text/plain" });
@@ -764,7 +777,8 @@
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
       }
       function fallbackDownload() {
-        try { downloadText(JSON.stringify(buildDocument(), null, 2), "my-map.mmap", "application/json"); markClean(); toast("Saved my-map.mmap to your downloads."); }
+        var fn = titleSlug() + ".mmap";
+        try { downloadText(JSON.stringify(buildDocument(), null, 2), fn, "application/json"); markClean(); toast("Saved " + fn + " to your downloads."); }
         catch (e) { toast("Couldn't save the file."); }
       }
       function saveMap() {
@@ -772,7 +786,7 @@
         if (!window.showSaveFilePicker) { openNameDialog(); return; }
         Promise.resolve().then(function () {
           if (!currentFileHandle) {
-            return window.showSaveFilePicker({ suggestedName: "my-map.mmap",
+            return window.showSaveFilePicker({ suggestedName: titleSlug() + ".mmap",
               types: [{ description: "Map", accept: { "application/json": [".mmap"] } }] })
               .then(function (h) { currentFileHandle = h; });
           }
@@ -864,6 +878,7 @@
         if (sketchPanelOpen) populatePanel();
         if (view.popup) view.popup.autoOpenEnabled = false;
         closeOpenModal();
+        setTitle(doc.title);
         markClean();
         frameData(doc);
         var dataCount = (doc.layers || []).reduce(function (n, ld) { return n + ((ld.features && ld.features.length) || 0); }, 0);
@@ -923,6 +938,7 @@
         if (ld.popupInfo) props.popupTemplate = ld.popupInfo;
         var fl = new FeatureLayer(props);
         fl.labelsVisible = true;
+        fl._srcDef = ld; // keep the original def so Save can re-emit this data layer losslessly
         return fl;
       }
       function parseAndLoad(text) {
@@ -1011,18 +1027,21 @@
         var wm = new WebMap({ portalItem: { id: itemId } });
         wm.load().then(function () {
           detachGraphics();
+          dataLayers.forEach(function (fl) { try { map.remove(fl); } catch (e) {} });
+          dataLayers = [];
           wm.add(graphicsLayer);                     // keep sketch layer on top
           view.map = wm;
           if (view.popup) view.popup.autoOpenEnabled = false;
           var vp = wm.initialViewProperties && wm.initialViewProperties.viewpoint;
           if (vp) view.goTo(vp).catch(function () {});
+          setTitle(title);
           markClean();
           toast("Opened: " + (title || "map"));
         }).catch(function () { toast("Couldn't open that map (it may not be shared publicly)."); });
       }
 
       // Fallback save dialog
-      function openNameDialog() { $("fileNameInput").value = "my-map"; $("nameModal").hidden = false; setTimeout(function () { $("fileNameInput").focus(); $("fileNameInput").select(); }, 0); }
+      function openNameDialog() { $("fileNameInput").value = titleSlug(); $("nameModal").hidden = false; setTimeout(function () { $("fileNameInput").focus(); $("fileNameInput").select(); }, 0); }
       function closeNameDialog() { $("nameModal").hidden = true; }
       function confirmNameDialog() {
         var name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
