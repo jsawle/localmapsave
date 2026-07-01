@@ -226,7 +226,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
           <span>Add layer</span>
         </button>
-        <button class="tool" data-mock="Legend" type="button">
+        <button class="tool" id="btnLegend" type="button">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2v2H3V5zm4 0h14v2H7V5zM3 11h2v2H3v-2zm4 0h14v2H7v-2zM3 17h2v2H3v-2zm4 0h14v2H7v-2z"/></svg>
           <span>Legend</span>
         </button>
@@ -395,13 +395,18 @@
       "esri/symbols/SimpleFillSymbol",
       "esri/symbols/TextSymbol",
       "esri/widgets/Home",
-      "esri/widgets/Compass"
+      "esri/widgets/Compass",
+      "esri/layers/support/Field",
+      "esri/layers/support/LabelClass",
+      "esri/renderers/support/jsonUtils",
+      "esri/widgets/Legend"
     ], function (Map, WebMap, MapView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel,
-                 SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol, Home, Compass) {
+                 SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol, Home, Compass,
+                 Field, LabelClass, rendererJsonUtils, Legend) {
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "1.7";
+      var APP_VERSION = "1.8";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -441,6 +446,19 @@
       view.ui.add(searchBtn, { position: "top-left", index: 0 });
       view.ui.add(new Home({ view: view }), { position: "top-left", index: 1 });
       view.ui.add(new Compass({ view: view }), "bottom-left");
+
+      // Legend (wired). The Legend widget reads the view's layers and shows the renderer
+      // for each data FeatureLayer (species colours, size, pie-chart categories). Toggled
+      // from the toolbar; sketch graphics have no renderer so they don't appear.
+      var legend = null, legendOn = false;
+      $("btnLegend").addEventListener("click", function () {
+        if (!legend) legend = new Legend({ view: view });
+        if (legendOn) { view.ui.remove(legend); legendOn = false; }
+        else {
+          view.ui.add(legend, "top-right"); legendOn = true;
+          if (!dataLayers.length) toast("The legend shows data layers — open a map that has data to fill it.");
+        }
+      });
 
       var sketchVM = new SketchViewModel({ view: view, layer: graphicsLayer, updateOnGraphicClick: false });
 
@@ -853,14 +871,25 @@
       }
 
       // Build a client-side FeatureLayer from a feature-collection layer definition.
-      // renderer (incl. {type:"pie-chart"}) and labelingInfo autocast from plain JSON.
+      // Handles both esri REST JSON (from the fieldwork export: "pieChart"/"uniqueValue"
+      // renderers, esriTS labels, esriFieldType fields) and the JS autocast format.
       function buildDataLayer(ld) {
         var gtype = ld.geometryType || "point";
-        var oidField = ld.objectIdField || "__oid";
-        var fields = (ld.fields && ld.fields.length) ? ld.fields.slice() : [];
-        if (!fields.some(function (fd) { return fd.name === oidField; })) {
-          fields.unshift({ name: oidField, alias: oidField, type: "oid" });
+        var rawFields = (ld.fields && ld.fields.length) ? ld.fields.slice() : [];
+        var oidField = ld.objectIdField;
+        if (!oidField) {
+          var oidf = rawFields.filter(function (f) { return f.type === "esriFieldTypeOID" || f.type === "oid"; })[0];
+          oidField = oidf ? oidf.name : "__oid";
         }
+        if (!rawFields.some(function (fd) { return fd.name === oidField; })) {
+          rawFields.unshift({ name: oidField, alias: oidField, type: "oid" });
+        }
+        var fields = rawFields.map(function (f) {
+          if (f && typeof f.type === "string" && f.type.indexOf("esriFieldType") === 0) {
+            try { return Field.fromJSON(f); } catch (e) { return f; }
+          }
+          return f;
+        });
         var feats = (ld.features || []).map(function (f, i) {
           var gj = f.geometry || null;
           if (gj && !gj.type) { gj = Object.assign({}, gj, { type: gtype }); }
@@ -877,10 +906,24 @@
           title: ld.title || "Data",
           popupEnabled: true
         };
-        if (ld.renderer) props.renderer = ld.renderer;
-        if (ld.labelingInfo) props.labelingInfo = ld.labelingInfo;
+        if (ld.renderer) {
+          var rj = ld.renderer, r = null;
+          if (rj.type && rj.type.indexOf("-") >= 0) { r = rj; } // JS autocast format (e.g. "pie-chart")
+          else { try { r = rendererJsonUtils.fromJSON(rj); } catch (e) { r = rj; } } // REST (e.g. "pieChart")
+          props.renderer = r || rj;
+        }
+        if (ld.labelingInfo && ld.labelingInfo.length) {
+          props.labelingInfo = ld.labelingInfo.map(function (l) {
+            if (l && l.symbol && l.symbol.type === "esriTS") {
+              try { return LabelClass.fromJSON(l); } catch (e) { return l; }
+            }
+            return l;
+          });
+        }
         if (ld.popupInfo) props.popupTemplate = ld.popupInfo;
-        return new FeatureLayer(props);
+        var fl = new FeatureLayer(props);
+        fl.labelsVisible = true;
+        return fl;
       }
       function parseAndLoad(text) {
         var doc;
