@@ -142,20 +142,24 @@
 
     /* ---- Add data panel (fieldwork configure design) ---- */
     .side-panel.flex-panel{ display:flex; flex-direction:column; overflow:hidden; }
+    .side-panel.flex-panel[hidden]{ display:none; }
     .flex-panel .panel-body{ flex:1 1 auto; min-height:0; overflow-y:auto; }
     .panel-foot{ flex:0 0 auto; display:flex; gap:10px; justify-content:flex-end; padding:12px 16px; border-top:1px solid #ededed; background:#fff; }
-    .data-summary{ font-size:12.5px; color:var(--ink2); margin:0 0 12px; line-height:1.5; word-break:break-word; }
+    .data-h{ font-size:15px; font-weight:600; color:var(--ink); margin:0 0 4px; }
+    .data-summary{ font-size:12.5px; color:var(--muted); margin:0 0 14px; line-height:1.5; word-break:break-word; }
     .cfg-section{ margin-bottom:14px; }
     .cfg-h{ font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:#888; margin:0 0 8px; font-weight:600; }
     .style-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:8px; }
-    .style-card{ border:2px solid #ddd; border-radius:6px; padding:7px 3px; cursor:pointer; background:#fff; text-align:center; font-family:var(--font); min-width:0; }
+    .style-card{ border:2px solid #ddd; border-radius:6px; padding:10px 6px; cursor:pointer; background:#fff; text-align:center; font-family:var(--font); min-width:0; }
     .style-card:hover:not(.disabled){ border-color:#8ab8d8; }
     .style-card.selected{ border-color:var(--blue); background:#eef5fb; }
     .style-card.disabled{ opacity:.4; cursor:not-allowed; }
-    .style-card .s-ico{ font-size:17px; display:block; margin-bottom:3px; line-height:1.2; }
-    .style-card .s-name{ font-size:10.5px; font-weight:600; line-height:1.25; color:var(--ink); overflow:hidden; text-overflow:ellipsis; }
-    .style-desc{ font-size:11.5px; color:var(--ink2); background:#eef5fb; border-left:3px solid var(--blue); padding:6px 10px; border-radius:0 4px 4px 0; line-height:1.4; }
-    .cfg-label{ display:block; font-size:12.5px; color:var(--ink2); margin:6px 0 3px; }
+    .style-card .s-ico{ font-size:20px; display:block; margin-bottom:4px; line-height:1.2; }
+    .style-card .s-name{ font-size:11.5px; font-weight:600; line-height:1.25; color:var(--ink); overflow:hidden; text-overflow:ellipsis; display:block; }
+    .style-desc{ font-size:12px; color:var(--ink2); background:#eef5fb; border-left:3px solid var(--blue); padding:7px 10px; border-radius:0 4px 4px 0; line-height:1.45; }
+    .cfg-label{ display:block; font-size:13px; color:#555; margin:8px 0 4px; }
+    .cfg-icon{ margin-right:7px; }
+    .cfg-summary{ color:#555; font-size:12.5px; line-height:1.5; padding:10px 12px; background:#f5f6f7; border-radius:4px; margin-top:12px; }
     .cfg-select{ width:100%; padding:7px 10px; border:1px solid var(--line2); border-radius:3px; font-size:13.5px; color:var(--ink); font-family:var(--font); background:#fff; }
     .cfg-select:focus{ outline:none; border-color:var(--blue); }
     .sym-row{ display:flex; align-items:center; gap:10px; padding:5px 0; }
@@ -369,11 +373,12 @@
       </div>
 
       <!-- Add data panel (CSV upload — fieldwork configure flow) -->
-      <div class="side-panel flex-panel" id="dataPanel" hidden>
+      <div class="side-panel flex-panel" id="dataPanel" hidden style="width:400px;">
         <div class="panel-head"><h2>Add data</h2><button class="panel-close" id="dataClose" type="button" aria-label="Close">&times;</button></div>
         <div class="panel-body">
           <div id="dataError" class="data-error" hidden></div>
           <div id="dataControls">
+            <h2 class="data-h">Looks good. Here's how we'll map it.</h2>
             <p class="data-summary" id="dataSummary"></p>
             <div class="cfg-section">
               <h3 class="cfg-h">Map style</h3>
@@ -401,9 +406,10 @@
               <div class="sym-row">
                 <span class="sym-label">Size</span>
                 <input type="range" id="dataSize" min="6" max="28" value="12" />
-                <span class="slider-val" id="dataSizeVal">12</span>
+                <span class="slider-val" id="dataSizeVal">12 px</span>
               </div>
             </div>
+            <div class="cfg-summary" id="cfgSummary"></div>
           </div>
         </div>
         <div class="panel-foot">
@@ -496,7 +502,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "2.1";
+      var APP_VERSION = "2.3";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -1190,6 +1196,7 @@
           requires: { minNumeric: 3 }, fields: ["label"] }
       ];
       var FIELD_LABELS = { color: "Colour points by", size: "Size points by", label: "Label points with" };
+      var FIELD_ICONS = { color: "\uD83C\uDFA8", size: "\uD83D\uDCCF", label: "\uD83C\uDFF7\uFE0F" };
       var SHAPES = [
         { id: "esriSMSCircle",   glyph: "\u25CF", name: "Circle" },
         { id: "esriSMSSquare",   glyph: "\u25A0", name: "Square" },
@@ -1528,7 +1535,8 @@
       function renderFieldRows() {
         var wrap = $("fieldRows"); wrap.innerHTML = "";
         addState.style.fields.forEach(function (key) {
-          var lbl = document.createElement("label"); lbl.className = "cfg-label"; lbl.textContent = FIELD_LABELS[key];
+          var lbl = document.createElement("label"); lbl.className = "cfg-label";
+          lbl.innerHTML = '<span class="cfg-icon">' + FIELD_ICONS[key] + '</span>' + FIELD_LABELS[key];
           var sel = document.createElement("select"); sel.className = "cfg-select";
           if (key === "label") {
             var none = document.createElement("option"); none.value = NONE_VALUE; none.textContent = "None"; sel.appendChild(none);
@@ -1585,16 +1593,46 @@
             rl.appendChild(b);
           });
         }
+        updateConfigSummary();
+      }
+      function updateConfigSummary() {
+        var c = addState.fieldChoices;
+        var colorIsNumeric = c.color && addState.numeric.indexOf(c.color) >= 0;
+        var colorName = c.color ? fieldAlias(c.color) : "\u2014";
+        var sizeName = c.size ? fieldAlias(c.size) : "\u2014";
+        var colorPhrase = c.color ? ((colorIsNumeric ? "shaded by " : "coloured by ") + colorName) : null;
+        var summary = "";
+        switch (addState.style.id) {
+          case "pie_chart":
+            summary = "Each point will show a pie chart of " + addState.numeric.length + " numeric columns, sized by total.";
+            break;
+          case "numeric_color_size":
+            summary = "Each point shaded by " + colorName + ", sized by " + sizeName + ".";
+            break;
+          case "categorical_size":
+            summary = "Each point " + (colorPhrase || "coloured by \u2014") + ", sized by " + sizeName + ".";
+            break;
+          case "categorical":
+            summary = "Each point " + (colorPhrase || "coloured by \u2014") + ".";
+            break;
+          case "graduated":
+            summary = "Each point sized by " + sizeName + ".";
+            break;
+          default:
+            summary = "Each point shown as a simple marker.";
+        }
+        if (c.label) summary += " Labels show " + fieldAlias(c.label) + ".";
+        $("cfgSummary").textContent = summary;
       }
       function renderDataPanel() {
         $("dataError").hidden = true;
         $("dataControls").style.display = "";
         $("dataSubmit").disabled = false;
-        var s = addState.fileName + " \u2014 " + addState.features.length + " point(s) found";
-        if (addState.dropped) s += " (" + addState.dropped + " row(s) skipped \u2014 bad coordinates)";
+        var s = "Found " + addState.features.length + " points \u00B7 " + addState.numeric.length + " numeric, " + addState.categorical.length + " categorical columns.";
+        if (addState.dropped) s += " " + addState.dropped + " row(s) skipped \u2014 bad coordinates.";
         $("dataSummary").textContent = s;
         $("dataSize").value = addState.symbolChoices.size;
-        $("dataSizeVal").textContent = addState.symbolChoices.size;
+        $("dataSizeVal").textContent = addState.symbolChoices.size + " px";
         renderStyleList(); renderFieldRows(); renderSymbolBlocks();
       }
       function showDataError(msg) {
@@ -1719,7 +1757,7 @@
       $("dataSize").addEventListener("input", function () {
         var v = parseInt($("dataSize").value, 10) || 12;
         if (addState) addState.symbolChoices.size = v;
-        $("dataSizeVal").textContent = v;
+        $("dataSizeVal").textContent = v + " px";
       });
 
       // Wire save panel + open toolbar button
