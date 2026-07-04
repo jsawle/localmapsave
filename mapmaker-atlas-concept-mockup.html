@@ -140,21 +140,38 @@
     .save-note a{ color:var(--blue); cursor:pointer; text-decoration:none; }
     .save-note a:hover{ text-decoration:underline; }
 
-    /* ---- Add data panel ---- */
-    .data-summary{ font-size:13px; color:var(--ink2); margin:0 0 4px; line-height:1.5; word-break:break-word; }
-    .lbl{ display:block; font-size:12.5px; font-weight:600; color:var(--ink2); margin:14px 0 6px; }
-    .style-list{ display:flex; flex-direction:column; gap:6px; }
-    .style-opt{ display:flex; gap:10px; align-items:flex-start; text-align:left; width:100%; padding:9px 10px; border:1px solid var(--line2); border-radius:5px; background:#fff; cursor:pointer; font-family:var(--font); }
-    .style-opt:hover:not(:disabled){ background:#f7f7f7; }
-    .style-opt.active{ border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
-    .style-opt:disabled{ opacity:.45; cursor:default; }
-    .style-opt .s-ico{ font-size:17px; line-height:1.25; }
-    .style-opt .s-name{ font-size:13.5px; font-weight:600; color:var(--ink); }
-    .style-opt .s-hint{ font-size:11.5px; color:var(--muted); line-height:1.35; margin-top:2px; }
-    .ramp-list{ display:flex; gap:8px; flex-wrap:wrap; }
-    .ramp-btn{ height:22px; flex:1 1 58px; min-width:54px; border:2px solid #fff; box-shadow:0 0 0 1px var(--line2); border-radius:4px; cursor:pointer; padding:0; }
-    .ramp-btn.active{ box-shadow:0 0 0 2px var(--blue); }
-    .data-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+    /* ---- Add data panel (fieldwork configure design) ---- */
+    .side-panel.flex-panel{ display:flex; flex-direction:column; overflow:hidden; }
+    .flex-panel .panel-body{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+    .panel-foot{ flex:0 0 auto; display:flex; gap:10px; justify-content:flex-end; padding:12px 16px; border-top:1px solid #ededed; background:#fff; }
+    .data-summary{ font-size:12.5px; color:var(--ink2); margin:0 0 12px; line-height:1.5; word-break:break-word; }
+    .cfg-section{ margin-bottom:14px; }
+    .cfg-h{ font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:#888; margin:0 0 8px; font-weight:600; }
+    .style-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:8px; }
+    .style-card{ border:2px solid #ddd; border-radius:6px; padding:7px 3px; cursor:pointer; background:#fff; text-align:center; font-family:var(--font); min-width:0; }
+    .style-card:hover:not(.disabled){ border-color:#8ab8d8; }
+    .style-card.selected{ border-color:var(--blue); background:#eef5fb; }
+    .style-card.disabled{ opacity:.4; cursor:not-allowed; }
+    .style-card .s-ico{ font-size:17px; display:block; margin-bottom:3px; line-height:1.2; }
+    .style-card .s-name{ font-size:10.5px; font-weight:600; line-height:1.25; color:var(--ink); overflow:hidden; text-overflow:ellipsis; }
+    .style-desc{ font-size:11.5px; color:var(--ink2); background:#eef5fb; border-left:3px solid var(--blue); padding:6px 10px; border-radius:0 4px 4px 0; line-height:1.4; }
+    .cfg-label{ display:block; font-size:12.5px; color:var(--ink2); margin:6px 0 3px; }
+    .cfg-select{ width:100%; padding:7px 10px; border:1px solid var(--line2); border-radius:3px; font-size:13.5px; color:var(--ink); font-family:var(--font); background:#fff; }
+    .cfg-select:focus{ outline:none; border-color:var(--blue); }
+    .sym-row{ display:flex; align-items:center; gap:10px; padding:5px 0; }
+    .sym-row[hidden]{ display:none; }
+    .sym-label{ flex:0 0 48px; font-size:13px; color:#555; }
+    .shape-options{ display:flex; gap:6px; }
+    .shape-btn{ width:34px; height:30px; border:2px solid #ddd; border-radius:6px; background:#fff; cursor:pointer; font-size:15px; color:#444; line-height:1; padding:0; }
+    .shape-btn:hover{ border-color:#8ab8d8; }
+    .shape-btn.selected{ border-color:var(--blue); background:#eef5fb; }
+    .sym-row .swatches{ gap:6px; }
+    .sym-row .swatch{ width:24px; height:24px; }
+    .ramp-options{ display:flex; gap:6px; flex-wrap:wrap; }
+    .ramp-btn{ width:44px; height:22px; border-radius:4px; border:2px solid rgba(0,0,0,.15); cursor:pointer; padding:0; }
+    .ramp-btn:hover{ border-color:rgba(0,0,0,.45); }
+    .ramp-btn.selected{ border-color:#1a1a1a; }
+    .sym-row input[type=range]{ flex:1; accent-color:var(--blue); }
     .data-error{ font-size:13.5px; line-height:1.55; color:#8a2f22; background:#fdefec; border:1px solid #f2c9c0; border-radius:5px; padding:10px 12px; margin-bottom:4px; }
     .data-error[hidden]{ display:none; }
     .drop-overlay{ position:absolute; inset:0; z-index:35; background:rgba(0,90,156,.12); outline:3px dashed var(--blue); outline-offset:-10px; display:flex; align-items:center; justify-content:center; pointer-events:none; }
@@ -352,33 +369,46 @@
       </div>
 
       <!-- Add data panel (CSV upload — fieldwork configure flow) -->
-      <div class="side-panel" id="dataPanel" hidden>
+      <div class="side-panel flex-panel" id="dataPanel" hidden>
         <div class="panel-head"><h2>Add data</h2><button class="panel-close" id="dataClose" type="button" aria-label="Close">&times;</button></div>
         <div class="panel-body">
           <div id="dataError" class="data-error" hidden></div>
           <div id="dataControls">
             <p class="data-summary" id="dataSummary"></p>
-            <label class="lbl">Map style</label>
-            <div class="style-list" id="styleList"></div>
-            <div id="fieldRows"></div>
-            <div id="swatchBlock" hidden>
-              <label class="lbl">Point colour</label>
-              <div class="swatches" id="dataSwatches"></div>
+            <div class="cfg-section">
+              <h3 class="cfg-h">Map style</h3>
+              <div class="style-grid" id="styleList"></div>
+              <div class="style-desc" id="styleDesc"></div>
             </div>
-            <div id="rampBlock" hidden>
-              <label class="lbl">Colour ramp</label>
-              <div class="ramp-list" id="rampList"></div>
+            <div class="cfg-section">
+              <h3 class="cfg-h">Fields</h3>
+              <div id="fieldRows"></div>
             </div>
-            <label class="lbl">Point size</label>
-            <div class="slider-row">
-              <input type="range" id="dataSize" min="6" max="28" value="12" />
-              <span class="slider-val" id="dataSizeVal">12</span>
-            </div>
-            <div class="data-actions">
-              <button id="dataCancel" class="mbtn" type="button">Cancel</button>
-              <button id="dataSubmit" class="mbtn primary" type="button">Add to map</button>
+            <div class="cfg-section">
+              <h3 class="cfg-h">Points</h3>
+              <div class="sym-row" id="shapeRow">
+                <span class="sym-label">Shape</span>
+                <div class="shape-options" id="shapeOptions"></div>
+              </div>
+              <div class="sym-row" id="colorRow">
+                <span class="sym-label">Colour</span>
+                <div class="swatches" id="dataSwatches"></div>
+              </div>
+              <div class="sym-row" id="rampRow">
+                <span class="sym-label">Ramp</span>
+                <div class="ramp-options" id="rampList"></div>
+              </div>
+              <div class="sym-row">
+                <span class="sym-label">Size</span>
+                <input type="range" id="dataSize" min="6" max="28" value="12" />
+                <span class="slider-val" id="dataSizeVal">12</span>
+              </div>
             </div>
           </div>
+        </div>
+        <div class="panel-foot">
+          <button id="dataCancel" class="mbtn" type="button">Cancel</button>
+          <button id="dataSubmit" class="mbtn primary" type="button">Add to map</button>
         </div>
       </div>
 
@@ -466,7 +496,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "2.0";
+      var APP_VERSION = "2.1";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -488,7 +518,7 @@
 
       var graphicsLayer = new GraphicsLayer();
       var map = new Map({ basemap: "topo-vector", layers: [graphicsLayer] });
-      var view = new MapView({ container: "viewDiv", map: map, center: [-30, 35], zoom: 2 });
+      var view = new MapView({ container: "viewDiv", map: map, center: [-30, 35], zoom: 3 });
       var currentBasemapId = "topo-vector";
       // POC: hide on-map text labels — at scale with dense data they collide into
       // clutter. The label graphics are still saved in the .mmap; the real build will
@@ -1160,6 +1190,12 @@
           requires: { minNumeric: 3 }, fields: ["label"] }
       ];
       var FIELD_LABELS = { color: "Colour points by", size: "Size points by", label: "Label points with" };
+      var SHAPES = [
+        { id: "esriSMSCircle",   glyph: "\u25CF", name: "Circle" },
+        { id: "esriSMSSquare",   glyph: "\u25A0", name: "Square" },
+        { id: "esriSMSDiamond",  glyph: "\u25C6", name: "Diamond" },
+        { id: "esriSMSTriangle", glyph: "\u25B2", name: "Triangle" }
+      ];
       var NONE_VALUE = "__none__";
       var addState = null;
       var dataLayerSeq = 0;
@@ -1310,7 +1346,7 @@
         var sym = addState.symbolChoices;
         var base = color || sym.color;
         return {
-          type: "esriSMS", style: "esriSMSCircle",
+          type: "esriSMS", style: sym.shape || "esriSMSCircle",
           color: [base[0], base[1], base[2], POINT_FILL_ALPHA],
           size: size || sym.size,
           outline: { color: [80, 80, 80, 255], width: 1 }
@@ -1458,21 +1494,27 @@
         var f = (addState.fields || []).filter(function (x) { return x.name === name; })[0];
         return (f && f.alias) || name;
       }
+      function shortStyleLabel(name) {
+        return name.replace(/^Map\s+/i, "").replace(/^./, function (c) { return c.toUpperCase(); });
+      }
       function renderStyleList() {
         var wrap = $("styleList"); wrap.innerHTML = "";
         DATA_STYLES.forEach(function (style) {
-          var b = document.createElement("button");
-          b.type = "button"; b.className = "style-opt" + (addState.style.id === style.id ? " active" : "");
-          b.disabled = !styleAvailable(style);
-          b.title = b.disabled ? "Your data doesn't have the columns this style needs" : "";
-          b.innerHTML = '<span class="s-ico">' + style.icon + '</span><span><span class="s-name">' + style.name + '</span><div class="s-hint">' + style.hint + '</div></span>';
-          b.addEventListener("click", function () {
-            addState.style = style;
-            addState.fieldChoices = pickAutoFields(style);
-            renderStyleList(); renderFieldRows(); renderSymbolBlocks();
-          });
-          wrap.appendChild(b);
+          var available = styleAvailable(style);
+          var d = document.createElement("div");
+          d.className = "style-card" + (addState.style.id === style.id ? " selected" : "") + (available ? "" : " disabled");
+          d.title = available ? style.name : "Your data doesn't have the columns this style needs";
+          d.innerHTML = '<span class="s-ico">' + style.icon + '</span><span class="s-name">' + shortStyleLabel(style.name) + '</span>';
+          if (available) {
+            d.addEventListener("click", function () {
+              addState.style = style;
+              addState.fieldChoices = pickAutoFields(style);
+              renderStyleList(); renderFieldRows(); renderSymbolBlocks();
+            });
+          }
+          wrap.appendChild(d);
         });
+        $("styleDesc").textContent = addState.style.name + " \u2014 " + addState.style.hint;
       }
       function fieldOptions(key) {
         var num = addState.numeric, cat = addState.categorical;
@@ -1486,8 +1528,8 @@
       function renderFieldRows() {
         var wrap = $("fieldRows"); wrap.innerHTML = "";
         addState.style.fields.forEach(function (key) {
-          var lbl = document.createElement("label"); lbl.className = "lbl"; lbl.textContent = FIELD_LABELS[key];
-          var sel = document.createElement("select"); sel.className = "field";
+          var lbl = document.createElement("label"); lbl.className = "cfg-label"; lbl.textContent = FIELD_LABELS[key];
+          var sel = document.createElement("select"); sel.className = "cfg-select";
           if (key === "label") {
             var none = document.createElement("option"); none.value = NONE_VALUE; none.textContent = "None"; sel.appendChild(none);
           }
@@ -1501,35 +1543,45 @@
           }
           sel.addEventListener("change", function () {
             addState.fieldChoices[key] = (sel.value === NONE_VALUE) ? null : sel.value;
+            renderSymbolBlocks();
           });
           wrap.appendChild(lbl); wrap.appendChild(sel);
         });
       }
       function renderSymbolBlocks() {
-        var showSwatches = addState.style.id === "simple" || addState.style.id === "graduated";
-        var showRamp = addState.style.id === "numeric_color_size";
-        $("swatchBlock").hidden = !showSwatches;
-        $("rampBlock").hidden = !showRamp;
-        if (showSwatches) {
-          var sw = $("dataSwatches"); sw.innerHTML = "";
-          PALETTE.forEach(function (hex) {
-            var rgb = hexToRgb(hex);
-            var b = document.createElement("button");
-            b.type = "button"; b.className = "swatch"; b.style.background = hex;
-            var active = addState.symbolChoices.color.join(",") === rgb.join(",");
-            if (active) b.classList.add("active");
-            b.addEventListener("click", function () { addState.symbolChoices.color = rgb; renderSymbolBlocks(); });
-            sw.appendChild(b);
-          });
-        }
-        if (showRamp) {
-          var rl = $("rampList"); rl.innerHTML = "";
+        var c = addState.symbolChoices;
+        var isPie = addState.style.id === "pie_chart";
+        var singleColor = addState.style.id === "simple" || addState.style.id === "graduated";
+        var rampActive = !isPie && addState.style.fields.indexOf("color") >= 0 &&
+          !!addState.fieldChoices.color && addState.numeric.indexOf(addState.fieldChoices.color) >= 0;
+        $("shapeRow").hidden = isPie;
+        $("colorRow").hidden = isPie || !singleColor;
+        $("rampRow").hidden = !rampActive;
+        var sw = $("shapeOptions"); sw.innerHTML = "";
+        SHAPES.forEach(function (s) {
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "shape-btn" + (c.shape === s.id ? " selected" : "");
+          b.title = s.name; b.textContent = s.glyph;
+          b.addEventListener("click", function () { c.shape = s.id; renderSymbolBlocks(); });
+          sw.appendChild(b);
+        });
+        var cw = $("dataSwatches"); cw.innerHTML = "";
+        PALETTE.forEach(function (hex) {
+          var rgb = hexToRgb(hex);
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "swatch" + (c.color.join(",") === rgb.join(",") ? " active" : "");
+          b.style.background = hex; b.title = hex;
+          b.addEventListener("click", function () { c.color = rgb; renderSymbolBlocks(); });
+          cw.appendChild(b);
+        });
+        var rl = $("rampList"); rl.innerHTML = "";
+        if (rampActive) {
           COLOR_RAMPS.forEach(function (ramp) {
             var b = document.createElement("button");
-            b.type = "button"; b.className = "ramp-btn" + (addState.symbolChoices.ramp === ramp.id ? " active" : "");
+            b.type = "button"; b.className = "ramp-btn" + (c.ramp === ramp.id ? " selected" : "");
             b.title = ramp.name;
-            b.style.background = "linear-gradient(90deg," + ramp.colors.map(function (c) { return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")"; }).join(",") + ")";
-            b.addEventListener("click", function () { addState.symbolChoices.ramp = ramp.id; renderSymbolBlocks(); });
+            b.style.background = "linear-gradient(90deg," + ramp.colors.map(function (col) { return "rgb(" + col[0] + "," + col[1] + "," + col[2] + ")"; }).join(",") + ")";
+            b.addEventListener("click", function () { c.ramp = ramp.id; renderSymbolBlocks(); });
             rl.appendChild(b);
           });
         }
@@ -1537,6 +1589,7 @@
       function renderDataPanel() {
         $("dataError").hidden = true;
         $("dataControls").style.display = "";
+        $("dataSubmit").disabled = false;
         var s = addState.fileName + " \u2014 " + addState.features.length + " point(s) found";
         if (addState.dropped) s += " (" + addState.dropped + " row(s) skipped \u2014 bad coordinates)";
         $("dataSummary").textContent = s;
@@ -1549,6 +1602,7 @@
         openPanel("data");
         var e = $("dataError"); e.textContent = msg; e.hidden = false;
         $("dataControls").style.display = "none";
+        $("dataSubmit").disabled = true;
       }
       function handleCsvText(name, text) {
         var parsed = readCsv(text);
@@ -1556,7 +1610,7 @@
         var data = buildCsvLayerData(name, parsed);
         if (!data.ok) { showDataError(data.error); return; }
         addState = data;
-        addState.symbolChoices = { color: hexToRgb(DEFAULT_COLOR), size: 12, ramp: "blue" };
+        addState.symbolChoices = { shape: "esriSMSCircle", color: hexToRgb(DEFAULT_COLOR), size: 12, ramp: "blue" };
         addState.style = pickAutoStyle();
         addState.fieldChoices = pickAutoFields(addState.style);
         openPanel("data");
