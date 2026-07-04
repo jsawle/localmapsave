@@ -140,6 +140,27 @@
     .save-note a{ color:var(--blue); cursor:pointer; text-decoration:none; }
     .save-note a:hover{ text-decoration:underline; }
 
+    /* ---- Add data panel ---- */
+    .data-summary{ font-size:13px; color:var(--ink2); margin:0 0 4px; line-height:1.5; word-break:break-word; }
+    .lbl{ display:block; font-size:12.5px; font-weight:600; color:var(--ink2); margin:14px 0 6px; }
+    .style-list{ display:flex; flex-direction:column; gap:6px; }
+    .style-opt{ display:flex; gap:10px; align-items:flex-start; text-align:left; width:100%; padding:9px 10px; border:1px solid var(--line2); border-radius:5px; background:#fff; cursor:pointer; font-family:var(--font); }
+    .style-opt:hover:not(:disabled){ background:#f7f7f7; }
+    .style-opt.active{ border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
+    .style-opt:disabled{ opacity:.45; cursor:default; }
+    .style-opt .s-ico{ font-size:17px; line-height:1.25; }
+    .style-opt .s-name{ font-size:13.5px; font-weight:600; color:var(--ink); }
+    .style-opt .s-hint{ font-size:11.5px; color:var(--muted); line-height:1.35; margin-top:2px; }
+    .ramp-list{ display:flex; gap:8px; flex-wrap:wrap; }
+    .ramp-btn{ height:22px; flex:1 1 58px; min-width:54px; border:2px solid #fff; box-shadow:0 0 0 1px var(--line2); border-radius:4px; cursor:pointer; padding:0; }
+    .ramp-btn.active{ box-shadow:0 0 0 2px var(--blue); }
+    .data-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+    .data-error{ font-size:13.5px; line-height:1.55; color:#8a2f22; background:#fdefec; border:1px solid #f2c9c0; border-radius:5px; padding:10px 12px; margin-bottom:4px; }
+    .data-error[hidden]{ display:none; }
+    .drop-overlay{ position:absolute; inset:0; z-index:35; background:rgba(0,90,156,.12); outline:3px dashed var(--blue); outline-offset:-10px; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+    .drop-overlay[hidden]{ display:none; }
+    .drop-overlay-inner{ background:#fff; border-radius:8px; padding:14px 22px; font-size:15px; font-weight:600; color:var(--ink); box-shadow:0 4px 18px rgba(0,0,0,.18); }
+
     /* ---- Toast ---- */
     .toast{ position:absolute; left:50%; bottom:98px; transform:translateX(-50%); background:#323232; color:#fff; font-size:13px; padding:9px 16px; border-radius:18px; z-index:40; box-shadow:0 2px 10px rgba(0,0,0,.28); }
     .toast[hidden]{ display:none; }
@@ -202,7 +223,7 @@
         <input id="docTitle" class="doc-title" type="text" value="Untitled map" spellcheck="false" aria-label="Map title" title="Map title (editable)" />
       </div>
       <div class="topbar-right">
-        <span class="mock-note">Concept mock-up — Sketch, Open &amp; Save are live</span>
+        <span class="mock-note">Concept mock-up — Sketch, Open, Save &amp; Add data are live</span>
         <span class="ver" id="appVer"></span>
         <span class="help">Help</span>
       </div>
@@ -225,7 +246,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5zM3 13l9 5 9-5M3 18l9 5 9-5"/></svg>
           <span>Map layers</span>
         </button>
-        <button class="tool" data-mock="Add layer" type="button">
+        <button class="tool" id="addDataTool" type="button">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
           <span>Add layer</span>
         </button>
@@ -330,6 +351,42 @@
         </div>
       </div>
 
+      <!-- Add data panel (CSV upload — fieldwork configure flow) -->
+      <div class="side-panel" id="dataPanel" hidden>
+        <div class="panel-head"><h2>Add data</h2><button class="panel-close" id="dataClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <div id="dataError" class="data-error" hidden></div>
+          <div id="dataControls">
+            <p class="data-summary" id="dataSummary"></p>
+            <label class="lbl">Map style</label>
+            <div class="style-list" id="styleList"></div>
+            <div id="fieldRows"></div>
+            <div id="swatchBlock" hidden>
+              <label class="lbl">Point colour</label>
+              <div class="swatches" id="dataSwatches"></div>
+            </div>
+            <div id="rampBlock" hidden>
+              <label class="lbl">Colour ramp</label>
+              <div class="ramp-list" id="rampList"></div>
+            </div>
+            <label class="lbl">Point size</label>
+            <div class="slider-row">
+              <input type="range" id="dataSize" min="6" max="28" value="12" />
+              <span class="slider-val" id="dataSizeVal">12</span>
+            </div>
+            <div class="data-actions">
+              <button id="dataCancel" class="mbtn" type="button">Cancel</button>
+              <button id="dataSubmit" class="mbtn primary" type="button">Add to map</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drag-and-drop target highlight -->
+      <div id="dropOverlay" class="drop-overlay" hidden>
+        <div class="drop-overlay-inner">Drop your CSV to add data to the map</div>
+      </div>
+
       <div id="toast" class="toast" hidden></div>
     </div>
   </div>
@@ -409,7 +466,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "1.9";
+      var APP_VERSION = "2.0";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -716,23 +773,26 @@
 
       // ---- Panels ----
       function setToolbarActive(which, on) {
-        var el = which === "sketch" ? $("sketchTool") : $("saveTool");
+        var el = which === "sketch" ? $("sketchTool") : (which === "data" ? $("addDataTool") : $("saveTool"));
+        if (!el) return;
         if (on) el.classList.add("active"); else el.classList.remove("active");
       }
       function openPanel(which) {
         sketchPanelOpen = (which === "sketch");
         $("sketchPanel").hidden = which !== "sketch";
         $("savePanel").hidden = which !== "save";
+        $("dataPanel").hidden = which !== "data";
         setToolbarActive("sketch", which === "sketch");
         setToolbarActive("save", which === "save");
+        setToolbarActive("data", which === "data");
         try { view.closePopup(); } catch (e) {}
         if (which === "sketch") { setTool("select"); selectForEdit(null); }
         else { try { sketchVM.cancel(); } catch (e) {} placingText = false; currentTool = null; updateToolButtons(); }
       }
       function closePanels() {
         sketchPanelOpen = false;
-        $("sketchPanel").hidden = true; $("savePanel").hidden = true;
-        setToolbarActive("sketch", false); setToolbarActive("save", false);
+        $("sketchPanel").hidden = true; $("savePanel").hidden = true; $("dataPanel").hidden = true;
+        setToolbarActive("sketch", false); setToolbarActive("save", false); setToolbarActive("data", false);
         try { sketchVM.cancel(); } catch (e) {} placingText = false; currentTool = null; updateToolButtons();
         selectedFeature = null;
       }
@@ -837,7 +897,10 @@
       function loadDocument(doc) {
         graphicsLayer.removeAll();
         // Clear any FeatureLayers from a previous open (v3 feature-collection docs).
-        dataLayers.forEach(function (fl) { try { map.remove(fl); } catch (e) {} });
+        dataLayers.forEach(function (fl) {
+          try { map.remove(fl); } catch (e) {}
+          try { if (view.map && view.map !== map) view.map.remove(fl); } catch (e) {}
+        });
         dataLayers = [];
         // Reuse the ONE persistent map instead of swapping in a new Map. Swapping the
         // map/basemap leaves goTo unable to frame the data until the new basemap's LODs
@@ -1027,7 +1090,10 @@
         var wm = new WebMap({ portalItem: { id: itemId } });
         wm.load().then(function () {
           detachGraphics();
-          dataLayers.forEach(function (fl) { try { map.remove(fl); } catch (e) {} });
+          dataLayers.forEach(function (fl) {
+            try { map.remove(fl); } catch (e) {}
+            try { if (view.map && view.map !== map) view.map.remove(fl); } catch (e) {}
+          });
           dataLayers = [];
           wm.add(graphicsLayer);                     // keep sketch layer on top
           view.map = wm;
@@ -1053,6 +1119,554 @@
       $("nameConfirm").addEventListener("click", confirmNameDialog);
       $("fileNameInput").addEventListener("keydown", function (e) { if (e.key === "Enter") confirmNameDialog(); if (e.key === "Escape") closeNameDialog(); });
       $("nameModal").addEventListener("click", function (e) { if (e.target === $("nameModal")) closeNameDialog(); });
+
+      // ================= Add data (CSV -> local FeatureLayer) =================
+      // The fieldwork app's configure flow, embedded: drop a CSV on the map, pick a
+      // style + fields in the right panel, "Add to map" builds a client-side
+      // FeatureLayer with a real renderer + labelingInfo. The layer def is the same
+      // v3 feature-collection shape the fieldwork export writes, so buildDataLayer /
+      // _srcDef / Save all work unchanged. Parsing is CLIENT-SIDE (no AGOL
+      // analyze/generate round trip): nothing in the CSV leaves the device.
+      var MAX_ROWS = 1000;
+      var POINT_FILL_ALPHA = 204;
+      var NUM_RE = /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/;
+      var LAT_NAMES = ["latitude", "lat", "y"];
+      var LON_NAMES = ["longitude", "lon", "lng", "long", "x"];
+      var COORD_NAMES = LAT_NAMES.concat(LON_NAMES);
+      var PALETTE_RGB = [
+        [0, 122, 194, 255], [255, 170, 0, 255], [76, 175, 80, 255], [216, 86, 48, 255],
+        [142, 68, 173, 255], [0, 168, 168, 255], [233, 113, 184, 255], [121, 121, 121, 255]
+      ];
+      var COLOR_RAMPS = [
+        { id: "blue",    name: "Blues",    colors: [[230,241,251],[199,234,255],[80,167,218],[0,122,194],[0,97,155]] },
+        { id: "green",   name: "Greens",   colors: [[237,248,233],[186,228,179],[116,196,118],[49,163,84],[0,109,44]] },
+        { id: "orange",  name: "Oranges",  colors: [[254,237,222],[253,190,133],[253,141,60],[230,85,13],[166,54,3]] },
+        { id: "purple",  name: "Purples",  colors: [[242,240,247],[203,201,226],[158,154,200],[117,107,177],[84,39,143]] },
+        { id: "red",     name: "Reds",     colors: [[254,229,217],[252,174,145],[251,106,74],[222,45,38],[165,15,21]] },
+        { id: "bluered", name: "Blue\u2013Red", colors: [[44,123,182],[171,217,233],[255,255,191],[253,174,97],[215,25,28]] }
+      ];
+      var DATA_STYLES = [
+        { id: "simple", name: "Map locations", icon: "\uD83D\uDCCD", hint: "Just points on a map",
+          requires: {}, fields: ["label"] },
+        { id: "categorical", name: "Map by type", icon: "\uD83C\uDFF7\uFE0F", hint: "e.g. tree species, land use, survey answers",
+          requires: { minCategorical: 1 }, fields: ["color", "label"] },
+        { id: "graduated", name: "Map by size", icon: "\uD83D\uDCCF", hint: "e.g. tree height, traffic counts, noise in dB",
+          requires: { minNumeric: 1 }, fields: ["size", "label"] },
+        { id: "numeric_color_size", name: "Map by colour & size", icon: "\uD83D\uDCA0", hint: "two numbers together \u2014 e.g. depth as colour, magnitude as size",
+          requires: { minNumeric: 2 }, fields: ["color", "size", "label"] },
+        { id: "categorical_size", name: "Map by type & size", icon: "\uD83C\uDFA8", hint: "e.g. species as colour, height as size",
+          requires: { minCategorical: 1, minNumeric: 1 }, fields: ["color", "size", "label"] },
+        { id: "pie_chart", name: "Pie charts", icon: "\uD83E\uDD67", hint: "e.g. litter surveys, species counts in a quadrat",
+          requires: { minNumeric: 3 }, fields: ["label"] }
+      ];
+      var FIELD_LABELS = { color: "Colour points by", size: "Size points by", label: "Label points with" };
+      var NONE_VALUE = "__none__";
+      var addState = null;
+      var dataLayerSeq = 0;
+
+      // -- CSV parsing + the two basic checks (A1 start, lat/long present) --
+      function splitCsvLine(line) {
+        var cells = [], cur = "", inQuotes = false;
+        for (var i = 0; i < line.length; i++) {
+          var ch = line[i];
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+            else inQuotes = !inQuotes;
+          } else if (ch === "," && !inQuotes) { cells.push(cur); cur = ""; }
+          else { cur += ch; }
+        }
+        cells.push(cur);
+        return cells;
+      }
+      function csvFail(msg) { return { ok: false, error: msg }; }
+      function readCsv(text) {
+        var lines = String(text).replace(/^\uFEFF/, "").split(/\r\n|\n|\r/);
+        while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+        if (!lines.length) return csvFail("That file is empty.");
+        if (lines[0].trim() === "" || lines[0].replace(/,/g, "").trim() === "") {
+          return csvFail("Your data needs to start in the top-left cell (A1). Remove any blank rows above your headings.");
+        }
+        var header = splitCsvLine(lines[0]).map(function (h) { return String(h == null ? "" : h); });
+        if (String(header[0]).trim() === "") {
+          return csvFail("Your data needs to start in the top-left cell (A1). The first column has no heading \u2014 remove any blank columns to the left of your data.");
+        }
+        while (header.length && String(header[header.length - 1]).trim() === "") header.pop();
+        for (var i = 0; i < header.length; i++) {
+          if (String(header[i]).trim() === "") return csvFail("Column " + (i + 1) + " has no heading. Every column needs a name in row 1.");
+        }
+        var rows = [];
+        for (var r = 1; r < lines.length; r++) {
+          if (lines[r].trim() === "" || lines[r].replace(/,/g, "").trim() === "") continue;
+          rows.push(splitCsvLine(lines[r]));
+        }
+        if (!rows.length) return csvFail("There's no data under the headings \u2014 add at least one row.");
+        if (rows.length > MAX_ROWS) return csvFail("That's " + rows.length + " rows \u2014 this concept app can map up to " + MAX_ROWS + ". Try a smaller file.");
+        var latIdx = -1, lonIdx = -1;
+        header.forEach(function (h, idx) {
+          var n = String(h).trim().toLowerCase();
+          if (latIdx < 0 && LAT_NAMES.indexOf(n) >= 0) latIdx = idx;
+          if (lonIdx < 0 && LON_NAMES.indexOf(n) >= 0) lonIdx = idx;
+        });
+        if (latIdx < 0 || lonIdx < 0) {
+          return csvFail("Couldn't find latitude and longitude columns. Name them \u201CLatitude\u201D and \u201CLongitude\u201D (Lat / Lon also work).");
+        }
+        return { ok: true, header: header, rows: rows, latIdx: latIdx, lonIdx: lonIdx };
+      }
+      function sanitizeFieldName(h, used) {
+        var n = String(h).trim().replace(/[^\w]/g, "_").replace(/^_+|_+$/g, "");
+        if (!n) n = "field";
+        if (/^\d/.test(n)) n = "F" + n;
+        var base = n, k = 2;
+        while (used[n]) { n = base + "_" + k; k++; }
+        used[n] = true;
+        return n;
+      }
+      function lonLatToWebMercator(lon, lat) {
+        var R = 20037508.342788905;
+        var la = Math.max(-89.9999, Math.min(89.9999, lat));
+        return [lon / 180 * R, Math.log(Math.tan((90 + la) * Math.PI / 360)) / Math.PI * R];
+      }
+      function buildCsvLayerData(fileName, parsed) {
+        var header = parsed.header, rows = parsed.rows;
+        var used = { ObjectId: true };
+        var names = header.map(function (h) { return sanitizeFieldName(h, used); });
+        var isNum = header.map(function () { return true; });
+        var isInt = header.map(function () { return true; });
+        var hasVal = header.map(function () { return false; });
+        rows.forEach(function (cells) {
+          for (var i = 0; i < header.length; i++) {
+            var v = (cells[i] == null ? "" : String(cells[i])).trim();
+            if (v === "") continue;
+            hasVal[i] = true;
+            if (!NUM_RE.test(v)) { isNum[i] = false; isInt[i] = false; }
+            else if (v.indexOf(".") >= 0 || /[eE]/.test(v)) isInt[i] = false;
+          }
+        });
+        var fields = [{ name: "ObjectId", alias: "ObjectId", type: "esriFieldTypeOID" }];
+        for (var i = 0; i < header.length; i++) {
+          var t = (hasVal[i] && isNum[i]) ? (isInt[i] ? "esriFieldTypeInteger" : "esriFieldTypeDouble") : "esriFieldTypeString";
+          fields.push({ name: names[i], alias: String(header[i]).trim(), type: t });
+        }
+        var feats = [], dropped = 0;
+        rows.forEach(function (cells) {
+          var lat = parseFloat(String(cells[parsed.latIdx] == null ? "" : cells[parsed.latIdx]).trim());
+          var lon = parseFloat(String(cells[parsed.lonIdx] == null ? "" : cells[parsed.lonIdx]).trim());
+          if (!isFinite(lat) || !isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) { dropped++; return; }
+          var attrs = { ObjectId: feats.length + 1 };
+          for (var c = 0; c < header.length; c++) {
+            var raw = (cells[c] == null ? "" : String(cells[c])).trim();
+            var fd = fields[c + 1];
+            attrs[names[c]] = (raw === "") ? null : (fd.type !== "esriFieldTypeString" ? Number(raw) : raw);
+          }
+          var xy = lonLatToWebMercator(lon, lat);
+          feats.push({ geometry: { x: xy[0], y: xy[1], spatialReference: { wkid: 102100, latestWkid: 3857 } }, attributes: attrs });
+        });
+        if (!feats.length) return csvFail("None of the rows had usable latitude/longitude values \u2014 check the coordinates are decimal degrees (e.g. 51.5, -0.12).");
+        var numeric = [], categorical = [];
+        fields.forEach(function (f) {
+          if (f.type === "esriFieldTypeOID") return;
+          if (COORD_NAMES.indexOf(f.name.toLowerCase()) >= 0) return;
+          if (f.type === "esriFieldTypeInteger" || f.type === "esriFieldTypeDouble") { numeric.push(f.name); return; }
+          var seen = {}, n = 0;
+          feats.some(function (ft) {
+            var v = ft.attributes[f.name];
+            if (v !== null && v !== undefined && v !== "" && !seen[v]) { seen[v] = 1; n++; }
+            return n > 12;
+          });
+          if (n >= 2 && n <= 12) categorical.push(f.name);
+        });
+        return { ok: true, fileName: fileName, features: feats, fields: fields, numeric: numeric, categorical: categorical, dropped: dropped };
+      }
+
+      // -- Renderer + label builders (ported from the fieldwork app) --
+      function styleAvailable(style) {
+        var q = style.requires;
+        if (q.minNumeric && addState.numeric.length < q.minNumeric) return false;
+        if (q.minCategorical && addState.categorical.length < q.minCategorical) return false;
+        return true;
+      }
+      function pickAutoStyle() {
+        var order = ["categorical_size", "categorical", "graduated", "simple"];
+        for (var i = 0; i < order.length; i++) {
+          var s = DATA_STYLES.filter(function (x) { return x.id === order[i]; })[0];
+          if (s && styleAvailable(s)) return s;
+        }
+        return DATA_STYLES[0];
+      }
+      function pickAutoFields(style) {
+        var choices = { color: null, size: null, label: null };
+        var num = addState.numeric, cat = addState.categorical;
+        if (style.id === "numeric_color_size") {
+          choices.color = num[0] || null;
+          choices.size = num[1] || num[0] || null;
+        } else {
+          if (style.fields.indexOf("color") >= 0) choices.color = cat[0] || null;
+          if (style.fields.indexOf("size") >= 0) choices.size = num[0] || null;
+        }
+        if (style.fields.indexOf("label") >= 0) choices.label = null; // labels opt-in
+        return choices;
+      }
+      function buildDataSymbol(color, size) {
+        var sym = addState.symbolChoices;
+        var base = color || sym.color;
+        return {
+          type: "esriSMS", style: "esriSMSCircle",
+          color: [base[0], base[1], base[2], POINT_FILL_ALPHA],
+          size: size || sym.size,
+          outline: { color: [80, 80, 80, 255], width: 1 }
+        };
+      }
+      function buildSizeVariable(field, features) {
+        var values = features.map(function (f) { return f.attributes[field]; })
+          .filter(function (v) { return v !== null && v !== undefined && !isNaN(v); });
+        if (!values.length) return null;
+        var s = addState.symbolChoices.size || 12;
+        return {
+          type: "sizeInfo", field: field,
+          minSize: Math.max(4, Math.round(s * 0.7)), maxSize: Math.round(s * 3.3),
+          minDataValue: Math.min.apply(null, values), maxDataValue: Math.max.apply(null, values)
+        };
+      }
+      function buildPieChartRenderer(numericFields, features) {
+        var totals = features.map(function (f) {
+          var sum = 0;
+          numericFields.forEach(function (fld) {
+            var v = f.attributes[fld];
+            if (typeof v === "number" && !isNaN(v)) sum += v;
+          });
+          f.attributes._pieTotal = sum;
+          return sum;
+        });
+        var s = addState.symbolChoices.size || 12;
+        return {
+          type: "pieChart",
+          attributes: numericFields.slice(0, 8).map(function (fld, i) {
+            return { field: fld, color: PALETTE_RGB[i % PALETTE_RGB.length], label: fld.replace(/_/g, " ") };
+          }),
+          size: s * 2,
+          holePercentage: 0.4,
+          outline: { color: [255, 255, 255, 255], width: 0.5, type: "esriSLS", style: "esriSLSSolid" },
+          visualVariables: [{
+            type: "sizeInfo", field: "_pieTotal",
+            minSize: Math.round(14 * s / 12), maxSize: Math.round(48 * s / 12),
+            minDataValue: Math.min.apply(null, totals), maxDataValue: Math.max.apply(null, totals)
+          }]
+        };
+      }
+      function activeRampColors() {
+        var id = addState.symbolChoices.ramp || "blue";
+        var ramp = COLOR_RAMPS.filter(function (r) { return r.id === id; })[0] || COLOR_RAMPS[0];
+        return ramp.colors;
+      }
+      function buildNumericColorRenderer(field, features) {
+        var values = features.map(function (f) { return f.attributes[field]; })
+          .filter(function (v) { return v !== null && v !== undefined && v !== "" && !isNaN(v); })
+          .map(Number);
+        if (!values.length) return { type: "simple", symbol: buildDataSymbol() };
+        var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+        var mean = values.reduce(function (a, b) { return a + b; }, 0) / values.length;
+        var sd = Math.sqrt(values.reduce(function (a, v) { return a + (v - mean) * (v - mean); }, 0) / values.length);
+        var lo = Math.max(min, mean - sd), hi = Math.min(max, mean + sd);
+        if (lo >= hi) { lo = min; hi = max; }
+        if (lo >= hi) { hi = lo + 1; }
+        var ramp = activeRampColors(), n = ramp.length;
+        var round2 = function (x) { return Math.round(x * 100) / 100; };
+        var stops = ramp.map(function (c, i) {
+          return {
+            value: round2(lo + (hi - lo) * i / (n - 1)),
+            color: [c[0], c[1], c[2], POINT_FILL_ALPHA],
+            label: i === 0 ? "< " + round2(lo) : (i === n - 1 ? "> " + round2(hi) : "")
+          };
+        });
+        return { type: "simple", symbol: buildDataSymbol(), visualVariables: [{ type: "colorInfo", field: field, stops: stops }] };
+      }
+      function buildUniqueRenderer(field, features) {
+        var seen = {}, values = [];
+        features.forEach(function (f) {
+          var v = f.attributes[field];
+          if (v !== null && v !== undefined && v !== "" && !seen[v]) { seen[v] = 1; values.push(v); }
+        });
+        values.sort();
+        return {
+          type: "uniqueValue", field1: field,
+          defaultSymbol: buildDataSymbol([179, 179, 179, 200]), defaultLabel: "Other",
+          uniqueValueInfos: values.map(function (val, i) {
+            return { value: val, label: String(val), symbol: buildDataSymbol(PALETTE_RGB[i % PALETTE_RGB.length]) };
+          })
+        };
+      }
+      function buildDataLabelingInfo(labelField) {
+        if (!labelField) return null;
+        return [{
+          labelExpression: "[" + labelField + "]",
+          labelExpressionInfo: { expression: "$feature." + labelField },
+          labelPlacement: "esriServerPointLabelPlacementAboveCenter",
+          useCodedValues: true,
+          symbol: {
+            type: "esriTS", color: [50, 50, 50, 255],
+            haloColor: [255, 255, 255, 255], haloSize: 1.5,
+            font: { family: "Arial", size: 10, weight: "bold" }
+          },
+          minScale: 0, maxScale: 0
+        }];
+      }
+      function buildDataRenderer(style, choices, features, numeric) {
+        var colorIsNumeric = choices.color && numeric.indexOf(choices.color) >= 0;
+        var buildColorRenderer = function (field) {
+          return colorIsNumeric ? buildNumericColorRenderer(field, features) : buildUniqueRenderer(field, features);
+        };
+        switch (style.id) {
+          case "pie_chart":
+            return buildPieChartRenderer(numeric, features);
+          case "numeric_color_size": {
+            var r1 = buildNumericColorRenderer(choices.color, features);
+            var sv1 = buildSizeVariable(choices.size, features);
+            if (sv1) r1.visualVariables = (r1.visualVariables || []).concat([sv1]);
+            return r1;
+          }
+          case "categorical_size": {
+            var r2 = buildColorRenderer(choices.color);
+            var sv2 = buildSizeVariable(choices.size, features);
+            if (sv2) r2.visualVariables = (r2.visualVariables || []).concat([sv2]);
+            return r2;
+          }
+          case "categorical":
+            return buildColorRenderer(choices.color);
+          case "graduated": {
+            var r3 = { type: "simple", symbol: buildDataSymbol(), label: String(choices.size).replace(/_/g, " ") };
+            var sv3 = buildSizeVariable(choices.size, features);
+            if (sv3) r3.visualVariables = [sv3];
+            return r3;
+          }
+          default:
+            return { type: "simple", symbol: buildDataSymbol() };
+        }
+      }
+      function buildDataPopupTitle(style, choices) {
+        switch (style.id) {
+          case "pie_chart": return "Composition breakdown";
+          case "numeric_color_size":
+          case "categorical_size": return "{" + choices.color + "} \u2013 {" + choices.size + "}";
+          case "categorical": return "{" + choices.color + "}";
+          case "graduated": return "{" + choices.size + "}";
+          default: return "Point";
+        }
+      }
+
+      // -- Panel UI --
+      function fieldAlias(name) {
+        var f = (addState.fields || []).filter(function (x) { return x.name === name; })[0];
+        return (f && f.alias) || name;
+      }
+      function renderStyleList() {
+        var wrap = $("styleList"); wrap.innerHTML = "";
+        DATA_STYLES.forEach(function (style) {
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "style-opt" + (addState.style.id === style.id ? " active" : "");
+          b.disabled = !styleAvailable(style);
+          b.title = b.disabled ? "Your data doesn't have the columns this style needs" : "";
+          b.innerHTML = '<span class="s-ico">' + style.icon + '</span><span><span class="s-name">' + style.name + '</span><div class="s-hint">' + style.hint + '</div></span>';
+          b.addEventListener("click", function () {
+            addState.style = style;
+            addState.fieldChoices = pickAutoFields(style);
+            renderStyleList(); renderFieldRows(); renderSymbolBlocks();
+          });
+          wrap.appendChild(b);
+        });
+      }
+      function fieldOptions(key) {
+        var num = addState.numeric, cat = addState.categorical;
+        if (key === "size") return num;
+        if (key === "color") return addState.style.id === "numeric_color_size" ? num : cat;
+        // label: any non-coordinate, non-oid field
+        return addState.fields.filter(function (f) {
+          return f.type !== "esriFieldTypeOID" && COORD_NAMES.indexOf(f.name.toLowerCase()) < 0 && f.name !== "_pieTotal";
+        }).map(function (f) { return f.name; });
+      }
+      function renderFieldRows() {
+        var wrap = $("fieldRows"); wrap.innerHTML = "";
+        addState.style.fields.forEach(function (key) {
+          var lbl = document.createElement("label"); lbl.className = "lbl"; lbl.textContent = FIELD_LABELS[key];
+          var sel = document.createElement("select"); sel.className = "field";
+          if (key === "label") {
+            var none = document.createElement("option"); none.value = NONE_VALUE; none.textContent = "None"; sel.appendChild(none);
+          }
+          fieldOptions(key).forEach(function (name) {
+            var o = document.createElement("option"); o.value = name; o.textContent = fieldAlias(name); sel.appendChild(o);
+          });
+          var cur = addState.fieldChoices[key];
+          sel.value = cur == null ? (key === "label" ? NONE_VALUE : sel.value) : cur;
+          if (key !== "label" && addState.fieldChoices[key] == null && sel.options.length) {
+            addState.fieldChoices[key] = sel.value;
+          }
+          sel.addEventListener("change", function () {
+            addState.fieldChoices[key] = (sel.value === NONE_VALUE) ? null : sel.value;
+          });
+          wrap.appendChild(lbl); wrap.appendChild(sel);
+        });
+      }
+      function renderSymbolBlocks() {
+        var showSwatches = addState.style.id === "simple" || addState.style.id === "graduated";
+        var showRamp = addState.style.id === "numeric_color_size";
+        $("swatchBlock").hidden = !showSwatches;
+        $("rampBlock").hidden = !showRamp;
+        if (showSwatches) {
+          var sw = $("dataSwatches"); sw.innerHTML = "";
+          PALETTE.forEach(function (hex) {
+            var rgb = hexToRgb(hex);
+            var b = document.createElement("button");
+            b.type = "button"; b.className = "swatch"; b.style.background = hex;
+            var active = addState.symbolChoices.color.join(",") === rgb.join(",");
+            if (active) b.classList.add("active");
+            b.addEventListener("click", function () { addState.symbolChoices.color = rgb; renderSymbolBlocks(); });
+            sw.appendChild(b);
+          });
+        }
+        if (showRamp) {
+          var rl = $("rampList"); rl.innerHTML = "";
+          COLOR_RAMPS.forEach(function (ramp) {
+            var b = document.createElement("button");
+            b.type = "button"; b.className = "ramp-btn" + (addState.symbolChoices.ramp === ramp.id ? " active" : "");
+            b.title = ramp.name;
+            b.style.background = "linear-gradient(90deg," + ramp.colors.map(function (c) { return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")"; }).join(",") + ")";
+            b.addEventListener("click", function () { addState.symbolChoices.ramp = ramp.id; renderSymbolBlocks(); });
+            rl.appendChild(b);
+          });
+        }
+      }
+      function renderDataPanel() {
+        $("dataError").hidden = true;
+        $("dataControls").style.display = "";
+        var s = addState.fileName + " \u2014 " + addState.features.length + " point(s) found";
+        if (addState.dropped) s += " (" + addState.dropped + " row(s) skipped \u2014 bad coordinates)";
+        $("dataSummary").textContent = s;
+        $("dataSize").value = addState.symbolChoices.size;
+        $("dataSizeVal").textContent = addState.symbolChoices.size;
+        renderStyleList(); renderFieldRows(); renderSymbolBlocks();
+      }
+      function showDataError(msg) {
+        addState = null;
+        openPanel("data");
+        var e = $("dataError"); e.textContent = msg; e.hidden = false;
+        $("dataControls").style.display = "none";
+      }
+      function handleCsvText(name, text) {
+        var parsed = readCsv(text);
+        if (!parsed.ok) { showDataError(parsed.error); return; }
+        var data = buildCsvLayerData(name, parsed);
+        if (!data.ok) { showDataError(data.error); return; }
+        addState = data;
+        addState.symbolChoices = { color: hexToRgb(DEFAULT_COLOR), size: 12, ramp: "blue" };
+        addState.style = pickAutoStyle();
+        addState.fieldChoices = pickAutoFields(addState.style);
+        openPanel("data");
+        renderDataPanel();
+      }
+      function submitData() {
+        if (!addState) { closePanels(); return; }
+        var style = addState.style, choices = addState.fieldChoices;
+        var renderer = buildDataRenderer(style, choices, addState.features, addState.numeric);
+        var labelingInfo = buildDataLabelingInfo(choices.label);
+        var fields = addState.fields.slice();
+        if (style.id === "pie_chart" && !fields.some(function (f) { return f.name === "_pieTotal"; })) {
+          fields = fields.concat([{ name: "_pieTotal", type: "esriFieldTypeDouble", alias: "_pieTotal" }]);
+        }
+        var popupFieldInfos = addState.fields
+          .filter(function (f) {
+            return f.type !== "esriFieldTypeOID" && COORD_NAMES.indexOf(f.name.toLowerCase()) < 0 && f.name !== "_pieTotal";
+          })
+          .map(function (f) { return { fieldName: f.name, label: f.alias || f.name.replace(/_/g, " ") }; });
+        var title = addState.fileName.replace(/\.csv$/i, "").replace(/[_]+/g, " ").trim() || "My data";
+        var ld = {
+          id: "csv" + (++dataLayerSeq),
+          title: title,
+          geometryType: "point",
+          objectIdField: "ObjectId",
+          spatialReference: { wkid: 102100, latestWkid: 3857 },
+          fields: fields,
+          renderer: renderer,
+          labelingInfo: labelingInfo,
+          popupInfo: { title: buildDataPopupTitle(style, choices), content: [{ type: "fields", fieldInfos: popupFieldInfos }] },
+          features: addState.features
+        };
+        var fl;
+        try { fl = buildDataLayer(ld); } catch (e) { toast("Couldn't build that layer."); return; }
+        dataLayers.push(fl);
+        (view.map || map).add(fl);
+        var count = addState.features.length;
+        addState = null;
+        closePanels();
+        markDirty();
+        fl.when().then(function () { return fl.queryExtent(); }).then(function (r) {
+          if (r && r.extent) {
+            var ext = r.extent;
+            try { if (ext.expand) ext = ext.expand(1.2); } catch (e) {}
+            view.goTo(ext, { animate: false }).catch(function () {});
+          }
+        }).catch(function () {});
+        toast("Added " + count + " point(s) to the map. Save keeps them in your .mmap.");
+      }
+
+      // -- Drag & drop + toolbar trigger --
+      function dtHasFiles(e) {
+        var dt = e.dataTransfer;
+        if (!dt || !dt.types) return false;
+        return Array.prototype.indexOf.call(dt.types, "Files") >= 0;
+      }
+      var dropDepth = 0;
+      window.addEventListener("dragover", function (e) { if (dtHasFiles(e)) e.preventDefault(); });
+      window.addEventListener("dragenter", function (e) {
+        if (!dtHasFiles(e)) return;
+        dropDepth++;
+        $("dropOverlay").hidden = false;
+      });
+      window.addEventListener("dragleave", function (e) {
+        if (!dtHasFiles(e)) return;
+        dropDepth = Math.max(0, dropDepth - 1);
+        if (!dropDepth) $("dropOverlay").hidden = true;
+      });
+      window.addEventListener("drop", function (e) {
+        if (!dtHasFiles(e)) return;
+        e.preventDefault();
+        dropDepth = 0;
+        $("dropOverlay").hidden = true;
+        var f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) handleDroppedFile(f);
+      });
+      function handleDroppedFile(f) {
+        var name = f.name || "";
+        if (/\.(mmap|json)$/i.test(name)) {
+          var r = new FileReader();
+          r.onload = function () { currentFileHandle = null; parseAndLoad(r.result); };
+          r.readAsText(f);
+          return;
+        }
+        if (/\.csv$/i.test(name) || f.type === "text/csv") {
+          var r2 = new FileReader();
+          r2.onload = function () { handleCsvText(name, r2.result); };
+          r2.readAsText(f);
+          return;
+        }
+        toast("Drop a .csv file to add data, or a .mmap to open a saved map.");
+      }
+      $("addDataTool").addEventListener("click", function () {
+        if (!$("dataPanel").hidden) { closePanels(); return; }
+        var input = document.createElement("input");
+        input.type = "file"; input.accept = ".csv,text/csv";
+        input.addEventListener("change", function (e) {
+          var f = e.target.files && e.target.files[0];
+          if (f) handleDroppedFile(f);
+        });
+        input.click();
+      });
+      $("dataClose").addEventListener("click", function () { addState = null; closePanels(); });
+      $("dataCancel").addEventListener("click", function () { addState = null; closePanels(); });
+      $("dataSubmit").addEventListener("click", submitData);
+      $("dataSize").addEventListener("input", function () {
+        var v = parseInt($("dataSize").value, 10) || 12;
+        if (addState) addState.symbolChoices.size = v;
+        $("dataSizeVal").textContent = v;
+      });
 
       // Wire save panel + open toolbar button
       $("saveMapTile").addEventListener("click", saveMap);
