@@ -141,28 +141,27 @@
     .save-note a:hover{ text-decoration:underline; }
 
     /* ---- Add data panel (fieldwork configure design) ---- */
-    .side-panel.flex-panel{ display:flex; flex-direction:column; overflow:hidden; }
+    .side-panel.flex-panel{ display:flex; flex-direction:column; overflow:hidden; bottom:16px; max-height:none; }
     .side-panel.flex-panel[hidden]{ display:none; }
     .flex-panel .panel-body{ flex:1 1 auto; min-height:0; overflow-y:auto; }
-    .panel-foot{ flex:0 0 auto; display:flex; gap:10px; justify-content:flex-end; padding:12px 16px; border-top:1px solid #ededed; background:#fff; }
-    .data-h{ font-size:15px; font-weight:600; color:var(--ink); margin:0 0 4px; }
-    .data-summary{ font-size:12.5px; color:var(--muted); margin:0 0 14px; line-height:1.5; word-break:break-word; }
-    .cfg-section{ margin-bottom:14px; }
-    .cfg-h{ font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:#888; margin:0 0 8px; font-weight:600; }
-    .style-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:8px; }
-    .style-card{ border:2px solid #ddd; border-radius:6px; padding:10px 6px; cursor:pointer; background:#fff; text-align:center; font-family:var(--font); min-width:0; }
+    .panel-foot{ flex:0 0 auto; display:flex; gap:10px; justify-content:flex-end; padding:10px 16px; border-top:1px solid #ededed; background:#fff; }
+    .data-summary{ font-size:12.5px; color:var(--muted); margin:0 0 10px; line-height:1.5; word-break:break-word; }
+    .cfg-section{ margin-bottom:10px; }
+    .cfg-h{ font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:#888; margin:0 0 6px; font-weight:600; }
+    .style-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:6px; }
+    .style-card{ border:2px solid #ddd; border-radius:6px; padding:8px 4px; cursor:pointer; background:#fff; text-align:center; font-family:var(--font); min-width:0; }
     .style-card:hover:not(.disabled){ border-color:#8ab8d8; }
     .style-card.selected{ border-color:var(--blue); background:#eef5fb; }
     .style-card.disabled{ opacity:.4; cursor:not-allowed; }
-    .style-card .s-ico{ font-size:20px; display:block; margin-bottom:4px; line-height:1.2; }
+    .style-card .s-ico{ font-size:18px; display:block; margin-bottom:3px; line-height:1.2; }
     .style-card .s-name{ font-size:11.5px; font-weight:600; line-height:1.25; color:var(--ink); overflow:hidden; text-overflow:ellipsis; display:block; }
-    .style-desc{ font-size:12px; color:var(--ink2); background:#eef5fb; border-left:3px solid var(--blue); padding:7px 10px; border-radius:0 4px 4px 0; line-height:1.45; }
-    .cfg-label{ display:block; font-size:13px; color:#555; margin:8px 0 4px; }
+    .style-desc{ font-size:12px; color:var(--ink2); background:#eef5fb; border-left:3px solid var(--blue); padding:6px 10px; border-radius:0 4px 4px 0; line-height:1.45; }
+    .cfg-label{ display:block; font-size:13px; color:#555; margin:6px 0 3px; }
     .cfg-icon{ margin-right:7px; }
-    .cfg-summary{ color:#555; font-size:12.5px; line-height:1.5; padding:10px 12px; background:#f5f6f7; border-radius:4px; margin-top:12px; }
-    .cfg-select{ width:100%; padding:7px 10px; border:1px solid var(--line2); border-radius:3px; font-size:13.5px; color:var(--ink); font-family:var(--font); background:#fff; }
+    .cfg-summary{ color:#555; font-size:12.5px; line-height:1.5; padding:8px 12px; background:#f5f6f7; border-radius:4px; margin-top:8px; }
+    .cfg-select{ width:100%; padding:6px 10px; border:1px solid var(--line2); border-radius:3px; font-size:13.5px; color:var(--ink); font-family:var(--font); background:#fff; }
     .cfg-select:focus{ outline:none; border-color:var(--blue); }
-    .sym-row{ display:flex; align-items:center; gap:10px; padding:5px 0; }
+    .sym-row{ display:flex; align-items:center; gap:10px; padding:4px 0; }
     .sym-row[hidden]{ display:none; }
     .sym-label{ flex:0 0 48px; font-size:13px; color:#555; }
     .shape-options{ display:flex; gap:6px; }
@@ -374,11 +373,10 @@
 
       <!-- Add data panel (CSV upload — fieldwork configure flow) -->
       <div class="side-panel flex-panel" id="dataPanel" hidden style="width:400px;">
-        <div class="panel-head"><h2>Add data</h2><button class="panel-close" id="dataClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-head"><h2 id="dataTitle">Add data</h2><button class="panel-close" id="dataClose" type="button" aria-label="Close">&times;</button></div>
         <div class="panel-body">
           <div id="dataError" class="data-error" hidden></div>
           <div id="dataControls">
-            <h2 class="data-h">Looks good. Here's how we'll map it.</h2>
             <p class="data-summary" id="dataSummary"></p>
             <div class="cfg-section">
               <h3 class="cfg-h">Map style</h3>
@@ -502,7 +500,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "2.3";
+      var APP_VERSION = "2.4";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -1625,6 +1623,7 @@
         $("cfgSummary").textContent = summary;
       }
       function renderDataPanel() {
+        $("dataTitle").textContent = "Looks good. Here's how we'll map it.";
         $("dataError").hidden = true;
         $("dataControls").style.display = "";
         $("dataSubmit").disabled = false;
@@ -1638,6 +1637,7 @@
       function showDataError(msg) {
         addState = null;
         openPanel("data");
+        $("dataTitle").textContent = "Add data";
         var e = $("dataError"); e.textContent = msg; e.hidden = false;
         $("dataControls").style.display = "none";
         $("dataSubmit").disabled = true;
