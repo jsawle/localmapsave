@@ -159,6 +159,7 @@
     .cfg-label{ display:block; font-size:13px; color:#555; margin:6px 0 3px; }
     .cfg-icon{ margin-right:7px; }
     .cfg-summary{ color:#555; font-size:12.5px; line-height:1.5; padding:8px 12px; background:#f5f6f7; border-radius:4px; margin-top:8px; }
+    .preview-note{ font-size:11.5px; color:var(--muted); margin:8px 0 0; line-height:1.45; }
     .cfg-select{ width:100%; padding:6px 10px; border:1px solid var(--line2); border-radius:3px; font-size:13.5px; color:var(--ink); font-family:var(--font); background:#fff; }
     .cfg-select:focus{ outline:none; border-color:var(--blue); }
     .sym-row{ display:flex; align-items:center; gap:10px; padding:4px 0; }
@@ -408,6 +409,7 @@
               </div>
             </div>
             <div class="cfg-summary" id="cfgSummary"></div>
+            <p class="preview-note">Live preview — the map updates as you change options.</p>
           </div>
         </div>
         <div class="panel-foot">
@@ -500,7 +502,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "2.4";
+      var APP_VERSION = "2.5";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -812,6 +814,7 @@
         if (on) el.classList.add("active"); else el.classList.remove("active");
       }
       function openPanel(which) {
+        if (which !== "data" && addState) { addState = null; removePreview(false); }
         sketchPanelOpen = (which === "sketch");
         $("sketchPanel").hidden = which !== "sketch";
         $("savePanel").hidden = which !== "save";
@@ -929,6 +932,8 @@
         }
       }
       function loadDocument(doc) {
+        if (addState) { addState = null; }
+        removePreview(false);
         graphicsLayer.removeAll();
         // Clear any FeatureLayers from a previous open (v3 feature-collection docs).
         dataLayers.forEach(function (fl) {
@@ -1123,6 +1128,8 @@
         toast("Opening \u201C" + (title || "map") + "\u201D\u2026");
         var wm = new WebMap({ portalItem: { id: itemId } });
         wm.load().then(function () {
+          if (addState) { addState = null; }
+          removePreview(false);
           detachGraphics();
           dataLayers.forEach(function (fl) {
             try { map.remove(fl); } catch (e) {}
@@ -1592,6 +1599,7 @@
           });
         }
         updateConfigSummary();
+        updatePreview(false);
       }
       function updateConfigSummary() {
         var c = addState.fieldChoices;
@@ -1636,6 +1644,7 @@
       }
       function showDataError(msg) {
         addState = null;
+        removePreview(true);
         openPanel("data");
         $("dataTitle").textContent = "Add data";
         var e = $("dataError"); e.textContent = msg; e.hidden = false;
@@ -1651,11 +1660,15 @@
         addState.symbolChoices = { shape: "esriSMSCircle", color: hexToRgb(DEFAULT_COLOR), size: 12, ramp: "blue" };
         addState.style = pickAutoStyle();
         addState.fieldChoices = pickAutoFields(addState.style);
+        removePreview(false);
+        if (!prePreviewCam) {
+          try { prePreviewCam = { center: [view.center.longitude, view.center.latitude], zoom: view.zoom }; } catch (e) { prePreviewCam = null; }
+        }
         openPanel("data");
         renderDataPanel();
+        updatePreview(true);
       }
-      function submitData() {
-        if (!addState) { closePanels(); return; }
+      function buildLayerDefFromState(idOverride) {
         var style = addState.style, choices = addState.fieldChoices;
         var renderer = buildDataRenderer(style, choices, addState.features, addState.numeric);
         var labelingInfo = buildDataLabelingInfo(choices.label);
@@ -1669,8 +1682,8 @@
           })
           .map(function (f) { return { fieldName: f.name, label: f.alias || f.name.replace(/_/g, " ") }; });
         var title = addState.fileName.replace(/\.csv$/i, "").replace(/[_]+/g, " ").trim() || "My data";
-        var ld = {
-          id: "csv" + (++dataLayerSeq),
+        return {
+          id: idOverride || ("csv" + (++dataLayerSeq)),
           title: title,
           geometryType: "point",
           objectIdField: "ObjectId",
@@ -1681,8 +1694,56 @@
           popupInfo: { title: buildDataPopupTitle(style, choices), content: [{ type: "fields", fieldInfos: popupFieldInfos }] },
           features: addState.features
         };
+      }
+
+      // -- Live preview: the map re-renders as options change (fieldwork behaviour) --
+      var previewLayer = null, previewTimer = null, prePreviewCam = null;
+      function removePreview(restoreCam) {
+        if (previewTimer) { clearTimeout(previewTimer); previewTimer = null; }
+        if (previewLayer) {
+          try { map.remove(previewLayer); } catch (e) {}
+          try { if (view.map && view.map !== map) view.map.remove(previewLayer); } catch (e) {}
+          previewLayer = null;
+        }
+        if (restoreCam && prePreviewCam) {
+          try { view.goTo({ center: prePreviewCam.center, zoom: prePreviewCam.zoom }, { animate: false }).catch(function () {}); } catch (e) {}
+        }
+        if (restoreCam) prePreviewCam = null;
+      }
+      function updatePreview(frameIt) {
+        if (!addState) return;
+        if (previewTimer) clearTimeout(previewTimer);
+        previewTimer = setTimeout(function () {
+          previewTimer = null;
+          if (!addState) return;
+          if (previewLayer) {
+            try { map.remove(previewLayer); } catch (e) {}
+            try { if (view.map && view.map !== map) view.map.remove(previewLayer); } catch (e) {}
+            previewLayer = null;
+          }
+          var fl;
+          try { fl = buildDataLayer(buildLayerDefFromState("csvPreview")); } catch (e) { return; }
+          previewLayer = fl;
+          (view.map || map).add(fl);
+          if (frameIt) {
+            fl.when().then(function () { return fl.queryExtent(); }).then(function (r) {
+              if (r && r.extent) {
+                var ext = r.extent;
+                try { if (ext.expand) ext = ext.expand(1.2); } catch (e) {}
+                view.goTo(ext, { animate: false }).catch(function () {});
+              }
+            }).catch(function () {});
+          }
+        }, frameIt ? 0 : 200);
+      }
+
+      function submitData() {
+        if (!addState) { closePanels(); return; }
+        var ld = buildLayerDefFromState();
         var fl;
         try { fl = buildDataLayer(ld); } catch (e) { toast("Couldn't build that layer."); return; }
+        removePreview(false);
+        prePreviewCam = null;
         dataLayers.push(fl);
         (view.map || map).add(fl);
         var count = addState.features.length;
@@ -1751,13 +1812,14 @@
         });
         input.click();
       });
-      $("dataClose").addEventListener("click", function () { addState = null; closePanels(); });
-      $("dataCancel").addEventListener("click", function () { addState = null; closePanels(); });
+      $("dataClose").addEventListener("click", function () { addState = null; removePreview(true); closePanels(); });
+      $("dataCancel").addEventListener("click", function () { addState = null; removePreview(true); closePanels(); });
       $("dataSubmit").addEventListener("click", submitData);
       $("dataSize").addEventListener("input", function () {
         var v = parseInt($("dataSize").value, 10) || 12;
         if (addState) addState.symbolChoices.size = v;
         $("dataSizeVal").textContent = v + " px";
+        if (addState) { updateConfigSummary(); updatePreview(false); }
       });
 
       // Wire save panel + open toolbar button
