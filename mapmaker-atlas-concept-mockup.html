@@ -399,6 +399,10 @@
               <span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg></span>
               Save map
             </button>
+            <button class="save-tile ghost" id="saveAsTile" type="button">
+              <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9"/><path d="M17 3l4 4v5"/><path d="M8 3v5h7"/><path d="M18 15v6M15 18h6"/></svg></span>
+              Save as&hellip;
+            </button>
           </div>
           <p class="save-note"><strong>No sign-in needed.</strong> Your map saves to a <code>.mmap</code> file on this device — choose a name and folder, then reopen it any time. <a id="openMapLink">Open a saved map</a></p>
         </div>
@@ -570,7 +574,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "2.7";
+      var APP_VERSION = "2.8";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -675,6 +679,13 @@
       }
       function markDirty() { dirty = true; }
       function markClean() { dirty = false; }
+      function confirmDiscard() {
+        if (!dirty) return true;
+        return window.confirm("You have unsaved changes. Open anyway and lose them?");
+      }
+      window.addEventListener("beforeunload", function (e) {
+        if (dirty) { e.preventDefault(); e.returnValue = ""; }
+      });
 
       // ---- Sketch panel: field binding ----
       function popupFieldsEnabled(on) {
@@ -955,11 +966,11 @@
         try { downloadText(JSON.stringify(buildDocument(), null, 2), fn, "application/json"); markClean(); toast("Saved " + fn + " to your downloads."); }
         catch (e) { toast("Couldn't save the file."); }
       }
-      function saveMap() {
+      function saveMap(forceNew) {
         var text = JSON.stringify(buildDocument(), null, 2);
         if (!window.showSaveFilePicker) { openNameDialog(); return; }
         Promise.resolve().then(function () {
-          if (!currentFileHandle) {
+          if (forceNew || !currentFileHandle) {
             return window.showSaveFilePicker({ suggestedName: titleSlug() + ".mmap",
               types: [{ description: "Map", accept: { "application/json": [".mmap"] } }] })
               .then(function (h) { currentFileHandle = h; });
@@ -967,7 +978,11 @@
         }).then(function () { return currentFileHandle.createWritable(); })
           .then(function (w) { return w.write(text).then(function () { return w.close(); }); })
           .then(function () { markClean(); toast("Saved " + (currentFileHandle.name || "your map") + "."); })
-          .catch(function (err) { if (err && err.name === "AbortError") return; currentFileHandle = null; fallbackDownload(); });
+          .catch(function (err) {
+            if (err && err.name === "AbortError") return; // user cancelled the picker — keep existing handle state
+            currentFileHandle = null;
+            fallbackDownload();
+          });
       }
       function takeScreenshot() {
         view.takeScreenshot({ format: "png" }).then(function (s) { downloadDataUrl(s.dataUrl, "map.png"); toast("Screenshot saved to your downloads."); })
@@ -1133,6 +1148,7 @@
         loadDocument(doc);
       }
       function openMap() {
+        if (!confirmDiscard()) return;
         if (window.showOpenFilePicker) {
           window.showOpenFilePicker({ multiple: false, types: [{ description: "Map", accept: { "application/json": [".mmap", ".json"] } }] })
             .then(function (handles) {
@@ -1207,6 +1223,7 @@
         groupSearchTimer = setTimeout(function () { loadGroupMaps(v); }, 350);
       }
       function selectGroupMap(itemId, title) {
+        if (!confirmDiscard()) return;
         closeOpenModal();
         toast("Opening \u201C" + (title || "map") + "\u201D\u2026");
         var wm = new WebMap({ portalItem: { id: itemId } });
@@ -2046,6 +2063,7 @@
       function handleDroppedFile(f) {
         var name = f.name || "";
         if (/\.(mmap|json)$/i.test(name)) {
+          if (!confirmDiscard()) return;
           var r = new FileReader();
           r.onload = function () { currentFileHandle = null; parseAndLoad(r.result); };
           r.readAsText(f);
@@ -2080,7 +2098,8 @@
       });
 
       // Wire save panel + open toolbar button
-      $("saveMapTile").addEventListener("click", saveMap);
+      $("saveMapTile").addEventListener("click", function () { saveMap(false); });
+      $("saveAsTile").addEventListener("click", function () { saveMap(true); });
       $("screenshotTile").addEventListener("click", takeScreenshot);
       $("openMapLink").addEventListener("click", function () { closePanels(); openOpenModal("mine"); });
       $("openTool").addEventListener("click", function () { openOpenModal("group"); });
