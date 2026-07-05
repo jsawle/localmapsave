@@ -179,6 +179,38 @@
     .data-error{ font-size:13.5px; line-height:1.55; color:#8a2f22; background:#fdefec; border:1px solid #f2c9c0; border-radius:5px; padding:10px 12px; margin-bottom:4px; }
     .data-error[hidden]{ display:none; }
     .drop-overlay{ position:absolute; inset:0; z-index:35; background:rgba(0,90,156,.12); outline:3px dashed var(--blue); outline-offset:-10px; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+    /* ---- Bookmarks + Map layers panels ---- */
+    .bm-empty{ text-align:center; padding:22px 8px 10px; }
+    .bm-empty-ico{ font-size:30px; color:#9a9a9a; line-height:1; }
+    .bm-empty-title{ font-size:14.5px; font-weight:600; color:var(--ink); margin-top:10px; }
+    .bm-empty-text{ font-size:12.5px; color:var(--muted); line-height:1.5; margin:6px 0 0; }
+    .bm-item{ display:flex; align-items:center; gap:10px; padding:7px 6px; border-radius:6px; cursor:pointer; }
+    .bm-item:hover{ background:#f2f6fa; }
+    .bm-thumb{ width:64px; height:42px; border-radius:4px; background:#e8edf1 center/cover no-repeat; flex:0 0 auto; border:1px solid var(--line2); }
+    .bm-title{ flex:1 1 auto; font-size:13.5px; color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .bm-pencil{ border:none; background:none; cursor:pointer; color:#6e6e6e; font-size:14px; padding:6px; border-radius:4px; flex:0 0 auto; }
+    .bm-pencil:hover{ background:#e8edf1; }
+    .bm-add-row{ text-align:center; margin-top:14px; }
+    .bm-add{ border:1px solid var(--line2); background:#fff; border-radius:18px; padding:8px 18px; font-size:13.5px; color:var(--ink); cursor:pointer; font-family:var(--font); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+    .bm-add:hover{ background:#f4f4f4; }
+    .bm-edit-head{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .bm-edit-head h3{ margin:0; font-size:15px; font-weight:600; color:var(--ink); }
+    .bm-back{ border:1px solid var(--line2); background:#fff; border-radius:4px; width:30px; height:30px; font-size:18px; line-height:1; cursor:pointer; color:var(--blue); }
+    .bm-hint{ font-size:12px; color:var(--muted); line-height:1.5; margin:8px 0 0; }
+    .bm-edit-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+    .bm-delete{ display:block; width:100%; margin-top:14px; border:1px solid #e4b6ae; color:#a13c2c; background:#fff; border-radius:4px; padding:8px 10px; font-size:13px; cursor:pointer; font-family:var(--font); }
+    .bm-delete:hover{ background:#fdf1ee; }
+    .layer-item{ padding:10px 4px 8px; border-bottom:1px solid #f0f0f0; }
+    .layer-item:last-child{ border-bottom:none; }
+    .layer-top{ display:flex; align-items:center; gap:10px; }
+    .layer-name{ flex:1 1 auto; font-size:14px; color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .layer-name.off{ color:#b9b9b9; }
+    .layer-top input[type=checkbox]{ width:16px; height:16px; accent-color:var(--blue); flex:0 0 auto; cursor:pointer; }
+    .layer-actions{ display:flex; gap:6px; margin-top:6px; }
+    .layer-act{ border:none; background:none; cursor:pointer; color:#6e6e6e; padding:4px 6px; border-radius:4px; line-height:0; }
+    .layer-act:hover{ background:#eef2f5; color:var(--ink); }
+    .layer-act svg{ width:16px; height:16px; }
+    .layers-empty{ font-size:12.5px; color:var(--muted); line-height:1.5; padding:6px 2px; }
     .drop-overlay[hidden]{ display:none; }
     .drop-overlay-inner{ background:#fff; border-radius:8px; padding:14px 22px; font-size:15px; font-weight:600; color:var(--ink); box-shadow:0 4px 18px rgba(0,0,0,.18); }
 
@@ -263,7 +295,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>
           <span>Open map</span>
         </button>
-        <button class="tool" data-mock="Map layers" type="button">
+        <button class="tool" id="layersTool" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5zM3 13l9 5 9-5M3 18l9 5 9-5"/></svg>
           <span>Map layers</span>
         </button>
@@ -287,7 +319,7 @@
           <button class="on" type="button" data-mock="2D view">2D</button>
           <button class="off" type="button" data-mock="3D view">3D</button>
         </div>
-        <button class="tool" data-mock="Bookmarks" type="button">
+        <button class="tool" id="bookmarksTool" type="button">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 2h12a1 1 0 0 1 1 1v18l-7-4-7 4V3a1 1 0 0 1 1-1z"/></svg>
           <span>Bookmarks</span>
         </button>
@@ -419,6 +451,42 @@
       </div>
 
       <!-- Drag-and-drop target highlight -->
+
+      <!-- Bookmarks panel -->
+      <div class="side-panel" id="bookmarksPanel" hidden style="width:360px;">
+        <div class="panel-head"><h2>Bookmarks</h2><button class="panel-close" id="bmClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <div id="bmListView">
+            <div id="bmEmpty" class="bm-empty" hidden>
+              <div class="bm-empty-ico">&#9873;</div>
+              <div class="bm-empty-title">No bookmarks</div>
+              <p class="bm-empty-text">Add bookmarks to your map and they will appear here. Each bookmark saves the location <em>and</em> which layers are turned on.</p>
+            </div>
+            <div id="bmList"></div>
+            <div class="bm-add-row"><button class="bm-add" id="bmAddBtn" type="button">+ Add bookmark</button></div>
+          </div>
+          <div id="bmEditView" hidden>
+            <div class="bm-edit-head"><button class="bm-back" id="bmBack" type="button" aria-label="Back">&#8249;</button><h3 id="bmEditTitle">Add bookmark</h3></div>
+            <label class="cfg-label" for="bmTitleInput">Title</label>
+            <input class="cfg-select" id="bmTitleInput" type="text" placeholder="Enter a title" />
+            <p class="bm-hint" id="bmHint">Saves the current location and which layers are on.</p>
+            <div class="bm-edit-actions">
+              <button class="mbtn" id="bmCancel" type="button">Cancel</button>
+              <button class="mbtn primary" id="bmSave" type="button">Add</button>
+            </div>
+            <button class="bm-delete" id="bmDelete" type="button" hidden>Delete bookmark</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map layers panel -->
+      <div class="side-panel" id="layersPanel" hidden style="width:360px;">
+        <div class="panel-head"><h2>Map layers</h2><button class="panel-close" id="layersClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <p class="bm-hint" style="margin-top:0;">Turn layers on and off. Bookmarks remember these settings.</p>
+          <div id="layersList"></div>
+        </div>
+      </div>
       <div id="dropOverlay" class="drop-overlay" hidden>
         <div class="drop-overlay-inner">Drop your CSV to add data to the map</div>
       </div>
@@ -502,7 +570,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "2.5";
+      var APP_VERSION = "2.7";
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -809,27 +877,31 @@
 
       // ---- Panels ----
       function setToolbarActive(which, on) {
-        var el = which === "sketch" ? $("sketchTool") : (which === "data" ? $("addDataTool") : $("saveTool"));
+        var ids = { sketch: "sketchTool", data: "addDataTool", save: "saveTool", bookmarks: "bookmarksTool", layers: "layersTool" };
+        var el = $(ids[which]);
         if (!el) return;
         if (on) el.classList.add("active"); else el.classList.remove("active");
       }
+      var PANEL_IDS = { sketch: "sketchPanel", save: "savePanel", data: "dataPanel", bookmarks: "bookmarksPanel", layers: "layersPanel" };
       function openPanel(which) {
         if (which !== "data" && addState) { addState = null; removePreview(false); }
         sketchPanelOpen = (which === "sketch");
-        $("sketchPanel").hidden = which !== "sketch";
-        $("savePanel").hidden = which !== "save";
-        $("dataPanel").hidden = which !== "data";
-        setToolbarActive("sketch", which === "sketch");
-        setToolbarActive("save", which === "save");
-        setToolbarActive("data", which === "data");
+        Object.keys(PANEL_IDS).forEach(function (k) {
+          $(PANEL_IDS[k]).hidden = (k !== which);
+          setToolbarActive(k, k === which);
+        });
         try { view.closePopup(); } catch (e) {}
         if (which === "sketch") { setTool("select"); selectForEdit(null); }
         else { try { sketchVM.cancel(); } catch (e) {} placingText = false; currentTool = null; updateToolButtons(); }
+        if (which === "bookmarks") { showBmList(); }
+        if (which === "layers") { renderLayersPanel(); }
       }
       function closePanels() {
         sketchPanelOpen = false;
-        $("sketchPanel").hidden = true; $("savePanel").hidden = true; $("dataPanel").hidden = true;
-        setToolbarActive("sketch", false); setToolbarActive("save", false); setToolbarActive("data", false);
+        Object.keys(PANEL_IDS).forEach(function (k) {
+          $(PANEL_IDS[k]).hidden = true;
+          setToolbarActive(k, false);
+        });
         try { sketchVM.cancel(); } catch (e) {} placingText = false; currentTool = null; updateToolButtons();
         selectedFeature = null;
       }
@@ -861,6 +933,11 @@
           })
         };
         if (layers.length) doc.layers = layers;
+        if (bookmarks.length) {
+          doc.bookmarks = bookmarks.map(function (bm) {
+            return { title: bm.title, viewpoint: bm.viewpoint, layers: bm.layers, thumb: bm.thumb || null };
+          });
+        }
         return doc;
       }
       function downloadText(text, filename, mime) {
@@ -934,6 +1011,12 @@
       function loadDocument(doc) {
         if (addState) { addState = null; }
         removePreview(false);
+        bookmarks = (doc.bookmarks || []).filter(function (bm) {
+          return bm && bm.viewpoint && bm.viewpoint.center && typeof bm.viewpoint.zoom === "number";
+        }).map(function (bm) {
+          return { title: bm.title || "Bookmark", viewpoint: bm.viewpoint, layers: bm.layers || [], thumb: bm.thumb || null };
+        });
+        if (!$("bookmarksPanel").hidden) showBmList();
         graphicsLayer.removeAll();
         // Clear any FeatureLayers from a previous open (v3 feature-collection docs).
         dataLayers.forEach(function (fl) {
@@ -1759,6 +1842,180 @@
         }).catch(function () {});
         toast("Added " + count + " point(s) to the map. Save keeps them in your .mmap.");
       }
+
+      // ================= Bookmarks (saved with the map) + Map layers =================
+      // A bookmark records the viewpoint AND which layers were visible — the
+      // enhancement over MapMaker's AGOL bookmarks. Saved in the .mmap under
+      // `bookmarks`, restored on open. Thumbnails via view.takeScreenshot.
+      var bookmarks = [];      // {title, viewpoint:{center:[lon,lat], zoom}, layers:[{id,title,visible}], thumb}
+      var bmEditIndex = -1;    // -1 = adding
+      function activeMap() { return view.map || map; }
+      function eachToggleableLayer(fn) {
+        // sketch layer first, then operational layers (data layers + any group-webmap layers)
+        fn(graphicsLayer, "__sketch", "Sketches");
+        activeMap().layers.forEach(function (ly) {
+          if (ly === graphicsLayer || ly === previewLayer) return;
+          fn(ly, ly.id, ly.title || ly.id);
+        });
+      }
+      function layerSnapshot() {
+        var snap = [];
+        eachToggleableLayer(function (ly, id, title) {
+          snap.push({ id: id, title: title, visible: ly.visible !== false });
+        });
+        return snap;
+      }
+      function applyLayerSnapshot(snap) {
+        if (!snap || !snap.length) return;
+        eachToggleableLayer(function (ly, id, title) {
+          var rec = null;
+          for (var i = 0; i < snap.length; i++) {
+            if (snap[i].id === id || (snap[i].title && snap[i].title === title)) { rec = snap[i]; break; }
+          }
+          if (rec) ly.visible = !!rec.visible;
+        });
+        if (!$("layersPanel").hidden) renderLayersPanel();
+      }
+      function captureThumb(bm) {
+        try {
+          view.takeScreenshot({ width: 148, height: 96, format: "jpg", quality: 70 }).then(function (shot) {
+            if (shot && shot.dataUrl) { bm.thumb = shot.dataUrl; renderBookmarks(); }
+          }).catch(function () {});
+        } catch (e) {}
+      }
+      function applyBookmark(bm) {
+        try {
+          view.goTo({ center: bm.viewpoint.center, zoom: bm.viewpoint.zoom }, { duration: 800 }).catch(function () {});
+        } catch (e) {}
+        applyLayerSnapshot(bm.layers);
+      }
+      function renderBookmarks() {
+        var list = $("bmList"); list.innerHTML = "";
+        $("bmEmpty").hidden = bookmarks.length > 0;
+        bookmarks.forEach(function (bm, i) {
+          var row = document.createElement("div"); row.className = "bm-item";
+          var th = document.createElement("div"); th.className = "bm-thumb";
+          if (bm.thumb) th.style.backgroundImage = "url(" + bm.thumb + ")";
+          var t = document.createElement("div"); t.className = "bm-title"; t.textContent = bm.title;
+          var p = document.createElement("button"); p.type = "button"; p.className = "bm-pencil"; p.title = "Edit bookmark"; p.innerHTML = "&#9998;";
+          p.addEventListener("click", function (e) { e.stopPropagation(); showBmEdit(i); });
+          row.addEventListener("click", function () { applyBookmark(bm); });
+          row.appendChild(th); row.appendChild(t); row.appendChild(p);
+          list.appendChild(row);
+        });
+      }
+      function showBmList() {
+        bmEditIndex = -1;
+        $("bmEditView").hidden = true;
+        $("bmListView").hidden = false;
+        renderBookmarks();
+      }
+      function showBmEdit(i) {
+        bmEditIndex = (typeof i === "number") ? i : -1;
+        var editing = bmEditIndex >= 0;
+        $("bmListView").hidden = true;
+        $("bmEditView").hidden = false;
+        $("bmEditTitle").textContent = editing ? "Edit bookmark" : "Add bookmark";
+        $("bmSave").textContent = editing ? "Save" : "Add";
+        $("bmDelete").hidden = !editing;
+        $("bmHint").hidden = editing;
+        $("bmTitleInput").value = editing ? bookmarks[bmEditIndex].title : "";
+        try { $("bmTitleInput").focus(); } catch (e) {}
+      }
+      $("bookmarksTool").addEventListener("click", function () {
+        if (!$("bookmarksPanel").hidden) { closePanels(); return; }
+        openPanel("bookmarks");
+      });
+      $("bmClose").addEventListener("click", closePanels);
+      $("bmAddBtn").addEventListener("click", function () { showBmEdit(-1); });
+      $("bmBack").addEventListener("click", showBmList);
+      $("bmCancel").addEventListener("click", showBmList);
+      $("bmSave").addEventListener("click", function () {
+        var title = $("bmTitleInput").value.trim();
+        if (bmEditIndex >= 0) {
+          bookmarks[bmEditIndex].title = title || bookmarks[bmEditIndex].title;
+        } else {
+          var bm = {
+            title: title || ("Bookmark " + (bookmarks.length + 1)),
+            viewpoint: { center: [view.center.longitude, view.center.latitude], zoom: view.zoom },
+            layers: layerSnapshot(),
+            thumb: null
+          };
+          bookmarks.push(bm);
+          captureThumb(bm);
+        }
+        markDirty();
+        showBmList();
+      });
+      $("bmTitleInput").addEventListener("keydown", function (e) { if (e.key === "Enter") $("bmSave").click(); });
+      $("bmDelete").addEventListener("click", function () {
+        if (bmEditIndex >= 0) { bookmarks.splice(bmEditIndex, 1); markDirty(); }
+        showBmList();
+      });
+
+      var ZOOM_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="M8 10.5h5M10.5 8v5"/></svg>';
+      var TRASH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m3 0-1 13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 7"/><path d="M10 11v6M14 11v6"/></svg>';
+      function zoomToLayer(ly) {
+        if (ly === graphicsLayer) {
+          var gfx = graphicsLayer.graphics.toArray();
+          if (gfx.length) view.goTo(gfx, { duration: 600 }).catch(function () {});
+          else toast("No sketches yet.");
+          return;
+        }
+        if (ly.queryExtent) {
+          ly.when().then(function () { return ly.queryExtent(); }).then(function (r) {
+            if (r && r.extent) {
+              var ext = r.extent;
+              try { if (ext.expand) ext = ext.expand(1.2); } catch (e) {}
+              view.goTo(ext, { duration: 600 }).catch(function () {});
+            }
+          }).catch(function () {});
+        }
+      }
+      function removeDataLayer(ly) {
+        var i = dataLayers.indexOf(ly);
+        if (i >= 0) dataLayers.splice(i, 1);
+        try { map.remove(ly); } catch (e) {}
+        try { if (view.map && view.map !== map) view.map.remove(ly); } catch (e) {}
+        markDirty();
+        renderLayersPanel();
+        toast("Layer removed.");
+      }
+      function renderLayersPanel() {
+        var list = $("layersList"); list.innerHTML = "";
+        var any = false;
+        eachToggleableLayer(function (ly, id, title) {
+          any = true;
+          var item = document.createElement("div"); item.className = "layer-item";
+          var top = document.createElement("div"); top.className = "layer-top";
+          var nm = document.createElement("span");
+          nm.className = "layer-name" + (ly.visible === false ? " off" : "");
+          nm.textContent = title;
+          var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = ly.visible !== false;
+          cb.addEventListener("change", function () {
+            ly.visible = cb.checked;
+            nm.className = "layer-name" + (cb.checked ? "" : " off");
+          });
+          top.appendChild(nm); top.appendChild(cb);
+          var acts = document.createElement("div"); acts.className = "layer-actions";
+          var z = document.createElement("button"); z.type = "button"; z.className = "layer-act"; z.title = "Zoom to layer"; z.innerHTML = ZOOM_SVG;
+          z.addEventListener("click", function () { zoomToLayer(ly); });
+          acts.appendChild(z);
+          if (dataLayers.indexOf(ly) >= 0) {
+            var d = document.createElement("button"); d.type = "button"; d.className = "layer-act"; d.title = "Remove layer"; d.innerHTML = TRASH_SVG;
+            d.addEventListener("click", function () { removeDataLayer(ly); });
+            acts.appendChild(d);
+          }
+          item.appendChild(top); item.appendChild(acts);
+          list.appendChild(item);
+        });
+        if (!any) list.innerHTML = '<div class="layers-empty">No layers yet — add data or open a map.</div>';
+      }
+      $("layersTool").addEventListener("click", function () {
+        if (!$("layersPanel").hidden) { closePanels(); return; }
+        openPanel("layers");
+      });
+      $("layersClose").addEventListener("click", closePanels);
 
       // -- Drag & drop + toolbar trigger --
       function dtHasFiles(e) {
