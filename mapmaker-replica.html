@@ -1,0 +1,2308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>MapMaker replica (prototype)</title>
+
+  <link rel="stylesheet" href="https://js.arcgis.com/5.1/esri/themes/light/main.css" />
+  <script type="module" src="https://js.arcgis.com/5.1/"></script>
+
+  <style>
+    :root{
+      --ink:#323232; --ink2:#4c4c4c; --muted:#8a8a8a;
+      --line:#e1e1e1; --line2:#d6d6d6;
+      --blue:#0079c1; --blue-soft:#cfe9f6; --blue-tint:#eef6fb;
+      --font:"Avenir Next W00","Avenir Next","Helvetica Neue",Arial,sans-serif;
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; }
+    body{ font-family:var(--font); color:var(--ink); background:#fff; -webkit-font-smoothing:antialiased; }
+
+    #app{ display:flex; flex-direction:column; height:100vh; }
+
+    /* ---- Top bar ---- */
+    .topbar{
+      height:54px; flex:0 0 auto;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 18px; background:#fff; border-bottom:1px solid var(--line); z-index:10;
+    }
+    .topbar-left{ display:flex; align-items:center; gap:12px; color:var(--muted); font-size:13px; }
+    .doc-title{
+      border:1px solid transparent; border-radius:5px; background:transparent;
+      font-family:inherit; font-size:14px; font-weight:600; color:#333; padding:5px 9px;
+      width:280px; max-width:42vw;
+    }
+    .doc-title:hover{ background:#f2f2f2; }
+    .doc-title:focus{ outline:none; border-color:#c3c3c3; background:#fff; }
+    .topbar-right{ display:flex; align-items:center; }
+    .mock-note{ font-size:12px; color:var(--muted); }
+    .ver{ font-size:11px; color:#a8a8a8; margin-left:10px; }
+    .help{ font-size:13px; color:var(--muted); margin-left:16px; cursor:default; }
+
+    /* ---- Map ---- */
+    .map-wrap{ position:relative; flex:1 1 auto; min-height:0; }
+    #viewDiv{ position:absolute; inset:0; }
+
+    .left-btn{
+      width:34px; height:34px; background:#fff; border:none; border-radius:2px;
+      box-shadow:0 1px 2px rgba(0,0,0,.3); display:flex; align-items:center; justify-content:center;
+      color:var(--ink2); cursor:pointer;
+    }
+    .left-btn:hover{ background:#f3f3f3; }
+    .left-btn svg{ width:18px; height:18px; }
+
+    /* ---- Bottom toolbar (MapMaker style) ---- */
+    .toolbar{
+      position:absolute; left:50%; bottom:18px; transform:translateX(-50%);
+      display:flex; align-items:stretch; gap:2px;
+      background:#fff; border:1px solid var(--line); border-radius:6px;
+      box-shadow:0 2px 12px rgba(0,0,0,.18); padding:6px; z-index:20;
+      max-width:calc(100% - 24px); overflow-x:auto;
+    }
+    .tool{
+      display:flex; flex-direction:column; align-items:center; gap:5px;
+      min-width:64px; padding:8px 10px; border:none; background:transparent; border-radius:5px;
+      color:var(--ink2); cursor:pointer; font-size:11px; font-family:var(--font); white-space:nowrap;
+    }
+    .tool svg{ width:22px; height:22px; }
+    .tool:hover{ background:#f3f3f3; }
+    .tool.active{ background:var(--blue); color:#fff; }
+
+    .toggle{ display:flex; flex-direction:column; gap:3px; justify-content:center; padding:4px 2px; }
+    .toggle button{
+      font-size:11px; font-weight:600; border:none; border-radius:4px; padding:5px 14px;
+      cursor:pointer; font-family:var(--font);
+    }
+    .toggle .on{ background:var(--blue-soft); color:var(--blue); }
+    .toggle .off{ background:transparent; color:#9a9a9a; }
+
+    /* ---- Side panels ---- */
+    .side-panel{
+      position:absolute; top:16px; right:16px; width:344px; max-height:calc(100% - 32px);
+      overflow-y:auto; background:#fff; border:1px solid var(--line2); border-radius:4px;
+      box-shadow:0 2px 16px rgba(0,0,0,.2); z-index:25;
+    }
+    .panel-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid #ededed; }
+    .panel-head h2{ margin:0; font-size:16px; font-weight:600; color:var(--ink); }
+    .panel-close{ border:none; background:none; font-size:20px; line-height:1; color:#6e6e6e; cursor:pointer; padding:2px 7px; border-radius:4px; }
+    .panel-close:hover{ background:#f3f3f3; }
+    .panel-body{ padding:16px; }
+
+    .section{ margin-bottom:22px; }
+    .section:last-child{ margin-bottom:0; }
+    .section-label{ font-size:13px; font-weight:600; color:var(--ink); margin:0 0 10px; }
+
+    .tools-row{ display:flex; gap:8px; flex-wrap:wrap; }
+    .tbtn{ width:40px; height:40px; border:1px solid var(--line2); border-radius:4px; background:#fff; color:var(--ink2); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .tbtn svg{ width:20px; height:20px; }
+    .tbtn:hover{ background:#f3f3f3; }
+    .tbtn.active{ border-color:var(--blue); color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
+
+    .popup-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .remove-btn{ display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line2); border-radius:4px; background:#fff; padding:6px 13px; font-size:12.5px; color:var(--ink2); cursor:pointer; font-family:var(--font); }
+    .remove-btn:hover{ background:#f3f3f3; }
+    .remove-btn:disabled{ opacity:.5; cursor:default; }
+
+    .field{ width:100%; padding:9px 10px; border:1px solid var(--line2); border-radius:3px; font-size:14px; color:var(--ink); margin-bottom:10px; font-family:var(--font); }
+    .field:focus{ outline:none; border-color:var(--blue); }
+    .field:disabled{ background:#f7f7f7; color:#bbb; }
+    textarea.field{ resize:vertical; min-height:64px; line-height:1.45; margin-bottom:0; }
+    .img-upload{ margin-bottom:10px; }
+    .img-pick{ width:100%; padding:9px 10px; border:1px dashed var(--line2); border-radius:3px; background:#fafafa; color:var(--muted); font-size:14px; font-family:var(--font); cursor:pointer; text-align:left; }
+    .img-pick:hover{ border-color:var(--blue); color:var(--ink); }
+    .img-pick:disabled{ background:#f7f7f7; color:#bbb; cursor:not-allowed; }
+    .img-preview{ position:relative; margin-bottom:10px; }
+    .img-preview img{ display:block; max-width:100%; height:auto; border-radius:4px; border:1px solid var(--line2); }
+    .img-remove{ position:absolute; top:6px; right:6px; width:24px; height:24px; border:none; border-radius:50%; background:rgba(0,0,0,0.55); color:#fff; font-size:15px; line-height:1; cursor:pointer; }
+    .img-remove:hover{ background:rgba(0,0,0,0.8); }
+    .popup-hint{ font-size:12px; color:var(--muted); margin:0 0 12px; line-height:1.45; }
+
+    .swatches{ display:flex; gap:9px; flex-wrap:wrap; }
+    .swatch{ width:30px; height:30px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--line2); cursor:pointer; padding:0; }
+    .swatch:hover{ box-shadow:0 0 0 1px var(--muted); }
+    .swatch.active{ box-shadow:0 0 0 2px var(--blue); }
+
+    .slider-row{ display:flex; align-items:center; gap:12px; }
+    .slider-row input[type=range]{ flex:1; accent-color:var(--blue); }
+    .slider-val{ font-size:13px; color:var(--ink2); width:34px; text-align:right; }
+
+    /* ---- Save panel ---- */
+    .save-tiles{ display:flex; gap:14px; margin-bottom:18px; }
+    .save-tile{ flex:1; display:flex; flex-direction:column; align-items:center; gap:11px; padding:18px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; font-size:14px; color:var(--ink); font-family:var(--font); }
+    .save-tile:hover{ background:#f7f7f7; }
+    .tile-icon{ width:50px; height:50px; border-radius:9px; display:flex; align-items:center; justify-content:center; }
+    .tile-icon svg{ width:26px; height:26px; }
+    .save-tile.primary .tile-icon{ background:var(--blue); color:#fff; }
+    .save-tile.ghost .tile-icon{ background:#eef0f2; color:#5b5b5b; }
+    .save-note{ font-size:13px; line-height:1.55; color:var(--ink2); margin:0; }
+    .save-note strong{ color:var(--ink); }
+    .save-note a{ color:var(--blue); cursor:pointer; text-decoration:none; }
+    .save-note a:hover{ text-decoration:underline; }
+
+    /* ---- Add data panel (fieldwork configure design) ---- */
+    .side-panel.flex-panel{ display:flex; flex-direction:column; overflow:hidden; bottom:16px; max-height:none; }
+    .side-panel.flex-panel[hidden]{ display:none; }
+    .flex-panel .panel-body{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+    .panel-foot{ flex:0 0 auto; display:flex; gap:10px; justify-content:flex-end; padding:10px 16px; border-top:1px solid #ededed; background:#fff; }
+    .data-summary{ font-size:12.5px; color:var(--muted); margin:0 0 10px; line-height:1.5; word-break:break-word; }
+    .cfg-section{ margin-bottom:10px; }
+    .cfg-h{ font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:#888; margin:0 0 6px; font-weight:600; }
+    .style-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:6px; }
+    .style-card{ border:2px solid #ddd; border-radius:6px; padding:8px 4px; cursor:pointer; background:#fff; text-align:center; font-family:var(--font); min-width:0; }
+    .style-card:hover:not(.disabled){ border-color:#8ab8d8; }
+    .style-card.selected{ border-color:var(--blue); background:#eef5fb; }
+    .style-card.disabled{ opacity:.4; cursor:not-allowed; }
+    .style-card .s-ico{ font-size:18px; display:block; margin-bottom:3px; line-height:1.2; }
+    .style-card .s-name{ font-size:11.5px; font-weight:600; line-height:1.25; color:var(--ink); overflow:hidden; text-overflow:ellipsis; display:block; }
+    .style-desc{ font-size:12px; color:var(--ink2); background:#eef5fb; border-left:3px solid var(--blue); padding:6px 10px; border-radius:0 4px 4px 0; line-height:1.45; }
+    .cfg-label{ display:block; font-size:13px; color:#555; margin:6px 0 3px; }
+    .cfg-icon{ margin-right:7px; }
+    .cfg-summary{ color:#555; font-size:12.5px; line-height:1.5; padding:8px 12px; background:#f5f6f7; border-radius:4px; margin-top:8px; }
+    .preview-note{ font-size:11.5px; color:var(--muted); margin:8px 0 0; line-height:1.45; }
+    .cfg-select{ width:100%; padding:6px 10px; border:1px solid var(--line2); border-radius:3px; font-size:13.5px; color:var(--ink); font-family:var(--font); background:#fff; }
+    .cfg-select:focus{ outline:none; border-color:var(--blue); }
+    .sym-row{ display:flex; align-items:center; gap:10px; padding:4px 0; }
+    .sym-row[hidden]{ display:none; }
+    .sym-label{ flex:0 0 48px; font-size:13px; color:#555; }
+    .shape-options{ display:flex; gap:6px; }
+    .shape-btn{ width:34px; height:30px; border:2px solid #ddd; border-radius:6px; background:#fff; cursor:pointer; font-size:15px; color:#444; line-height:1; padding:0; }
+    .shape-btn:hover{ border-color:#8ab8d8; }
+    .shape-btn.selected{ border-color:var(--blue); background:#eef5fb; }
+    .sym-row .swatches{ gap:6px; }
+    .sym-row .swatch{ width:24px; height:24px; }
+    .ramp-options{ display:flex; gap:6px; flex-wrap:wrap; }
+    .ramp-btn{ width:44px; height:22px; border-radius:4px; border:2px solid rgba(0,0,0,.15); cursor:pointer; padding:0; }
+    .ramp-btn:hover{ border-color:rgba(0,0,0,.45); }
+    .ramp-btn.selected{ border-color:#1a1a1a; }
+    .sym-row input[type=range]{ flex:1; accent-color:var(--blue); }
+    .data-error{ font-size:13.5px; line-height:1.55; color:#8a2f22; background:#fdefec; border:1px solid #f2c9c0; border-radius:5px; padding:10px 12px; margin-bottom:4px; }
+    .data-error[hidden]{ display:none; }
+    .drop-overlay{ position:absolute; inset:0; z-index:35; background:rgba(0,90,156,.12); outline:3px dashed var(--blue); outline-offset:-10px; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+    /* ---- Bookmarks + Map layers panels ---- */
+    .bm-empty{ text-align:center; padding:22px 8px 10px; }
+    .bm-empty-ico{ font-size:30px; color:#9a9a9a; line-height:1; }
+    .bm-empty-title{ font-size:14.5px; font-weight:600; color:var(--ink); margin-top:10px; }
+    .bm-empty-text{ font-size:12.5px; color:var(--muted); line-height:1.5; margin:6px 0 0; }
+    .bm-item{ display:flex; align-items:center; gap:10px; padding:7px 6px; border-radius:6px; cursor:pointer; }
+    .bm-item:hover{ background:#f2f6fa; }
+    .bm-thumb{ width:64px; height:42px; border-radius:4px; background:#e8edf1 center/cover no-repeat; flex:0 0 auto; border:1px solid var(--line2); }
+    .bm-title{ flex:1 1 auto; font-size:13.5px; color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .bm-pencil{ border:none; background:none; cursor:pointer; color:#6e6e6e; font-size:14px; padding:6px; border-radius:4px; flex:0 0 auto; }
+    .bm-pencil:hover{ background:#e8edf1; }
+    .bm-add-row{ text-align:center; margin-top:14px; }
+    .bm-add{ border:1px solid var(--line2); background:#fff; border-radius:18px; padding:8px 18px; font-size:13.5px; color:var(--ink); cursor:pointer; font-family:var(--font); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+    .bm-add:hover{ background:#f4f4f4; }
+    .bm-edit-head{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .bm-edit-head h3{ margin:0; font-size:15px; font-weight:600; color:var(--ink); }
+    .bm-back{ border:1px solid var(--line2); background:#fff; border-radius:4px; width:30px; height:30px; font-size:18px; line-height:1; cursor:pointer; color:var(--blue); }
+    .bm-hint{ font-size:12px; color:var(--muted); line-height:1.5; margin:8px 0 0; }
+    .bm-edit-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+    .bm-delete{ display:block; width:100%; margin-top:14px; border:1px solid #e4b6ae; color:#a13c2c; background:#fff; border-radius:4px; padding:8px 10px; font-size:13px; cursor:pointer; font-family:var(--font); }
+    .bm-delete:hover{ background:#fdf1ee; }
+    .layer-item{ padding:10px 4px 8px; border-bottom:1px solid #f0f0f0; }
+    .layer-item:last-child{ border-bottom:none; }
+    .layer-top{ display:flex; align-items:center; gap:10px; }
+    .layer-name{ flex:1 1 auto; font-size:14px; color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .layer-name.off{ color:#b9b9b9; }
+    .layer-top input[type=checkbox]{ width:16px; height:16px; accent-color:var(--blue); flex:0 0 auto; cursor:pointer; }
+    .layer-actions{ display:flex; gap:6px; margin-top:6px; }
+    .layer-act{ border:none; background:none; cursor:pointer; color:#6e6e6e; padding:4px 6px; border-radius:4px; line-height:0; }
+    .layer-act:hover{ background:#eef2f5; color:var(--ink); }
+    .layer-act svg{ width:16px; height:16px; }
+    .layers-empty{ font-size:12.5px; color:var(--muted); line-height:1.5; padding:6px 2px; }
+    .drop-overlay[hidden]{ display:none; }
+    .drop-overlay-inner{ background:#fff; border-radius:8px; padding:14px 22px; font-size:15px; font-weight:600; color:var(--ink); box-shadow:0 4px 18px rgba(0,0,0,.18); }
+
+    /* ---- Toast ---- */
+    .toast{ position:absolute; left:50%; bottom:98px; transform:translateX(-50%); background:#323232; color:#fff; font-size:13px; padding:9px 16px; border-radius:18px; z-index:40; box-shadow:0 2px 10px rgba(0,0,0,.28); }
+    .toast[hidden]{ display:none; }
+
+    /* ---- Pop-up content ---- */
+    .mm-popup-text{ margin:0 0 8px; font-size:13.5px; line-height:1.5; color:var(--ink); white-space:pre-wrap; }
+    .mm-popup-img{ display:block; max-width:100%; height:auto; border-radius:5px; }
+    .mm-popup-empty{ margin:0; font-size:13px; color:var(--muted); font-style:italic; }
+
+    /* ---- Fallback save dialog ---- */
+    .modal{ position:fixed; inset:0; background:rgba(40,40,40,.45); display:flex; align-items:center; justify-content:center; z-index:60; padding:20px; }
+    .modal[hidden]{ display:none; }
+    .modal-card{ background:#fff; border-radius:8px; padding:22px; width:100%; max-width:380px; box-shadow:0 12px 40px rgba(0,0,0,.3); }
+    .modal-card h3{ margin:0 0 14px; font-size:16px; }
+    .filename-row{ display:flex; align-items:stretch; border:1px solid var(--line2); border-radius:4px; overflow:hidden; }
+    .filename-row:focus-within{ border-color:var(--blue); }
+    .filename-row .field{ border:none; border-radius:0; margin:0; }
+    .ext{ padding:0 12px; font-size:14px; color:var(--muted); background:#f4f6f9; display:flex; align-items:center; border-left:1px solid var(--line2); }
+    .modal-note{ font-size:12px; color:var(--muted); line-height:1.45; margin:12px 0 0; }
+    .modal-actions{ display:flex; justify-content:flex-end; gap:9px; margin-top:18px; }
+    .mbtn{ font-size:13.5px; font-weight:600; padding:8px 15px; border-radius:5px; border:1px solid var(--line2); background:#fff; color:var(--ink); cursor:pointer; font-family:var(--font); }
+    .mbtn.primary{ background:var(--blue); border-color:var(--blue); color:#fff; }
+
+    /* ---- Open map dialog ---- */
+    .open-modal{ align-items:flex-start; padding-top:60px; }
+    .open-card{ background:#fff; border-radius:8px; width:100%; max-width:920px; max-height:calc(100vh - 92px); display:flex; flex-direction:column; box-shadow:0 16px 50px rgba(0,0,0,.32); overflow:hidden; }
+    .open-head{ display:flex; align-items:flex-start; justify-content:space-between; padding:20px 22px 6px; }
+    .open-head h2{ margin:0; font-size:19px; font-weight:600; color:var(--ink); }
+    .open-head p{ margin:4px 0 0; font-size:13px; color:var(--muted); }
+    .open-tabs{ display:flex; gap:26px; padding:10px 22px 0; border-bottom:1px solid var(--line); }
+    .open-tab{ border:none; background:none; padding:10px 2px; font-size:14px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; font-family:var(--font); }
+    .open-tab:hover{ color:var(--ink2); }
+    .open-tab.active{ color:var(--blue); border-bottom-color:var(--blue); }
+    .open-search{ position:relative; padding:16px 22px 0; }
+    .open-search .search-ic{ position:absolute; left:34px; top:25px; color:var(--muted); }
+    .open-search .search-ic svg{ width:16px; height:16px; }
+    .open-search input{ width:100%; padding:9px 12px 9px 38px; border:1px solid var(--line2); border-radius:4px; font-size:14px; font-family:var(--font); }
+    .open-search input:focus{ outline:none; border-color:var(--blue); }
+    .open-body{ flex:1 1 auto; overflow-y:auto; padding:18px 22px 22px; }
+    .open-pane[hidden]{ display:none; }
+    .map-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:18px; }
+    .map-card{ border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; display:flex; flex-direction:column; }
+    .card-thumb{ height:148px; background:#e9eef2 center/cover no-repeat; }
+    .card-body{ padding:12px 14px 14px; display:flex; flex-direction:column; gap:9px; }
+    .card-title{ font-size:14.5px; font-weight:600; color:var(--ink); line-height:1.3; }
+    .card-select{ align-self:flex-start; display:inline-flex; align-items:center; gap:7px; border:none; background:none; color:var(--blue); font-size:13.5px; font-weight:600; cursor:pointer; padding:3px 0; font-family:var(--font); }
+    .card-select svg{ width:16px; height:16px; }
+    .card-select:hover{ text-decoration:underline; }
+    .grid-status{ font-size:13px; color:var(--muted); padding:22px 4px; margin:0; }
+    .mine-box{ max-width:470px; padding:14px 4px; }
+    .mine-lead{ font-size:14px; line-height:1.55; color:var(--ink2); margin:0 0 16px; }
+    .mine-hint{ font-size:12px; color:var(--muted); margin:12px 0 0; }
+    @media (max-width:780px){ .side-panel{ width:calc(100% - 32px); } }
+    /* ---- Replica v3.0: MapMaker header, 3D, new panels ---- */
+    :root{ --brand:var(--blue); --chip:#eef2f5; }
+    .mm-header{ height:64px; flex:0 0 auto; display:flex; align-items:center; gap:18px; padding:0 18px; background:#fff; border-bottom:1px solid var(--line); z-index:10; }
+    .mm-logo img{ height:40px; width:auto; display:block; }
+    .mm-title{ flex:1 1 auto; min-width:0; display:flex; justify-content:center; }
+    .mm-title .doc-title{ text-align:center; font-size:17px; width:360px; }
+    .mm-links{ display:flex; align-items:center; gap:12px; flex-shrink:0; }
+    .pill{ font-size:14px; font-weight:600; padding:7px 16px; border-radius:20px; text-decoration:none; white-space:nowrap; font-family:var(--font); }
+    .pill.dark{ background:#000; color:#fff; border:2px solid #000; }
+    .pill.outline{ background:#fff; color:#000; border:2px solid #000; }
+    .esri-logo{ height:40px; width:auto; display:block; }
+    .proto{ font-size:11px; font-weight:600; color:#8a5a12; background:#f6ecd9; border-radius:4px; padding:3px 7px; cursor:pointer; white-space:nowrap; border:none; font-family:var(--font); }
+    #sceneDiv{ position:absolute; inset:0; }
+    #sceneDiv[hidden], #viewDiv[hidden]{ display:none; }
+    .mm-disclaimer{ position:absolute; right:8px; bottom:20px; z-index:15; font-size:11px; color:#444; background:rgba(255,255,255,.85); padding:2px 6px; border-radius:3px; pointer-events:none; }
+    .toggle button{ width:100%; }
+    .btn{ background:#fff; border:1px solid var(--line2); border-radius:5px; padding:6px 12px; font-size:13.5px; font-weight:600; color:var(--ink); cursor:pointer; font-family:var(--font); }
+    .btn.primary{ background:var(--blue); border-color:var(--blue); color:#fff; }
+    .btn[aria-pressed="true"]{ background:var(--blue); border-color:var(--blue); color:#fff; }
+    .btn:disabled{ opacity:.5; cursor:default; }
+    .hint{ font-size:12.5px; color:var(--muted); line-height:1.45; }
+    .ver-chip, .erupt .ver{ font:600 10.5px/1 ui-monospace,Menlo,Consolas,monospace; color:var(--muted); background:var(--chip); border:1px solid var(--line); border-radius:4px; padding:2px 5px; margin-left:4px; }
+    .anim-card{ border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-bottom:10px; }
+    .anim-card .t{ font-weight:600; margin-bottom:4px; }
+    table.vers{ border-collapse:collapse; width:100%; font-size:12.5px; }
+    table.vers td, table.vers th{ text-align:left; padding:5px 4px; border-top:1px solid var(--line); vertical-align:top; }
+    @media (max-width:1024px){ .pill.outline{ display:none; } .mm-title .doc-title{ width:240px; font-size:15px; } }
+    @media (max-width:640px){ .mm-title, .pill{ display:none; } .mm-logo img{ height:32px; } .esri-logo{ height:32px; } .mm-header{ justify-content:space-between; } }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header class="mm-header">
+      <a class="mm-logo" href="./mapmaker-replica.html" title="MapMaker replica (prototype)"><img src="https://arcgis.com/sharing/rest/content/items/f722ac634a114f2b811475651594ddb7/data" alt="National Geographic MapMaker" /></a>
+      <div class="mm-title"><input id="docTitle" class="doc-title" type="text" value="Untitled map" spellcheck="false" aria-label="Map title" title="Map title (editable)" /></div>
+      <div class="mm-links">
+        <button class="proto" id="appVer" type="button" title="Versions">Prototype</button>
+        <a class="pill dark" href="https://mapmaker-how-to-mpmkr.hub.arcgis.com/" target="_blank" rel="noopener">How to</a>
+        <a class="pill outline" id="educatorsLink" href="#" target="_blank" rel="noopener">For Educators</a>
+        <img class="esri-logo" src="https://mpmkr.maps.arcgis.com/sharing/rest/content/items/d48f21f5bc3f431fa1daef95fa22ac47/data" alt="Esri" />
+      </div>
+    </header>
+
+    <div class="map-wrap">
+      <div id="viewDiv"></div>
+      <div id="sceneDiv" hidden></div>
+      <div class="mm-disclaimer">Basemap and map layers may not reflect National Geographic's current map policy</div>
+
+      <!-- Bottom toolbar -->
+      <div class="toolbar" id="toolbar">
+        <button class="tool" id="basemapsTool" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 0h7v7h-7v-7z"/></svg>
+          <span>Basemaps</span>
+        </button>
+        <button class="tool" id="openTool" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>
+          <span>Open map</span>
+        </button>
+        <button class="tool" id="layersTool" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5zM3 13l9 5 9-5M3 18l9 5 9-5"/></svg>
+          <span>Map layers</span>
+        </button>
+        <button class="tool" id="addDataTool" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+          <span>Add layer</span>
+        </button>
+        <button class="tool" id="btnLegend" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2v2H3V5zm4 0h14v2H7V5zM3 11h2v2H3v-2zm4 0h14v2H7v-2zM3 17h2v2H3v-2zm4 0h14v2H7v-2z"/></svg>
+          <span>Legend</span>
+        </button>
+        <button class="tool" id="measureTool" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8h18v8H3z"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4" stroke-width="1.6"/></svg>
+          <span>Measure</span>
+        </button>
+        <button class="tool" id="sketchTool" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          <span>Sketch</span>
+        </button>
+        <div class="toggle">
+          <button class="on" type="button" id="tg2d">2D</button>
+          <button class="off" type="button" id="tg3d">3D</button>
+        </div>
+        <button class="tool" id="animTool" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 21h20"/><path d="M5 21l6-11 3 5 2-3 4 9"/><path d="M11 10c0-3 2-5 5-6"/><circle cx="17" cy="3.5" r="1.2" fill="currentColor"/></svg>
+          <span>Animations</span>
+        </button>
+        <button class="tool" id="bookmarksTool" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 2h12a1 1 0 0 1 1 1v18l-7-4-7 4V3a1 1 0 0 1 1-1z"/></svg>
+          <span>Bookmarks</span>
+        </button>
+        <button class="tool" id="saveTool" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg>
+          <span>Save</span>
+        </button>
+      </div>
+
+      <!-- Basemaps panel -->
+      <div class="side-panel" id="basemapsPanel" hidden>
+        <div class="panel-head"><h2>Basemaps</h2><button class="panel-close" data-close type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body"><div id="basemapsBody"></div></div>
+      </div>
+      <!-- Measure panel -->
+      <div class="side-panel" id="measurePanel" hidden>
+        <div class="panel-head"><h2>Measure</h2><button class="panel-close" data-close type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <div class="tools-row" style="margin-bottom:12px">
+            <button class="btn" id="mDist" type="button">Distance</button>
+            <button class="btn" id="mArea" type="button">Area</button>
+            <button class="btn" id="mClear" type="button">Clear</button>
+          </div>
+          <div id="measureBody"></div>
+        </div>
+      </div>
+      <!-- 3D animations panel -->
+      <div class="side-panel" id="animPanel" hidden>
+        <div class="panel-head"><h2>3D animations</h2><button class="panel-close" data-close type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body"><p class="hint" style="margin-top:0">Animations of physical processes. They open in the 3D view.</p><div id="animList"></div><div id="animHost"></div></div>
+      </div>
+      <!-- Versions panel -->
+      <div class="side-panel" id="aboutPanel" hidden>
+        <div class="panel-head"><h2>Versions</h2><button class="panel-close" data-close type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body"><table class="vers" id="versTable"></table>
+          <p class="hint">This is a prototype replica of MapMaker for reviewing new features. It is not the official MapMaker app.</p></div>
+      </div>
+
+      <!-- Sketch panel -->
+      <div class="side-panel" id="sketchPanel" hidden>
+        <div class="panel-head"><h2>Sketch</h2><button class="panel-close" id="sketchClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <div class="section">
+            <p class="section-label">Tools</p>
+            <div class="tools-row">
+              <button class="tbtn" id="tPoint" type="button" title="Point"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg></button>
+              <button class="tbtn" id="tLine" type="button" title="Line"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-5 4 3 7-8"/></svg></button>
+              <button class="tbtn" id="tPolygon" type="button" title="Polygon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l9 6.5-3.4 10.5H6.4L3 9.5z"/></svg></button>
+              <button class="tbtn" id="tCircle" type="button" title="Circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/></svg></button>
+              <button class="tbtn" id="tText" type="button" title="Text"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 19l5-14h2.1l5 14h-2.3l-1.25-3.7H8.55L7.3 19H5zm4.2-5.6h4.1l-2.05-6.05L9.2 13.4z"/></svg></button>
+              <button class="tbtn" id="tSelect" type="button" title="Select"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l15 7.5-6.4 2.1-2.1 6.4L5 3z"/></svg></button>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="popup-head">
+              <p class="section-label" style="margin:0;">Pop-up</p>
+              <button class="remove-btn" id="removePopup" type="button">&minus;&nbsp; Remove</button>
+            </div>
+            <p class="popup-hint" id="popupHint">Draw a feature, or click one on the map, to add its pop-up.</p>
+            <div class="img-upload">
+              <input id="fImageFile" type="file" accept="image/*" hidden />
+              <button class="img-pick" id="imgPick" type="button">Add image (optional)</button>
+              <div class="img-preview" id="imgPreview" hidden>
+                <img id="imgThumb" alt="pop-up image preview" />
+                <button class="img-remove" id="imgRemove" type="button" title="Remove image">&times;</button>
+              </div>
+            </div>
+            <input class="field" id="fTitle" type="text" placeholder="Title (optional)" />
+            <textarea class="field" id="fDesc" placeholder="Description (optional)"></textarea>
+          </div>
+
+          <div class="section">
+            <p class="section-label">Symbol</p>
+            <div class="swatches" id="swatches"></div>
+          </div>
+
+          <div class="section">
+            <p class="section-label">Size</p>
+            <div class="slider-row">
+              <input type="range" id="fSize" min="6" max="48" value="12" />
+              <span class="slider-val" id="sizeVal">12</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <p class="section-label">Rotation</p>
+            <div class="slider-row">
+              <input type="range" id="fRot" min="0" max="360" value="0" />
+              <span class="slider-val" id="rotVal">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save panel (local-save concept, replacing the sign-in flow) -->
+      <div class="side-panel" id="savePanel" hidden style="width:300px;">
+        <div class="panel-head"><h2>Save</h2><button class="panel-close" id="saveClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <div class="save-tiles">
+            <button class="save-tile ghost" id="screenshotTile" type="button">
+              <span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm8 3.2A3.3 3.3 0 1 0 12 16.8 3.3 3.3 0 0 0 12 10.2z"/></svg></span>
+              Screenshot
+            </button>
+            <button class="save-tile primary" id="saveMapTile" type="button">
+              <span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg></span>
+              Save map
+            </button>
+            <button class="save-tile ghost" id="saveAsTile" type="button">
+              <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9"/><path d="M17 3l4 4v5"/><path d="M8 3v5h7"/><path d="M18 15v6M15 18h6"/></svg></span>
+              Save as&hellip;
+            </button>
+          </div>
+          <p class="save-note"><strong>No sign-in needed.</strong> Your map saves to a <code>.mmap</code> file on this device — choose a name and folder, then reopen it any time. <a id="openMapLink">Open a saved map</a></p>
+        </div>
+      </div>
+
+      <!-- Add data panel (CSV upload — fieldwork configure flow) -->
+      <div class="side-panel flex-panel" id="dataPanel" hidden style="width:400px;">
+        <div class="panel-head"><h2 id="dataTitle">Add data</h2><button class="panel-close" id="dataClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <div id="dataError" class="data-error" hidden></div>
+          <div id="dataControls">
+            <p class="data-summary" id="dataSummary"></p>
+            <div class="cfg-section">
+              <h3 class="cfg-h">Map style</h3>
+              <div class="style-grid" id="styleList"></div>
+              <div class="style-desc" id="styleDesc"></div>
+            </div>
+            <div class="cfg-section">
+              <h3 class="cfg-h">Fields</h3>
+              <div id="fieldRows"></div>
+            </div>
+            <div class="cfg-section">
+              <h3 class="cfg-h">Points</h3>
+              <div class="sym-row" id="shapeRow">
+                <span class="sym-label">Shape</span>
+                <div class="shape-options" id="shapeOptions"></div>
+              </div>
+              <div class="sym-row" id="colorRow">
+                <span class="sym-label">Colour</span>
+                <div class="swatches" id="dataSwatches"></div>
+              </div>
+              <div class="sym-row" id="rampRow">
+                <span class="sym-label">Ramp</span>
+                <div class="ramp-options" id="rampList"></div>
+              </div>
+              <div class="sym-row">
+                <span class="sym-label">Size</span>
+                <input type="range" id="dataSize" min="6" max="28" value="12" />
+                <span class="slider-val" id="dataSizeVal">12 px</span>
+              </div>
+            </div>
+            <div class="cfg-summary" id="cfgSummary"></div>
+            <p class="preview-note">Live preview — the map updates as you change options.</p>
+          </div>
+        </div>
+        <div class="panel-foot">
+          <button id="dataCancel" class="mbtn" type="button">Cancel</button>
+          <button id="dataSubmit" class="mbtn primary" type="button">Add to map</button>
+        </div>
+      </div>
+
+      <!-- Drag-and-drop target highlight -->
+
+      <!-- Bookmarks panel -->
+      <div class="side-panel" id="bookmarksPanel" hidden style="width:360px;">
+        <div class="panel-head"><h2>Bookmarks</h2><button class="panel-close" id="bmClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <div id="bmListView">
+            <div id="bmEmpty" class="bm-empty" hidden>
+              <div class="bm-empty-ico">&#9873;</div>
+              <div class="bm-empty-title">No bookmarks</div>
+              <p class="bm-empty-text">Add bookmarks to your map and they will appear here. Each bookmark saves the location <em>and</em> which layers are turned on.</p>
+            </div>
+            <div id="bmList"></div>
+            <div class="bm-add-row"><button class="bm-add" id="bmAddBtn" type="button">+ Add bookmark</button></div>
+          </div>
+          <div id="bmEditView" hidden>
+            <div class="bm-edit-head"><button class="bm-back" id="bmBack" type="button" aria-label="Back">&#8249;</button><h3 id="bmEditTitle">Add bookmark</h3></div>
+            <label class="cfg-label" for="bmTitleInput">Title</label>
+            <input class="cfg-select" id="bmTitleInput" type="text" placeholder="Enter a title" />
+            <p class="bm-hint" id="bmHint">Saves the current location and which layers are on.</p>
+            <div class="bm-edit-actions">
+              <button class="mbtn" id="bmCancel" type="button">Cancel</button>
+              <button class="mbtn primary" id="bmSave" type="button">Add</button>
+            </div>
+            <button class="bm-delete" id="bmDelete" type="button" hidden>Delete bookmark</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map layers panel -->
+      <div class="side-panel" id="layersPanel" hidden style="width:360px;">
+        <div class="panel-head"><h2>Map layers</h2><button class="panel-close" id="layersClose" type="button" aria-label="Close">&times;</button></div>
+        <div class="panel-body">
+          <p class="bm-hint" style="margin-top:0;">Turn layers on and off. Bookmarks remember these settings.</p>
+          <div id="layersList"></div>
+        </div>
+      </div>
+      <div id="dropOverlay" class="drop-overlay" hidden>
+        <div class="drop-overlay-inner">Drop your CSV to add data to the map</div>
+      </div>
+
+      <div id="toast" class="toast" hidden></div>
+    </div>
+  </div>
+
+  <!-- Open map dialog (MapMaker group maps + My Maps) -->
+  <div id="openModal" class="modal open-modal" hidden>
+    <div class="open-card" role="dialog" aria-modal="true">
+      <div class="open-head">
+        <div>
+          <h2>Open map</h2>
+          <p>Select a map to open and explore it in the map view.</p>
+        </div>
+        <button class="panel-close" id="openModalClose" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="open-tabs">
+        <button class="open-tab active" id="tabGroup" type="button">MapMaker maps</button>
+        <button class="open-tab" id="tabMine" type="button">My Maps</button>
+      </div>
+      <div class="open-search" id="groupSearchRow">
+        <span class="search-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+        <input id="groupSearch" type="text" placeholder="Search" />
+      </div>
+      <div class="open-body">
+        <div id="groupPane" class="open-pane">
+          <div id="groupGrid" class="map-grid"></div>
+          <p id="groupStatus" class="grid-status">Loading maps&hellip;</p>
+        </div>
+        <div id="minePane" class="open-pane" hidden>
+          <div class="mine-box">
+            <p class="mine-lead"><strong>Your maps</strong> are the <code>.mmap</code> files saved on this device — no account, no cloud.</p>
+            <button class="mbtn primary" id="browseDevice" type="button">Browse your device&hellip;</button>
+            <p class="mine-hint">The file picker should have opened. If you closed it, use the button above.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fallback save dialog (browsers without the folder picker) -->
+  <div id="nameModal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <h3>Save your map</h3>
+      <div class="filename-row">
+        <input id="fileNameInput" class="field" spellcheck="false" aria-label="File name" />
+        <span class="ext">.mmap</span>
+      </div>
+      <p class="modal-note">This browser saves files to its Downloads folder. To choose a folder, open this page in Chrome or Edge.</p>
+      <div class="modal-actions">
+        <button id="nameCancel" class="mbtn" type="button">Cancel</button>
+        <button id="nameConfirm" class="mbtn primary" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    const [Map, WebMap, MapView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel, SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol, Home, Compass, Field, LabelClass, rendererJsonUtils, Legend, SceneView, Basemap, BasemapGallery, PortalBasemapsSource, Measurement, ScaleBar, Search, Expand, NavigationToggle] = await $arcgis.import([
+      "@arcgis/core/Map.js",
+      "@arcgis/core/WebMap.js",
+      "@arcgis/core/views/MapView.js",
+      "@arcgis/core/layers/GraphicsLayer.js",
+      "@arcgis/core/layers/FeatureLayer.js",
+      "@arcgis/core/Graphic.js",
+      "@arcgis/core/widgets/Sketch/SketchViewModel.js",
+      "@arcgis/core/symbols/SimpleMarkerSymbol.js",
+      "@arcgis/core/symbols/SimpleLineSymbol.js",
+      "@arcgis/core/symbols/SimpleFillSymbol.js",
+      "@arcgis/core/symbols/TextSymbol.js",
+      "@arcgis/core/widgets/Home.js",
+      "@arcgis/core/widgets/Compass.js",
+      "@arcgis/core/layers/support/Field.js",
+      "@arcgis/core/layers/support/LabelClass.js",
+      "@arcgis/core/renderers/support/jsonUtils.js",
+      "@arcgis/core/widgets/Legend.js",
+      "@arcgis/core/views/SceneView.js",
+      "@arcgis/core/Basemap.js",
+      "@arcgis/core/widgets/BasemapGallery.js",
+      "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js",
+      "@arcgis/core/widgets/Measurement.js",
+      "@arcgis/core/widgets/ScaleBar.js",
+      "@arcgis/core/widgets/Search.js",
+      "@arcgis/core/widgets/Expand.js",
+      "@arcgis/core/widgets/NavigationToggle.js"
+    ]);
+    (function () {
+
+      var DOC_TYPE = "MapMakerLocalDocument";
+      var DOC_VERSION = 2;
+      var APP_VERSION = "3.0";   // replica: v2.8 mock-up + SDK 5.1, MapMaker header, basemaps, measure, 2D/3D, 3D animations
+      var PORTAL = "https://www.arcgis.com";
+      var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
+      var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
+      var DEFAULT_COLOR = PALETTE[0];
+
+      var $ = function (id) { return document.getElementById(id); };
+      function newUid() { return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+      var featureSeq = 0;
+      var dirty = false;
+      var drawing = false;
+      var placingText = false;
+      var sketchPanelOpen = false;
+      var selectedFeature = null;
+      var currentTool = null;
+      var currentFileHandle = null;
+      var groupLoaded = false;
+      var pendingStyle = { color: DEFAULT_COLOR, size: 12, rotation: 0 };
+
+      var graphicsLayer = new GraphicsLayer({ elevationInfo: { mode: "on-the-ground" } });
+      var DEFAULT_BASEMAP_ITEM = "a82ff7ce1c3a493f9d82aa89f5a1ddcf";   // National Geographic Style, MapMaker's default
+      var map = new Map({ basemap: new Basemap({ portalItem: { id: DEFAULT_BASEMAP_ITEM } }), ground: "world-elevation", layers: [graphicsLayer] });
+      var view = new MapView({ container: "viewDiv", map: map, center: [-30, 35], zoom: 3 });
+      // 2D and 3D: two views share the map; `view` always points at the one showing. Event handlers go on both.
+      var mapView = view, sceneView = null, mode = "2d", viewHandlers = [];
+      function onViews(evt, fn) { viewHandlers.push([evt, fn]); mapView.on(evt, fn); if (sceneView) sceneView.on(evt, fn); }
+      var currentBasemapId = "item:" + DEFAULT_BASEMAP_ITEM;
+      // POC: hide on-map text labels — at scale with dense data they collide into
+      // clutter. The label graphics are still saved in the .mmap; the real build will
+      // add proper label management. Flip to true (or replace) when that lands.
+      var SHOW_LABELS = false;
+      var dataLayers = []; // client-side FeatureLayers from v3 feature-collection docs
+
+      // Left controls: search (inert) + home + compass + default zoom
+      var searchBtn = document.createElement("button");
+      searchBtn.className = "left-btn";
+      searchBtn.type = "button";
+      searchBtn.title = "Search (not active in this mock-up)";
+      searchBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+      searchBtn.addEventListener("click", function () { toast("Search isn't wired up in this concept mock-up."); });
+      view.ui.add(new Expand({ view: view, content: new Search({ view: view }), expandIcon: "search", expandTooltip: "Search" }), { position: "top-left", index: 0 });
+      view.ui.add(new Home({ view: view }), { position: "top-left", index: 1 });
+      view.ui.add(new Compass({ view: view }), "bottom-left");
+      view.ui.add(new ScaleBar({ view: view, unit: "dual" }), "bottom-left");
+
+      // Legend (wired). The Legend widget reads the view's layers and shows the renderer
+      // for each data FeatureLayer (species colours, size, pie-chart categories). Toggled
+      // from the toolbar; sketch graphics have no renderer so they don't appear.
+      var legend = null, legendOn = false;
+      $("btnLegend").addEventListener("click", function () {
+        if (!legend) legend = new Legend({ view: view });
+        if (legendOn) { view.ui.remove(legend); legendOn = false; }
+        else {
+          view.ui.add(legend, "top-right"); legendOn = true;
+          if (!dataLayers.length) toast("The legend shows data layers — open a map that has data to fill it.");
+        }
+      });
+
+      // Editing the title marks the document dirty.
+      var titleEl = $("docTitle");
+      if (titleEl) titleEl.addEventListener("input", markDirty);
+
+      var sketchVM = new SketchViewModel({ view: view, layer: graphicsLayer, updateOnGraphicClick: false });
+
+      // ---- Symbols ----
+      function hexToRgb(hex) {
+        var h = String(hex).replace("#", "");
+        if (h.length === 3) h = h.split("").map(function (c) { return c + c; }).join("");
+        var n = parseInt(h, 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      }
+      function symbolFor(kind, o) {
+        var rgb = hexToRgb(o.color);
+        if (kind === "text") {
+          return new TextSymbol({ text: o.text || "Text", color: o.color, haloColor: "#ffffff", haloSize: 1.5,
+            font: { size: Math.max(10, o.size || 16), weight: "bold" }, angle: o.rotation || 0,
+            yoffset: 14 });
+        }
+        if (kind === "polyline") return new SimpleLineSymbol({ color: o.color, width: Math.max(2, Math.round((o.size || 12) / 4)) });
+        if (kind === "polygon" || kind === "extent") {
+          return new SimpleFillSymbol({ color: [rgb[0], rgb[1], rgb[2], 0.25], outline: { color: o.color, width: 2 } });
+        }
+        return new SimpleMarkerSymbol({ style: "circle", color: o.color, size: o.size || 12, angle: o.rotation || 0,
+          outline: { color: "#ffffff", width: 1.5 } });
+      }
+      function applyStyle(g) {
+        var a = g.attributes || (g.attributes = {});
+        var kind = a.kind || (g.geometry && g.geometry.type) || "point";
+        g.symbol = symbolFor(kind, { color: a.color || DEFAULT_COLOR, size: a.size || 12, rotation: a.rotation || 0, text: a.title });
+      }
+
+      // ---- Pop-up ----
+      function popupContent(event) {
+        var a = (event && event.graphic && event.graphic.attributes) || {};
+        var wrap = document.createElement("div");
+        if (a.description) { var p = document.createElement("p"); p.className = "mm-popup-text"; p.textContent = a.description; wrap.appendChild(p); }
+        if (a.imageUrl) { var img = document.createElement("img"); img.className = "mm-popup-img"; img.src = a.imageUrl; img.alt = a.title || "image"; wrap.appendChild(img); }
+        if (!a.description && !a.imageUrl) { var em = document.createElement("p"); em.className = "mm-popup-empty"; em.textContent = "No pop-up details yet."; wrap.appendChild(em); }
+        return wrap;
+      }
+      function makePopupTemplate() { return { title: "{title}", content: popupContent }; }
+
+      // ---- Toast ----
+      function toast(msg) {
+        var t = $("toast"); t.textContent = msg; t.hidden = false;
+        clearTimeout(t._timer); t._timer = setTimeout(function () { t.hidden = true; }, 2600);
+      }
+      function markDirty() { dirty = true; }
+      function markClean() { dirty = false; }
+      function confirmDiscard() {
+        if (!dirty) return true;
+        return window.confirm("You have unsaved changes. Open anyway and lose them?");
+      }
+      window.addEventListener("beforeunload", function (e) {
+        if (dirty) { e.preventDefault(); e.returnValue = ""; }
+      });
+
+      // ---- Sketch panel: field binding ----
+      function popupFieldsEnabled(on) {
+        $("imgPick").disabled = !on; $("fTitle").disabled = !on; $("fDesc").disabled = !on; $("removePopup").disabled = !on;
+        $("popupHint").style.display = on ? "none" : "block";
+      }
+      function highlightSwatch(hex) {
+        var kids = $("swatches").children;
+        for (var i = 0; i < kids.length; i++) {
+          if (kids[i].getAttribute("data-color") === hex) kids[i].classList.add("active");
+          else kids[i].classList.remove("active");
+        }
+      }
+      function populatePanel() {
+        var sel = selectedFeature;
+        popupFieldsEnabled(!!sel);
+        setImagePreview(sel ? (sel.attributes.imageUrl || "") : "");
+        $("fTitle").value = sel ? (sel.attributes.title || "") : "";
+        $("fDesc").value = sel ? (sel.attributes.description || "") : "";
+        var color = sel ? (sel.attributes.color || DEFAULT_COLOR) : pendingStyle.color;
+        var size = sel ? (sel.attributes.size || 12) : pendingStyle.size;
+        var rot = sel ? (sel.attributes.rotation || 0) : pendingStyle.rotation;
+        highlightSwatch(color);
+        $("fSize").value = size; $("sizeVal").textContent = size;
+        $("fRot").value = rot; $("rotVal").textContent = rot;
+      }
+      function selectForEdit(g) { selectedFeature = g; populatePanel(); }
+
+      // Build swatches
+      (function () {
+        var box = $("swatches");
+        PALETTE.forEach(function (hex) {
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "swatch"; b.style.background = hex;
+          b.setAttribute("data-color", hex); b.setAttribute("aria-label", "Colour " + hex); b.title = hex;
+          b.addEventListener("click", function () {
+            if (selectedFeature) { selectedFeature.attributes.color = hex; applyStyle(selectedFeature); markDirty(); }
+            else { pendingStyle.color = hex; }
+            highlightSwatch(hex);
+          });
+          box.appendChild(b);
+        });
+      })();
+
+      // Pop-up field handlers
+      $("fTitle").addEventListener("input", function () {
+        if (!selectedFeature) return;
+        selectedFeature.attributes.title = this.value;
+        if (selectedFeature.attributes.kind === "text") applyStyle(selectedFeature);
+        markDirty();
+      });
+      $("fDesc").addEventListener("input", function () {
+        if (!selectedFeature) return; selectedFeature.attributes.description = this.value; markDirty();
+      });
+      // Image is a LOCAL upload now (embedded as a data URL), not a URL field.
+      function setImagePreview(dataUrl) {
+        var prev = $("imgPreview"), thumb = $("imgThumb"), pick = $("imgPick");
+        if (dataUrl) { thumb.src = dataUrl; prev.hidden = false; pick.textContent = "Replace image"; }
+        else { thumb.removeAttribute("src"); prev.hidden = true; pick.textContent = "Add image (optional)"; }
+      }
+      // Downscale on import (max 1200px, JPEG) so embedded images don't bloat the .mmap.
+      function fileToDataUrl(file, cb) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          var img = new Image();
+          img.onload = function () {
+            try {
+              var max = 1200, w = img.width, h = img.height;
+              if (w > max || h > max) { var s = Math.min(max / w, max / h); w = Math.round(w * s); h = Math.round(h * s); }
+              var c = document.createElement("canvas"); c.width = w; c.height = h;
+              c.getContext("2d").drawImage(img, 0, 0, w, h);
+              cb(c.toDataURL("image/jpeg", 0.85));
+            } catch (e) { cb(reader.result); }   // fallback: original data URL
+          };
+          img.onerror = function () { cb(reader.result); };
+          img.src = reader.result;
+        };
+        reader.onerror = function () { toast("Couldn't read that image."); };
+        reader.readAsDataURL(file);
+      }
+      $("imgPick").addEventListener("click", function () { if (!$("imgPick").disabled) $("fImageFile").click(); });
+      $("fImageFile").addEventListener("change", function () {
+        var file = this.files && this.files[0];
+        this.value = "";
+        if (!file || !selectedFeature) return;
+        if (!/^image\//.test(file.type)) { toast("Please choose an image file."); return; }
+        fileToDataUrl(file, function (dataUrl) {
+          selectedFeature.attributes.imageUrl = dataUrl;
+          setImagePreview(dataUrl);
+          markDirty();
+        });
+      });
+      $("imgRemove").addEventListener("click", function () {
+        if (!selectedFeature) return;
+        selectedFeature.attributes.imageUrl = "";
+        setImagePreview("");
+        markDirty();
+      });
+      $("removePopup").addEventListener("click", function () {
+        if (!selectedFeature) return;
+        selectedFeature.attributes.description = "";
+        selectedFeature.attributes.imageUrl = "";
+        if (selectedFeature.attributes.kind !== "text") selectedFeature.attributes.title = "";
+        populatePanel(); markDirty();
+      });
+      $("fSize").addEventListener("input", function () {
+        var v = parseInt(this.value, 10); $("sizeVal").textContent = v;
+        if (selectedFeature) { selectedFeature.attributes.size = v; applyStyle(selectedFeature); markDirty(); }
+        else pendingStyle.size = v;
+      });
+      $("fRot").addEventListener("input", function () {
+        var v = parseInt(this.value, 10); $("rotVal").textContent = v;
+        if (selectedFeature) { selectedFeature.attributes.rotation = v; applyStyle(selectedFeature); markDirty(); }
+        else pendingStyle.rotation = v;
+      });
+
+      // ---- Tools ----
+      function updateToolButtons() {
+        var map2 = { point: "tPoint", polyline: "tLine", polygon: "tPolygon", circle: "tCircle", text: "tText", select: "tSelect" };
+        Object.keys(map2).forEach(function (k) {
+          var el = $(map2[k]); if (!el) return;
+          if (currentTool === k) el.classList.add("active"); else el.classList.remove("active");
+        });
+      }
+      function setTool(tool) {
+        currentTool = tool;
+        try { sketchVM.cancel(); } catch (e) {}
+        placingText = false;
+        updateToolButtons();
+        if (tool === "point" || tool === "polyline" || tool === "polygon" || tool === "circle") {
+          sketchVM.create(tool);
+        } else if (tool === "text") {
+          placingText = true;
+          toast("Click on the map to place your text.");
+        }
+        // "select" / null: nothing — clicking a feature selects it for editing
+      }
+      $("tPoint").addEventListener("click", function () { setTool("point"); });
+      $("tLine").addEventListener("click", function () { setTool("polyline"); });
+      $("tPolygon").addEventListener("click", function () { setTool("polygon"); });
+      $("tCircle").addEventListener("click", function () { setTool("circle"); });
+      $("tText").addEventListener("click", function () { setTool("text"); });
+      $("tSelect").addEventListener("click", function () { setTool("select"); });
+
+      sketchVM.on("create", function (event) {
+        if (event.state === "start" || event.state === "active") drawing = true;
+        if (event.state === "cancel") drawing = false;
+        if (event.state === "complete" && event.graphic) {
+          drawing = false;
+          featureSeq += 1;
+          var g = event.graphic;
+          g.attributes = { uid: newUid(), kind: (g.geometry && g.geometry.type) || "feature",
+            title: "", description: "", imageUrl: "",
+            color: pendingStyle.color, size: pendingStyle.size, rotation: pendingStyle.rotation };
+          applyStyle(g);
+          g.popupTemplate = makePopupTemplate();
+          setTool("select");
+          selectForEdit(g);
+          markDirty();
+        }
+      });
+      sketchVM.on("update", function (event) {
+        // No reshape in this mock-up: cancel any update the moment it begins.
+        if (event.state === "start") { try { sketchVM.cancel(); } catch (e) {} }
+      });
+
+      // ---- Map click: place text / select-to-edit / show pop-up ----
+      onViews("click", function (event) {
+        if (placingText) {
+          event.stopPropagation();
+          placingText = false; setTool("select");
+          featureSeq += 1;
+          var tg = new Graphic({
+            geometry: event.mapPoint,
+            attributes: { uid: newUid(), kind: "text", title: "Text", description: "", imageUrl: "",
+              color: pendingStyle.color, size: Math.max(14, pendingStyle.size), rotation: pendingStyle.rotation },
+            popupTemplate: makePopupTemplate()
+          });
+          applyStyle(tg);
+          graphicsLayer.add(tg);
+          selectForEdit(tg);
+          markDirty();
+          return;
+        }
+        if (drawing) return;
+        view.hitTest(event, { include: graphicsLayer }).then(function (resp) {
+          var hit = resp.results && resp.results[0];
+          if (sketchPanelOpen) {
+            selectForEdit(hit && hit.graphic ? hit.graphic : null);   // edit mode
+          } else if (hit && hit.graphic) {
+            view.openPopup({ features: [hit.graphic], location: event.mapPoint });   // view mode
+          } else {
+            view.closePopup();
+          }
+        }).catch(function () {});
+      });
+      onViews("key-down", function (event) {
+        if (event.key === "Escape") { placingText = false; if (sketchPanelOpen) setTool("select"); }
+      });
+
+      // ---- Panels ----
+      function setToolbarActive(which, on) {
+        var ids = { sketch: "sketchTool", data: "addDataTool", save: "saveTool", bookmarks: "bookmarksTool", layers: "layersTool", basemaps: "basemapsTool", measure: "measureTool", anim: "animTool", about: "appVer" };
+        var el = $(ids[which]);
+        if (!el) return;
+        if (on) el.classList.add("active"); else el.classList.remove("active");
+      }
+      var PANEL_IDS = { sketch: "sketchPanel", save: "savePanel", data: "dataPanel", bookmarks: "bookmarksPanel", layers: "layersPanel", basemaps: "basemapsPanel", measure: "measurePanel", anim: "animPanel", about: "aboutPanel" };
+      function openPanel(which) {
+        if (which !== "data" && addState) { addState = null; removePreview(false); }
+        sketchPanelOpen = (which === "sketch");
+        Object.keys(PANEL_IDS).forEach(function (k) {
+          $(PANEL_IDS[k]).hidden = (k !== which);
+          setToolbarActive(k, k === which);
+        });
+        try { view.closePopup(); } catch (e) {}
+        if (which === "sketch") { setTool("select"); selectForEdit(null); }
+        else { try { sketchVM.cancel(); } catch (e) {} placingText = false; currentTool = null; updateToolButtons(); }
+        if (which === "bookmarks") { showBmList(); }
+        if (which === "layers") { renderLayersPanel(); }
+        if (which === "anim") { listAnimations(); }
+        if (which === "about") { renderVersions(); }
+      }
+      function closePanels() {
+        sketchPanelOpen = false;
+        Object.keys(PANEL_IDS).forEach(function (k) {
+          $(PANEL_IDS[k]).hidden = true;
+          setToolbarActive(k, false);
+        });
+        try { sketchVM.cancel(); } catch (e) {} placingText = false; currentTool = null; updateToolButtons();
+        selectedFeature = null;
+      }
+      $("sketchTool").addEventListener("click", function () { sketchPanelOpen ? closePanels() : openPanel("sketch"); });
+      $("saveTool").addEventListener("click", function () { $("savePanel").hidden ? openPanel("save") : closePanels(); });
+      $("sketchClose").addEventListener("click", closePanels);
+      $("saveClose").addEventListener("click", closePanels);
+
+      // ===== Replica v3.0 additions: basemaps, measure, 2D/3D, 3D animations, versions =====
+      var BASEMAP_GROUP = "406646c98d0f4c608a9438d40ce2df9e";   // MapMaker's basemap group
+      var EDUCATORS_URL = "";                                     // TODO: MapMaker "For Educators" link
+      function basemapRef(m) { var b = m && m.basemap; if (!b) return "item:" + DEFAULT_BASEMAP_ITEM; return b.portalItem && b.portalItem.id ? "item:" + b.portalItem.id : (b.id || "topo-vector"); }
+      function basemapFrom(ref) { return (typeof ref === "string" && ref.indexOf("item:") === 0) ? new Basemap({ portalItem: { id: ref.slice(5) } }) : ref; }
+      $("educatorsLink").addEventListener("click", function (e) { if (!EDUCATORS_URL) { e.preventDefault(); toast("The For Educators link isn't set in this prototype yet."); } });
+      if (EDUCATORS_URL) $("educatorsLink").href = EDUCATORS_URL;
+      document.querySelectorAll("[data-close]").forEach(function (b) { b.addEventListener("click", closePanels); });
+      function togglePanel(which) { $(PANEL_IDS[which]).hidden ? openPanel(which) : closePanels(); }
+
+      // Basemaps (MapMaker's basemap group)
+      var basemapGallery = new BasemapGallery({ view: view, container: $("basemapsBody"), source: new PortalBasemapsSource({ query: { id: BASEMAP_GROUP } }) });
+      $("basemapsTool").addEventListener("click", function () { togglePanel("basemaps"); });
+
+      // Measure (miles, as MapMaker)
+      var measurement = new Measurement({ view: view, container: $("measureBody"), linearUnit: "imperial", areaUnit: "imperial" });
+      function measureButtons(which) { ["mDist", "mArea"].forEach(function (id) { $(id).setAttribute("aria-pressed", String(id === which)); }); }
+      $("mDist").addEventListener("click", function () { measurement.activeTool = mode === "3d" ? "direct-line" : "distance"; measureButtons("mDist"); });
+      $("mArea").addEventListener("click", function () { measurement.activeTool = "area"; measureButtons("mArea"); });
+      $("mClear").addEventListener("click", function () { measurement.clear(); measureButtons(null); });
+      $("measureTool").addEventListener("click", function () { togglePanel("measure"); });
+
+      // 2D / 3D: the same map in a MapView or a SceneView
+      function setupSceneView(v) {
+        v.ui.add(new Expand({ view: v, content: new Search({ view: v }), expandIcon: "search", expandTooltip: "Search" }), { position: "top-left", index: 0 });
+        v.ui.add(new Home({ view: v }), { position: "top-left", index: 1 });
+        v.ui.add(new NavigationToggle({ view: v }), "top-left");
+        v.ui.add(new Compass({ view: v }), "bottom-left");
+        viewHandlers.forEach(function (h) { v.on(h[0], h[1]); });
+        if (v.popup) v.popup.autoOpenEnabled = false;
+      }
+      var switching = false;
+      async function setMode(m) {
+        if (m === mode || switching) return;
+        switching = true;
+        var from = view, vp = from.viewpoint.clone(), curMap = from.map;
+        try { measurement.clear(); measureButtons(null); } catch (e) {}
+        try {
+          if (m === "3d") {
+            if (!curMap.ground || !curMap.ground.layers || !curMap.ground.layers.length) curMap.ground = "world-elevation";
+            $("sceneDiv").hidden = false;
+            if (!sceneView) { sceneView = new SceneView({ container: "sceneDiv", map: curMap }); setupSceneView(sceneView); }
+            else if (sceneView.map !== curMap) sceneView.map = curMap;
+            await sceneView.when(); sceneView.viewpoint = vp; $("viewDiv").hidden = true; view = sceneView;
+          } else {
+            stopAnimation();
+            $("viewDiv").hidden = false; if (mapView.map !== curMap) mapView.map = curMap;
+            await mapView.when(); mapView.viewpoint = vp; $("sceneDiv").hidden = true; view = mapView;
+          }
+        } catch (e) {
+          console.error("Couldn't switch view", e);
+          $("viewDiv").hidden = false; $("sceneDiv").hidden = true; view = mapView; m = "2d";
+          toast("The 3D view couldn't start on this device.");
+        }
+        mode = m; switching = false;
+        $("tg2d").className = m === "2d" ? "on" : "off"; $("tg3d").className = m === "3d" ? "on" : "off";
+        // everything tied to a view follows the one showing
+        try { sketchVM.view = view; } catch (e) {}
+        basemapGallery.view = view; measurement.view = view;
+        if (legend) { legend.view = view; if (legendOn) { from.ui.remove(legend); view.ui.add(legend, "top-right"); } }
+        if (m === "3d" && dataLayers.some(function (l) { return l.renderer && l.renderer.type === "pie-chart"; }))
+          toast("Pie-chart layers only draw in 2D. Switch back to 2D to see them.");
+      }
+      $("tg2d").addEventListener("click", function () { setMode("2d"); });
+      $("tg3d").addEventListener("click", function () { setMode("3d"); });
+
+      // 3D animations (plug-ins shared with Map Studio)
+      var ANIMATIONS = [{ id: "vesuvius-1944", path: "./whitelabel/animations/vesuvius-1944/animation.js" }];
+      var animMods = {}, animCurrent = null;
+      async function loadAnimations() {
+        for (var i = 0; i < ANIMATIONS.length; i++) { var a = ANIMATIONS[i];
+          if (!animMods[a.id]) { try { animMods[a.id] = await import(a.path); } catch (e) { console.error("Animation failed to load", a.id, e); } } }
+      }
+      async function listAnimations() {
+        if (animCurrent) return;
+        await loadAnimations();
+        $("animList").innerHTML = ANIMATIONS.filter(function (a) { return animMods[a.id]; }).map(function (a) { var m = animMods[a.id].meta;
+          return '<div class="anim-card"><div class="t">' + m.title + ' <span class="ver-chip">v' + m.version + '</span></div><p class="hint" style="margin:0 0 8px">' + m.summary +
+            '</p><button class="btn primary" type="button" data-anim="' + a.id + '">Open</button></div>'; }).join("");
+      }
+      $("animList").addEventListener("click", function (e) { var b = e.target.closest("[data-anim]"); if (b) startAnimation(b.getAttribute("data-anim")); });
+      async function startAnimation(id) {
+        stopAnimation();
+        if (mode !== "3d") await setMode("3d");
+        if (mode !== "3d") return;
+        $("animList").hidden = true;
+        $("animHost").innerHTML = '<button class="btn" id="animBack" type="button">&larr; All animations</button><div id="animBody" style="margin-top:12px"><p class="hint">Loading the animation&hellip;</p></div>';
+        $("animBack").addEventListener("click", function () { stopAnimation(); listAnimations(); });
+        try { animCurrent = await animMods[id].start({ view: sceneView, map: sceneView.map, container: $("animBody"), toast: toast }); }
+        catch (e) { console.error(e); $("animBody").innerHTML = '<p class="hint">' + (e.message || e) + '</p>'; }
+      }
+      function stopAnimation() {
+        if (animCurrent) { try { animCurrent.dispose(); } catch (e) { console.warn(e); } animCurrent = null; }
+        $("animHost").innerHTML = ""; $("animList").hidden = false;
+      }
+      $("animTool").addEventListener("click", function () { togglePanel("anim"); });
+
+      // Versions
+      $("appVer").addEventListener("click", function () { togglePanel("about"); });
+      async function renderVersions() {
+        await loadAnimations();
+        var rows = [["MapMaker replica (app)", APP_VERSION, "The v2.8 Atlas local-save mock-up on SDK 5.1, plus MapMaker header, basemaps, measure, 2D/3D and 3D animations"],
+          ["Saved map file (.mmap)", "3", "MapMakerLocalDocument. Basemaps from ArcGIS Online are saved as item:<id>"],
+          ["CSV import", "2.8", "Fieldwork CSV panel: styles incl. pie charts (2D only), live preview"]];
+        ANIMATIONS.forEach(function (a) { var m = animMods[a.id]; if (m) (m.meta.models || []).forEach(function (r) { rows.push(r); }); });
+        $("versTable").innerHTML = "<tr><th>Part</th><th>Version</th><th>What it is</th></tr>" + rows.map(function (r) { return "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td><td>" + r[2] + "</td></tr>"; }).join("");
+      }
+
+      // Inert mock buttons
+      var mocks = document.querySelectorAll("[data-mock]");
+      for (var i = 0; i < mocks.length; i++) {
+        (function (el) {
+          el.addEventListener("click", function () { toast(el.getAttribute("data-mock") + " isn't wired up in this concept mock-up."); });
+        })(mocks[i]);
+      }
+
+      // ---- Document model + save/open ----
+      function currentTitle() { var el = $("docTitle"); var t = el ? (el.value || "").trim() : ""; return t || "Untitled map"; }
+      function setTitle(t) { var el = $("docTitle"); if (el) el.value = (t && String(t).trim()) || "Untitled map"; }
+      function titleSlug() { return (currentTitle().replace(/[^\w\-]+/g, "_").slice(0, 60)) || "map"; }
+      function buildDocument() {
+        var layers = dataLayers.map(function (fl) { return fl._srcDef; }).filter(Boolean);
+        var doc = {
+          type: DOC_TYPE, version: layers.length ? 3 : DOC_VERSION, title: currentTitle(), savedAt: new Date().toISOString(),
+          basemap: basemapRef(view.map),
+          viewpoint: { center: [view.center.longitude, view.center.latitude], zoom: view.zoom },
+          graphics: graphicsLayer.graphics.toArray().map(function (g) {
+            return { attributes: g.attributes, geometry: g.geometry.toJSON() };
+          })
+        };
+        if (layers.length) doc.layers = layers;
+        if (bookmarks.length) {
+          doc.bookmarks = bookmarks.map(function (bm) {
+            return { title: bm.title, viewpoint: bm.viewpoint, layers: bm.layers, thumb: bm.thumb || null };
+          });
+        }
+        return doc;
+      }
+      function downloadText(text, filename, mime) {
+        var blob = new Blob([text], { type: mime || "text/plain" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a"); a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      }
+      function downloadDataUrl(dataUrl, filename) {
+        var a = document.createElement("a"); a.href = dataUrl; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      }
+      function fallbackDownload() {
+        var fn = titleSlug() + ".mmap";
+        try { downloadText(JSON.stringify(buildDocument(), null, 2), fn, "application/json"); markClean(); toast("Saved " + fn + " to your downloads."); }
+        catch (e) { toast("Couldn't save the file."); }
+      }
+      function saveMap(forceNew) {
+        var text = JSON.stringify(buildDocument(), null, 2);
+        if (!window.showSaveFilePicker) { openNameDialog(); return; }
+        Promise.resolve().then(function () {
+          if (forceNew || !currentFileHandle) {
+            return window.showSaveFilePicker({ suggestedName: titleSlug() + ".mmap",
+              types: [{ description: "Map", accept: { "application/json": [".mmap"] } }] })
+              .then(function (h) { currentFileHandle = h; });
+          }
+        }).then(function () { return currentFileHandle.createWritable(); })
+          .then(function (w) { return w.write(text).then(function () { return w.close(); }); })
+          .then(function () { markClean(); toast("Saved " + (currentFileHandle.name || "your map") + "."); })
+          .catch(function (err) {
+            if (err && err.name === "AbortError") return; // user cancelled the picker — keep existing handle state
+            currentFileHandle = null;
+            fallbackDownload();
+          });
+      }
+      function takeScreenshot() {
+        view.takeScreenshot({ format: "png" }).then(function (s) { downloadDataUrl(s.dataUrl, "map.png"); toast("Screenshot saved to your downloads."); })
+          .catch(function () { toast("Couldn't take a screenshot."); });
+      }
+
+      // Frame the data extent. For v3 data layers, union their queried extents (they
+      // must load first); otherwise frame the sketch graphics. Fall back to the stored
+      // viewpoint if neither yields an extent.
+      function frameData(doc) {
+        var gs = graphicsLayer.graphics.toArray();
+        if (dataLayers.length) {
+          var extents = [];
+          var pending = dataLayers.map(function (fl) {
+            return fl.when()
+              .then(function () { return fl.queryExtent(); })
+              .then(function (r) { if (r && r.extent) extents.push(r.extent); }, function () {});
+          });
+          Promise.all(pending).then(function () {
+            if (extents.length) {
+              var ext = extents[0];
+              for (var i = 1; i < extents.length; i++) { try { ext = ext.union(extents[i]); } catch (e) {} }
+              try { if (ext.expand) ext = ext.expand(1.15); } catch (e) {}
+              view.goTo(ext, { animate: false }).catch(function () { frameFallback(doc, gs); });
+            } else {
+              frameFallback(doc, gs);
+            }
+          });
+        } else {
+          frameFallback(doc, gs);
+        }
+      }
+      function frameFallback(doc, gs) {
+        var vp = (doc && doc.viewpoint && doc.viewpoint.center) ? { center: doc.viewpoint.center, zoom: doc.viewpoint.zoom } : null;
+        if (gs && gs.length) {
+          view.goTo(gs, { animate: false }).catch(function () { if (vp) view.goTo(vp, { animate: false }).catch(function () {}); });
+        } else if (vp) {
+          view.goTo(vp, { animate: false }).catch(function () {});
+        }
+      }
+      function loadDocument(doc) {
+        if (addState) { addState = null; }
+        removePreview(false);
+        bookmarks = (doc.bookmarks || []).filter(function (bm) {
+          return bm && bm.viewpoint && bm.viewpoint.center && typeof bm.viewpoint.zoom === "number";
+        }).map(function (bm) {
+          return { title: bm.title || "Bookmark", viewpoint: bm.viewpoint, layers: bm.layers || [], thumb: bm.thumb || null };
+        });
+        if (!$("bookmarksPanel").hidden) showBmList();
+        graphicsLayer.removeAll();
+        // Clear any FeatureLayers from a previous open (v3 feature-collection docs).
+        dataLayers.forEach(function (fl) {
+          try { map.remove(fl); } catch (e) {}
+          try { if (view.map && view.map !== map) view.map.remove(fl); } catch (e) {}
+        });
+        dataLayers = [];
+        // Reuse the ONE persistent map instead of swapping in a new Map. Swapping the
+        // map/basemap leaves goTo unable to frame the data until the new basemap's LODs
+        // load — which is why the view stayed at world. The persistent map is already
+        // live in the view, so goTo against it works. (Only swap back when returning
+        // from a group web map.)
+        if (view.map !== map) {
+          try { if (view.map) view.map.remove(graphicsLayer); } catch (e) {}
+          try { map.removeAll(); } catch (e) {}
+          view.map = map;
+        }
+        if (!map.layers.includes(graphicsLayer)) map.add(graphicsLayer);
+        if (doc.basemap && doc.basemap !== currentBasemapId) {
+          try { map.basemap = basemapFrom(doc.basemap); currentBasemapId = doc.basemap; } catch (e) {}
+        }
+        // Baked sketch graphics (hand-drawn) — accept either `graphics` (v2) or `sketch` (v3).
+        (doc.graphics || doc.sketch || []).forEach(function (gj) {
+          try {
+            if (!SHOW_LABELS && gj.attributes && gj.attributes.kind === "text") return;
+            var g = Graphic.fromJSON ? Graphic.fromJSON({ geometry: gj.geometry, attributes: gj.attributes }) : new Graphic();
+            if (!g.geometry && gj.geometry) g.geometry = gj.geometry;
+            g.attributes = gj.attributes || {};
+            if (!g.attributes.uid) g.attributes.uid = newUid();
+            if (!g.attributes.kind) g.attributes.kind = (g.geometry && g.geometry.type) || "feature";
+            applyStyle(g);
+            g.popupTemplate = makePopupTemplate();
+            graphicsLayer.add(g);
+          } catch (e) {}
+        });
+        // Data layers (v3 feature collections) — real FeatureLayers with a renderer
+        // (incl. pie-chart) and proper labelingInfo. renderer/labelingInfo autocast from JSON.
+        (doc.layers || []).forEach(function (ld) {
+          try { dataLayers.push(buildDataLayer(ld)); } catch (e) {}
+        });
+        dataLayers.forEach(function (fl) { map.add(fl); });
+        featureSeq = graphicsLayer.graphics.length;
+        selectedFeature = null;
+        if (sketchPanelOpen) populatePanel();
+        if (view.popup) view.popup.autoOpenEnabled = false;
+        closeOpenModal();
+        setTitle(doc.title);
+        markClean();
+        frameData(doc);
+        var dataCount = (doc.layers || []).reduce(function (n, ld) { return n + ((ld.features && ld.features.length) || 0); }, 0);
+        toast("Opened map — " + (graphicsLayer.graphics.length + dataCount) + " feature(s).");
+      }
+
+      // Build a client-side FeatureLayer from a feature-collection layer definition.
+      // Handles both esri REST JSON (from the fieldwork export: "pieChart"/"uniqueValue"
+      // renderers, esriTS labels, esriFieldType fields) and the JS autocast format.
+      function buildDataLayer(ld) {
+        var gtype = ld.geometryType || "point";
+        var rawFields = (ld.fields && ld.fields.length) ? ld.fields.slice() : [];
+        var oidField = ld.objectIdField;
+        if (!oidField) {
+          var oidf = rawFields.filter(function (f) { return f.type === "esriFieldTypeOID" || f.type === "oid"; })[0];
+          oidField = oidf ? oidf.name : "__oid";
+        }
+        if (!rawFields.some(function (fd) { return fd.name === oidField; })) {
+          rawFields.unshift({ name: oidField, alias: oidField, type: "oid" });
+        }
+        var fields = rawFields.map(function (f) {
+          if (f && typeof f.type === "string" && f.type.indexOf("esriFieldType") === 0) {
+            try { return Field.fromJSON(f); } catch (e) { return f; }
+          }
+          return f;
+        });
+        var feats = (ld.features || []).map(function (f, i) {
+          var gj = f.geometry || null;
+          if (gj && !gj.type) { gj = Object.assign({}, gj, { type: gtype }); }
+          var attrs = f.attributes ? Object.assign({}, f.attributes) : {};
+          if (attrs[oidField] == null) attrs[oidField] = i + 1;
+          return new Graphic({ geometry: gj, attributes: attrs });
+        });
+        var props = {
+          source: feats,
+          objectIdField: oidField,
+          fields: fields,
+          geometryType: gtype,
+          spatialReference: ld.spatialReference || { wkid: 102100 },
+          title: ld.title || "Data",
+          popupEnabled: true
+        };
+        if (ld.renderer) {
+          var rj = ld.renderer, r = null;
+          if (rj.type && rj.type.indexOf("-") >= 0) { r = rj; } // JS autocast format (e.g. "pie-chart")
+          else { try { r = rendererJsonUtils.fromJSON(rj); } catch (e) { r = rj; } } // REST (e.g. "pieChart")
+          props.renderer = r || rj;
+        }
+        if (ld.labelingInfo && ld.labelingInfo.length) {
+          props.labelingInfo = ld.labelingInfo.map(function (l) {
+            if (l && l.symbol && l.symbol.type === "esriTS") {
+              try { return LabelClass.fromJSON(l); } catch (e) { return l; }
+            }
+            return l;
+          });
+        }
+        if (ld.popupInfo) props.popupTemplate = ld.popupInfo;
+        var fl = new FeatureLayer(props);
+        fl.labelsVisible = true;
+        fl._srcDef = ld; // keep the original def so Save can re-emit this data layer losslessly
+        return fl;
+      }
+      function parseAndLoad(text) {
+        var doc;
+        try { doc = JSON.parse(text); } catch (e) { toast("Couldn't read that file."); return; }
+        if (!doc || doc.type !== DOC_TYPE) { toast("That isn't a saved map (.mmap) from here."); return; }
+        loadDocument(doc);
+      }
+      function openMap() {
+        if (!confirmDiscard()) return;
+        if (window.showOpenFilePicker) {
+          window.showOpenFilePicker({ multiple: false, types: [{ description: "Map", accept: { "application/json": [".mmap", ".json"] } }] })
+            .then(function (handles) {
+              var h = handles[0];
+              return h.getFile().then(function (f) { return f.text().then(function (t) { parseAndLoad(t); currentFileHandle = h; }); });
+            }).catch(function (err) { if (err && err.name === "AbortError") return; pickViaInput(); });
+        } else { pickViaInput(); }
+      }
+      function pickViaInput() {
+        var input = document.createElement("input");
+        input.type = "file"; input.accept = ".mmap,.json,application/json";
+        input.addEventListener("change", function (e) {
+          var f = e.target.files && e.target.files[0];
+          if (!f) return;
+          currentFileHandle = null;
+          var r = new FileReader(); r.onload = function () { parseAndLoad(r.result); }; r.readAsText(f);
+        });
+        input.click();
+      }
+
+      // ---- Open map dialog: MapMaker group maps + My Maps ----
+      function detachGraphics() { try { if (view.map) view.map.remove(graphicsLayer); } catch (e) {} }
+      function openOpenModal(tab) {
+        $("openModal").hidden = false;
+        switchOpenTab(tab || "group");
+        if ((tab || "group") === "group" && !groupLoaded) { loadGroupMaps(""); groupLoaded = true; }
+      }
+      function closeOpenModal() { var m = $("openModal"); if (m) m.hidden = true; }
+      function switchOpenTab(tab) {
+        var g = (tab !== "mine");
+        $("tabGroup").classList.toggle("active", g);
+        $("tabMine").classList.toggle("active", !g);
+        $("groupPane").hidden = !g;
+        $("minePane").hidden = g;
+        $("groupSearchRow").style.display = g ? "" : "none";
+        if (!g) { openMap(); }                       // My Maps tab -> device file picker
+      }
+      function thumbUrl(item) {
+        if (!item || !item.thumbnail) return null;
+        return PORTAL + "/sharing/rest/content/items/" + item.id + "/info/" + item.thumbnail;
+      }
+      function makeMapCard(item) {
+        var card = document.createElement("div"); card.className = "map-card";
+        var thumb = document.createElement("div"); thumb.className = "card-thumb";
+        var t = thumbUrl(item); if (t) thumb.style.backgroundImage = "url('" + t + "')";
+        var body = document.createElement("div"); body.className = "card-body";
+        var title = document.createElement("div"); title.className = "card-title"; title.textContent = item.title || "Untitled map";
+        var btn = document.createElement("button"); btn.type = "button"; btn.className = "card-select";
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h6M5 5v6M5 5l7 7"/><path d="M19 19h-6M19 19v-6M19 19l-7-7"/></svg> Select map';
+        btn.addEventListener("click", function () { selectGroupMap(item.id, item.title); });
+        body.appendChild(title); body.appendChild(btn);
+        card.appendChild(thumb); card.appendChild(body);
+        return card;
+      }
+      function loadGroupMaps(query) {
+        var grid = $("groupGrid"); var status = $("groupStatus");
+        grid.innerHTML = ""; status.style.display = "block"; status.textContent = "Loading maps\u2026";
+        var q = 'group:' + GROUP_ID + ' type:"Web Map"';
+        if (query) q += ' AND title:"' + query.replace(/"/g, "") + '"';
+        var url = PORTAL + "/sharing/rest/search?f=json&num=24&sortField=title&sortOrder=asc&q=" + encodeURIComponent(q);
+        fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+          var results = (data && data.results) || [];
+          if (!results.length) { status.textContent = query ? "No maps match that search." : "No maps found in the group."; return; }
+          status.style.display = "none";
+          results.forEach(function (item) { grid.appendChild(makeMapCard(item)); });
+        }).catch(function () { status.textContent = "Couldn't reach the group. Check the group ID and that its maps are shared publicly."; });
+      }
+      var groupSearchTimer = null;
+      function onGroupSearch() {
+        clearTimeout(groupSearchTimer);
+        var v = $("groupSearch").value.trim();
+        groupSearchTimer = setTimeout(function () { loadGroupMaps(v); }, 350);
+      }
+      function selectGroupMap(itemId, title) {
+        if (!confirmDiscard()) return;
+        closeOpenModal();
+        toast("Opening \u201C" + (title || "map") + "\u201D\u2026");
+        var wm = new WebMap({ portalItem: { id: itemId } });
+        wm.load().then(function () {
+          if (addState) { addState = null; }
+          removePreview(false);
+          detachGraphics();
+          dataLayers.forEach(function (fl) {
+            try { map.remove(fl); } catch (e) {}
+            try { if (view.map && view.map !== map) view.map.remove(fl); } catch (e) {}
+          });
+          dataLayers = [];
+          wm.add(graphicsLayer);                     // keep sketch layer on top
+          view.map = wm;
+          if (view.popup) view.popup.autoOpenEnabled = false;
+          var vp = wm.initialViewProperties && wm.initialViewProperties.viewpoint;
+          if (vp) view.goTo(vp).catch(function () {});
+          setTitle(title);
+          markClean();
+          toast("Opened: " + (title || "map"));
+        }).catch(function () { toast("Couldn't open that map (it may not be shared publicly)."); });
+      }
+
+      // Fallback save dialog
+      function openNameDialog() { $("fileNameInput").value = titleSlug(); $("nameModal").hidden = false; setTimeout(function () { $("fileNameInput").focus(); $("fileNameInput").select(); }, 0); }
+      function closeNameDialog() { $("nameModal").hidden = true; }
+      function confirmNameDialog() {
+        var name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
+        closeNameDialog();
+        try { downloadText(JSON.stringify(buildDocument(), null, 2), name + ".mmap", "application/json"); markClean(); toast("Saved " + name + ".mmap to your downloads."); }
+        catch (e) { toast("Couldn't save the file."); }
+      }
+      $("nameCancel").addEventListener("click", closeNameDialog);
+      $("nameConfirm").addEventListener("click", confirmNameDialog);
+      $("fileNameInput").addEventListener("keydown", function (e) { if (e.key === "Enter") confirmNameDialog(); if (e.key === "Escape") closeNameDialog(); });
+      $("nameModal").addEventListener("click", function (e) { if (e.target === $("nameModal")) closeNameDialog(); });
+
+      // ================= Add data (CSV -> local FeatureLayer) =================
+      // The fieldwork app's configure flow, embedded: drop a CSV on the map, pick a
+      // style + fields in the right panel, "Add to map" builds a client-side
+      // FeatureLayer with a real renderer + labelingInfo. The layer def is the same
+      // v3 feature-collection shape the fieldwork export writes, so buildDataLayer /
+      // _srcDef / Save all work unchanged. Parsing is CLIENT-SIDE (no AGOL
+      // analyze/generate round trip): nothing in the CSV leaves the device.
+      var MAX_ROWS = 1000;
+      var POINT_FILL_ALPHA = 204;
+      var NUM_RE = /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/;
+      var LAT_NAMES = ["latitude", "lat", "y"];
+      var LON_NAMES = ["longitude", "lon", "lng", "long", "x"];
+      var COORD_NAMES = LAT_NAMES.concat(LON_NAMES);
+      var PALETTE_RGB = [
+        [0, 122, 194, 255], [255, 170, 0, 255], [76, 175, 80, 255], [216, 86, 48, 255],
+        [142, 68, 173, 255], [0, 168, 168, 255], [233, 113, 184, 255], [121, 121, 121, 255]
+      ];
+      var COLOR_RAMPS = [
+        { id: "blue",    name: "Blues",    colors: [[230,241,251],[199,234,255],[80,167,218],[0,122,194],[0,97,155]] },
+        { id: "green",   name: "Greens",   colors: [[237,248,233],[186,228,179],[116,196,118],[49,163,84],[0,109,44]] },
+        { id: "orange",  name: "Oranges",  colors: [[254,237,222],[253,190,133],[253,141,60],[230,85,13],[166,54,3]] },
+        { id: "purple",  name: "Purples",  colors: [[242,240,247],[203,201,226],[158,154,200],[117,107,177],[84,39,143]] },
+        { id: "red",     name: "Reds",     colors: [[254,229,217],[252,174,145],[251,106,74],[222,45,38],[165,15,21]] },
+        { id: "bluered", name: "Blue\u2013Red", colors: [[44,123,182],[171,217,233],[255,255,191],[253,174,97],[215,25,28]] }
+      ];
+      var DATA_STYLES = [
+        { id: "simple", name: "Map locations", icon: "\uD83D\uDCCD", hint: "Just points on a map",
+          requires: {}, fields: ["label"] },
+        { id: "categorical", name: "Map by type", icon: "\uD83C\uDFF7\uFE0F", hint: "e.g. tree species, land use, survey answers",
+          requires: { minCategorical: 1 }, fields: ["color", "label"] },
+        { id: "graduated", name: "Map by size", icon: "\uD83D\uDCCF", hint: "e.g. tree height, traffic counts, noise in dB",
+          requires: { minNumeric: 1 }, fields: ["size", "label"] },
+        { id: "numeric_color_size", name: "Map by colour & size", icon: "\uD83D\uDCA0", hint: "two numbers together \u2014 e.g. depth as colour, magnitude as size",
+          requires: { minNumeric: 2 }, fields: ["color", "size", "label"] },
+        { id: "categorical_size", name: "Map by type & size", icon: "\uD83C\uDFA8", hint: "e.g. species as colour, height as size",
+          requires: { minCategorical: 1, minNumeric: 1 }, fields: ["color", "size", "label"] },
+        { id: "pie_chart", name: "Pie charts", icon: "\uD83E\uDD67", hint: "e.g. litter surveys, species counts in a quadrat",
+          requires: { minNumeric: 3 }, fields: ["label"] }
+      ];
+      var FIELD_LABELS = { color: "Colour points by", size: "Size points by", label: "Label points with" };
+      var FIELD_ICONS = { color: "\uD83C\uDFA8", size: "\uD83D\uDCCF", label: "\uD83C\uDFF7\uFE0F" };
+      var SHAPES = [
+        { id: "esriSMSCircle",   glyph: "\u25CF", name: "Circle" },
+        { id: "esriSMSSquare",   glyph: "\u25A0", name: "Square" },
+        { id: "esriSMSDiamond",  glyph: "\u25C6", name: "Diamond" },
+        { id: "esriSMSTriangle", glyph: "\u25B2", name: "Triangle" }
+      ];
+      var NONE_VALUE = "__none__";
+      var addState = null;
+      var dataLayerSeq = 0;
+
+      // -- CSV parsing + the two basic checks (A1 start, lat/long present) --
+      function splitCsvLine(line) {
+        var cells = [], cur = "", inQuotes = false;
+        for (var i = 0; i < line.length; i++) {
+          var ch = line[i];
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+            else inQuotes = !inQuotes;
+          } else if (ch === "," && !inQuotes) { cells.push(cur); cur = ""; }
+          else { cur += ch; }
+        }
+        cells.push(cur);
+        return cells;
+      }
+      function csvFail(msg) { return { ok: false, error: msg }; }
+      function readCsv(text) {
+        var lines = String(text).replace(/^\uFEFF/, "").split(/\r\n|\n|\r/);
+        while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+        if (!lines.length) return csvFail("That file is empty.");
+        if (lines[0].trim() === "" || lines[0].replace(/,/g, "").trim() === "") {
+          return csvFail("Your data needs to start in the top-left cell (A1). Remove any blank rows above your headings.");
+        }
+        var header = splitCsvLine(lines[0]).map(function (h) { return String(h == null ? "" : h); });
+        if (String(header[0]).trim() === "") {
+          return csvFail("Your data needs to start in the top-left cell (A1). The first column has no heading \u2014 remove any blank columns to the left of your data.");
+        }
+        while (header.length && String(header[header.length - 1]).trim() === "") header.pop();
+        for (var i = 0; i < header.length; i++) {
+          if (String(header[i]).trim() === "") return csvFail("Column " + (i + 1) + " has no heading. Every column needs a name in row 1.");
+        }
+        var rows = [];
+        for (var r = 1; r < lines.length; r++) {
+          if (lines[r].trim() === "" || lines[r].replace(/,/g, "").trim() === "") continue;
+          rows.push(splitCsvLine(lines[r]));
+        }
+        if (!rows.length) return csvFail("There's no data under the headings \u2014 add at least one row.");
+        if (rows.length > MAX_ROWS) return csvFail("That's " + rows.length + " rows \u2014 this concept app can map up to " + MAX_ROWS + ". Try a smaller file.");
+        var latIdx = -1, lonIdx = -1;
+        header.forEach(function (h, idx) {
+          var n = String(h).trim().toLowerCase();
+          if (latIdx < 0 && LAT_NAMES.indexOf(n) >= 0) latIdx = idx;
+          if (lonIdx < 0 && LON_NAMES.indexOf(n) >= 0) lonIdx = idx;
+        });
+        if (latIdx < 0 || lonIdx < 0) {
+          return csvFail("Couldn't find latitude and longitude columns. Name them \u201CLatitude\u201D and \u201CLongitude\u201D (Lat / Lon also work).");
+        }
+        return { ok: true, header: header, rows: rows, latIdx: latIdx, lonIdx: lonIdx };
+      }
+      function sanitizeFieldName(h, used) {
+        var n = String(h).trim().replace(/[^\w]/g, "_").replace(/^_+|_+$/g, "");
+        if (!n) n = "field";
+        if (/^\d/.test(n)) n = "F" + n;
+        var base = n, k = 2;
+        while (used[n]) { n = base + "_" + k; k++; }
+        used[n] = true;
+        return n;
+      }
+      function lonLatToWebMercator(lon, lat) {
+        var R = 20037508.342788905;
+        var la = Math.max(-89.9999, Math.min(89.9999, lat));
+        return [lon / 180 * R, Math.log(Math.tan((90 + la) * Math.PI / 360)) / Math.PI * R];
+      }
+      function buildCsvLayerData(fileName, parsed) {
+        var header = parsed.header, rows = parsed.rows;
+        var used = { ObjectId: true };
+        var names = header.map(function (h) { return sanitizeFieldName(h, used); });
+        var isNum = header.map(function () { return true; });
+        var isInt = header.map(function () { return true; });
+        var hasVal = header.map(function () { return false; });
+        rows.forEach(function (cells) {
+          for (var i = 0; i < header.length; i++) {
+            var v = (cells[i] == null ? "" : String(cells[i])).trim();
+            if (v === "") continue;
+            hasVal[i] = true;
+            if (!NUM_RE.test(v)) { isNum[i] = false; isInt[i] = false; }
+            else if (v.indexOf(".") >= 0 || /[eE]/.test(v)) isInt[i] = false;
+          }
+        });
+        var fields = [{ name: "ObjectId", alias: "ObjectId", type: "esriFieldTypeOID" }];
+        for (var i = 0; i < header.length; i++) {
+          var t = (hasVal[i] && isNum[i]) ? (isInt[i] ? "esriFieldTypeInteger" : "esriFieldTypeDouble") : "esriFieldTypeString";
+          fields.push({ name: names[i], alias: String(header[i]).trim(), type: t });
+        }
+        var feats = [], dropped = 0;
+        rows.forEach(function (cells) {
+          var lat = parseFloat(String(cells[parsed.latIdx] == null ? "" : cells[parsed.latIdx]).trim());
+          var lon = parseFloat(String(cells[parsed.lonIdx] == null ? "" : cells[parsed.lonIdx]).trim());
+          if (!isFinite(lat) || !isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) { dropped++; return; }
+          var attrs = { ObjectId: feats.length + 1 };
+          for (var c = 0; c < header.length; c++) {
+            var raw = (cells[c] == null ? "" : String(cells[c])).trim();
+            var fd = fields[c + 1];
+            attrs[names[c]] = (raw === "") ? null : (fd.type !== "esriFieldTypeString" ? Number(raw) : raw);
+          }
+          var xy = lonLatToWebMercator(lon, lat);
+          feats.push({ geometry: { x: xy[0], y: xy[1], spatialReference: { wkid: 102100, latestWkid: 3857 } }, attributes: attrs });
+        });
+        if (!feats.length) return csvFail("None of the rows had usable latitude/longitude values \u2014 check the coordinates are decimal degrees (e.g. 51.5, -0.12).");
+        var numeric = [], categorical = [];
+        fields.forEach(function (f) {
+          if (f.type === "esriFieldTypeOID") return;
+          if (COORD_NAMES.indexOf(f.name.toLowerCase()) >= 0) return;
+          if (f.type === "esriFieldTypeInteger" || f.type === "esriFieldTypeDouble") { numeric.push(f.name); return; }
+          var seen = {}, n = 0;
+          feats.some(function (ft) {
+            var v = ft.attributes[f.name];
+            if (v !== null && v !== undefined && v !== "" && !seen[v]) { seen[v] = 1; n++; }
+            return n > 12;
+          });
+          if (n >= 2 && n <= 12) categorical.push(f.name);
+        });
+        return { ok: true, fileName: fileName, features: feats, fields: fields, numeric: numeric, categorical: categorical, dropped: dropped };
+      }
+
+      // -- Renderer + label builders (ported from the fieldwork app) --
+      function styleAvailable(style) {
+        var q = style.requires;
+        if (q.minNumeric && addState.numeric.length < q.minNumeric) return false;
+        if (q.minCategorical && addState.categorical.length < q.minCategorical) return false;
+        return true;
+      }
+      function pickAutoStyle() {
+        var order = ["categorical_size", "categorical", "graduated", "simple"];
+        for (var i = 0; i < order.length; i++) {
+          var s = DATA_STYLES.filter(function (x) { return x.id === order[i]; })[0];
+          if (s && styleAvailable(s)) return s;
+        }
+        return DATA_STYLES[0];
+      }
+      function pickAutoFields(style) {
+        var choices = { color: null, size: null, label: null };
+        var num = addState.numeric, cat = addState.categorical;
+        if (style.id === "numeric_color_size") {
+          choices.color = num[0] || null;
+          choices.size = num[1] || num[0] || null;
+        } else {
+          if (style.fields.indexOf("color") >= 0) choices.color = cat[0] || null;
+          if (style.fields.indexOf("size") >= 0) choices.size = num[0] || null;
+        }
+        if (style.fields.indexOf("label") >= 0) choices.label = null; // labels opt-in
+        return choices;
+      }
+      function buildDataSymbol(color, size) {
+        var sym = addState.symbolChoices;
+        var base = color || sym.color;
+        return {
+          type: "esriSMS", style: sym.shape || "esriSMSCircle",
+          color: [base[0], base[1], base[2], POINT_FILL_ALPHA],
+          size: size || sym.size,
+          outline: { color: [80, 80, 80, 255], width: 1 }
+        };
+      }
+      function buildSizeVariable(field, features) {
+        var values = features.map(function (f) { return f.attributes[field]; })
+          .filter(function (v) { return v !== null && v !== undefined && !isNaN(v); });
+        if (!values.length) return null;
+        var s = addState.symbolChoices.size || 12;
+        return {
+          type: "sizeInfo", field: field,
+          minSize: Math.max(4, Math.round(s * 0.7)), maxSize: Math.round(s * 3.3),
+          minDataValue: Math.min.apply(null, values), maxDataValue: Math.max.apply(null, values)
+        };
+      }
+      function buildPieChartRenderer(numericFields, features) {
+        var totals = features.map(function (f) {
+          var sum = 0;
+          numericFields.forEach(function (fld) {
+            var v = f.attributes[fld];
+            if (typeof v === "number" && !isNaN(v)) sum += v;
+          });
+          f.attributes._pieTotal = sum;
+          return sum;
+        });
+        var s = addState.symbolChoices.size || 12;
+        return {
+          type: "pieChart",
+          attributes: numericFields.slice(0, 8).map(function (fld, i) {
+            return { field: fld, color: PALETTE_RGB[i % PALETTE_RGB.length], label: fld.replace(/_/g, " ") };
+          }),
+          size: s * 2,
+          holePercentage: 0.4,
+          outline: { color: [255, 255, 255, 255], width: 0.5, type: "esriSLS", style: "esriSLSSolid" },
+          visualVariables: [{
+            type: "sizeInfo", field: "_pieTotal",
+            minSize: Math.round(14 * s / 12), maxSize: Math.round(48 * s / 12),
+            minDataValue: Math.min.apply(null, totals), maxDataValue: Math.max.apply(null, totals)
+          }]
+        };
+      }
+      function activeRampColors() {
+        var id = addState.symbolChoices.ramp || "blue";
+        var ramp = COLOR_RAMPS.filter(function (r) { return r.id === id; })[0] || COLOR_RAMPS[0];
+        return ramp.colors;
+      }
+      function buildNumericColorRenderer(field, features) {
+        var values = features.map(function (f) { return f.attributes[field]; })
+          .filter(function (v) { return v !== null && v !== undefined && v !== "" && !isNaN(v); })
+          .map(Number);
+        if (!values.length) return { type: "simple", symbol: buildDataSymbol() };
+        var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+        var mean = values.reduce(function (a, b) { return a + b; }, 0) / values.length;
+        var sd = Math.sqrt(values.reduce(function (a, v) { return a + (v - mean) * (v - mean); }, 0) / values.length);
+        var lo = Math.max(min, mean - sd), hi = Math.min(max, mean + sd);
+        if (lo >= hi) { lo = min; hi = max; }
+        if (lo >= hi) { hi = lo + 1; }
+        var ramp = activeRampColors(), n = ramp.length;
+        var round2 = function (x) { return Math.round(x * 100) / 100; };
+        var stops = ramp.map(function (c, i) {
+          return {
+            value: round2(lo + (hi - lo) * i / (n - 1)),
+            color: [c[0], c[1], c[2], POINT_FILL_ALPHA],
+            label: i === 0 ? "< " + round2(lo) : (i === n - 1 ? "> " + round2(hi) : "")
+          };
+        });
+        return { type: "simple", symbol: buildDataSymbol(), visualVariables: [{ type: "colorInfo", field: field, stops: stops }] };
+      }
+      function buildUniqueRenderer(field, features) {
+        var seen = {}, values = [];
+        features.forEach(function (f) {
+          var v = f.attributes[field];
+          if (v !== null && v !== undefined && v !== "" && !seen[v]) { seen[v] = 1; values.push(v); }
+        });
+        values.sort();
+        return {
+          type: "uniqueValue", field1: field,
+          defaultSymbol: buildDataSymbol([179, 179, 179, 200]), defaultLabel: "Other",
+          uniqueValueInfos: values.map(function (val, i) {
+            return { value: val, label: String(val), symbol: buildDataSymbol(PALETTE_RGB[i % PALETTE_RGB.length]) };
+          })
+        };
+      }
+      function buildDataLabelingInfo(labelField) {
+        if (!labelField) return null;
+        return [{
+          labelExpression: "[" + labelField + "]",
+          labelExpressionInfo: { expression: "$feature." + labelField },
+          labelPlacement: "esriServerPointLabelPlacementAboveCenter",
+          useCodedValues: true,
+          symbol: {
+            type: "esriTS", color: [50, 50, 50, 255],
+            haloColor: [255, 255, 255, 255], haloSize: 1.5,
+            font: { family: "Arial", size: 10, weight: "bold" }
+          },
+          minScale: 0, maxScale: 0
+        }];
+      }
+      function buildDataRenderer(style, choices, features, numeric) {
+        var colorIsNumeric = choices.color && numeric.indexOf(choices.color) >= 0;
+        var buildColorRenderer = function (field) {
+          return colorIsNumeric ? buildNumericColorRenderer(field, features) : buildUniqueRenderer(field, features);
+        };
+        switch (style.id) {
+          case "pie_chart":
+            return buildPieChartRenderer(numeric, features);
+          case "numeric_color_size": {
+            var r1 = buildNumericColorRenderer(choices.color, features);
+            var sv1 = buildSizeVariable(choices.size, features);
+            if (sv1) r1.visualVariables = (r1.visualVariables || []).concat([sv1]);
+            return r1;
+          }
+          case "categorical_size": {
+            var r2 = buildColorRenderer(choices.color);
+            var sv2 = buildSizeVariable(choices.size, features);
+            if (sv2) r2.visualVariables = (r2.visualVariables || []).concat([sv2]);
+            return r2;
+          }
+          case "categorical":
+            return buildColorRenderer(choices.color);
+          case "graduated": {
+            var r3 = { type: "simple", symbol: buildDataSymbol(), label: String(choices.size).replace(/_/g, " ") };
+            var sv3 = buildSizeVariable(choices.size, features);
+            if (sv3) r3.visualVariables = [sv3];
+            return r3;
+          }
+          default:
+            return { type: "simple", symbol: buildDataSymbol() };
+        }
+      }
+      function buildDataPopupTitle(style, choices) {
+        switch (style.id) {
+          case "pie_chart": return "Composition breakdown";
+          case "numeric_color_size":
+          case "categorical_size": return "{" + choices.color + "} \u2013 {" + choices.size + "}";
+          case "categorical": return "{" + choices.color + "}";
+          case "graduated": return "{" + choices.size + "}";
+          default: return "Point";
+        }
+      }
+
+      // -- Panel UI --
+      function fieldAlias(name) {
+        var f = (addState.fields || []).filter(function (x) { return x.name === name; })[0];
+        return (f && f.alias) || name;
+      }
+      function shortStyleLabel(name) {
+        return name.replace(/^Map\s+/i, "").replace(/^./, function (c) { return c.toUpperCase(); });
+      }
+      function renderStyleList() {
+        var wrap = $("styleList"); wrap.innerHTML = "";
+        DATA_STYLES.forEach(function (style) {
+          var available = styleAvailable(style);
+          var d = document.createElement("div");
+          d.className = "style-card" + (addState.style.id === style.id ? " selected" : "") + (available ? "" : " disabled");
+          d.title = available ? style.name : "Your data doesn't have the columns this style needs";
+          d.innerHTML = '<span class="s-ico">' + style.icon + '</span><span class="s-name">' + shortStyleLabel(style.name) + '</span>';
+          if (available) {
+            d.addEventListener("click", function () {
+              addState.style = style;
+              addState.fieldChoices = pickAutoFields(style);
+              renderStyleList(); renderFieldRows(); renderSymbolBlocks();
+            });
+          }
+          wrap.appendChild(d);
+        });
+        $("styleDesc").textContent = addState.style.name + " \u2014 " + addState.style.hint;
+      }
+      function fieldOptions(key) {
+        var num = addState.numeric, cat = addState.categorical;
+        if (key === "size") return num;
+        if (key === "color") return addState.style.id === "numeric_color_size" ? num : cat;
+        // label: any non-coordinate, non-oid field
+        return addState.fields.filter(function (f) {
+          return f.type !== "esriFieldTypeOID" && COORD_NAMES.indexOf(f.name.toLowerCase()) < 0 && f.name !== "_pieTotal";
+        }).map(function (f) { return f.name; });
+      }
+      function renderFieldRows() {
+        var wrap = $("fieldRows"); wrap.innerHTML = "";
+        addState.style.fields.forEach(function (key) {
+          var lbl = document.createElement("label"); lbl.className = "cfg-label";
+          lbl.innerHTML = '<span class="cfg-icon">' + FIELD_ICONS[key] + '</span>' + FIELD_LABELS[key];
+          var sel = document.createElement("select"); sel.className = "cfg-select";
+          if (key === "label") {
+            var none = document.createElement("option"); none.value = NONE_VALUE; none.textContent = "None"; sel.appendChild(none);
+          }
+          fieldOptions(key).forEach(function (name) {
+            var o = document.createElement("option"); o.value = name; o.textContent = fieldAlias(name); sel.appendChild(o);
+          });
+          var cur = addState.fieldChoices[key];
+          sel.value = cur == null ? (key === "label" ? NONE_VALUE : sel.value) : cur;
+          if (key !== "label" && addState.fieldChoices[key] == null && sel.options.length) {
+            addState.fieldChoices[key] = sel.value;
+          }
+          sel.addEventListener("change", function () {
+            addState.fieldChoices[key] = (sel.value === NONE_VALUE) ? null : sel.value;
+            renderSymbolBlocks();
+          });
+          wrap.appendChild(lbl); wrap.appendChild(sel);
+        });
+      }
+      function renderSymbolBlocks() {
+        var c = addState.symbolChoices;
+        var isPie = addState.style.id === "pie_chart";
+        var singleColor = addState.style.id === "simple" || addState.style.id === "graduated";
+        var rampActive = !isPie && addState.style.fields.indexOf("color") >= 0 &&
+          !!addState.fieldChoices.color && addState.numeric.indexOf(addState.fieldChoices.color) >= 0;
+        $("shapeRow").hidden = isPie;
+        $("colorRow").hidden = isPie || !singleColor;
+        $("rampRow").hidden = !rampActive;
+        var sw = $("shapeOptions"); sw.innerHTML = "";
+        SHAPES.forEach(function (s) {
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "shape-btn" + (c.shape === s.id ? " selected" : "");
+          b.title = s.name; b.textContent = s.glyph;
+          b.addEventListener("click", function () { c.shape = s.id; renderSymbolBlocks(); });
+          sw.appendChild(b);
+        });
+        var cw = $("dataSwatches"); cw.innerHTML = "";
+        PALETTE.forEach(function (hex) {
+          var rgb = hexToRgb(hex);
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "swatch" + (c.color.join(",") === rgb.join(",") ? " active" : "");
+          b.style.background = hex; b.title = hex;
+          b.addEventListener("click", function () { c.color = rgb; renderSymbolBlocks(); });
+          cw.appendChild(b);
+        });
+        var rl = $("rampList"); rl.innerHTML = "";
+        if (rampActive) {
+          COLOR_RAMPS.forEach(function (ramp) {
+            var b = document.createElement("button");
+            b.type = "button"; b.className = "ramp-btn" + (c.ramp === ramp.id ? " selected" : "");
+            b.title = ramp.name;
+            b.style.background = "linear-gradient(90deg," + ramp.colors.map(function (col) { return "rgb(" + col[0] + "," + col[1] + "," + col[2] + ")"; }).join(",") + ")";
+            b.addEventListener("click", function () { c.ramp = ramp.id; renderSymbolBlocks(); });
+            rl.appendChild(b);
+          });
+        }
+        updateConfigSummary();
+        updatePreview(false);
+      }
+      function updateConfigSummary() {
+        var c = addState.fieldChoices;
+        var colorIsNumeric = c.color && addState.numeric.indexOf(c.color) >= 0;
+        var colorName = c.color ? fieldAlias(c.color) : "\u2014";
+        var sizeName = c.size ? fieldAlias(c.size) : "\u2014";
+        var colorPhrase = c.color ? ((colorIsNumeric ? "shaded by " : "coloured by ") + colorName) : null;
+        var summary = "";
+        switch (addState.style.id) {
+          case "pie_chart":
+            summary = "Each point will show a pie chart of " + addState.numeric.length + " numeric columns, sized by total.";
+            break;
+          case "numeric_color_size":
+            summary = "Each point shaded by " + colorName + ", sized by " + sizeName + ".";
+            break;
+          case "categorical_size":
+            summary = "Each point " + (colorPhrase || "coloured by \u2014") + ", sized by " + sizeName + ".";
+            break;
+          case "categorical":
+            summary = "Each point " + (colorPhrase || "coloured by \u2014") + ".";
+            break;
+          case "graduated":
+            summary = "Each point sized by " + sizeName + ".";
+            break;
+          default:
+            summary = "Each point shown as a simple marker.";
+        }
+        if (c.label) summary += " Labels show " + fieldAlias(c.label) + ".";
+        $("cfgSummary").textContent = summary;
+      }
+      function renderDataPanel() {
+        $("dataTitle").textContent = "Looks good. Here's how we'll map it.";
+        $("dataError").hidden = true;
+        $("dataControls").style.display = "";
+        $("dataSubmit").disabled = false;
+        var s = "Found " + addState.features.length + " points \u00B7 " + addState.numeric.length + " numeric, " + addState.categorical.length + " categorical columns.";
+        if (addState.dropped) s += " " + addState.dropped + " row(s) skipped \u2014 bad coordinates.";
+        $("dataSummary").textContent = s;
+        $("dataSize").value = addState.symbolChoices.size;
+        $("dataSizeVal").textContent = addState.symbolChoices.size + " px";
+        renderStyleList(); renderFieldRows(); renderSymbolBlocks();
+      }
+      function showDataError(msg) {
+        addState = null;
+        removePreview(true);
+        openPanel("data");
+        $("dataTitle").textContent = "Add data";
+        var e = $("dataError"); e.textContent = msg; e.hidden = false;
+        $("dataControls").style.display = "none";
+        $("dataSubmit").disabled = true;
+      }
+      function handleCsvText(name, text) {
+        var parsed = readCsv(text);
+        if (!parsed.ok) { showDataError(parsed.error); return; }
+        var data = buildCsvLayerData(name, parsed);
+        if (!data.ok) { showDataError(data.error); return; }
+        addState = data;
+        addState.symbolChoices = { shape: "esriSMSCircle", color: hexToRgb(DEFAULT_COLOR), size: 12, ramp: "blue" };
+        addState.style = pickAutoStyle();
+        addState.fieldChoices = pickAutoFields(addState.style);
+        removePreview(false);
+        if (!prePreviewCam) {
+          try { prePreviewCam = { center: [view.center.longitude, view.center.latitude], zoom: view.zoom }; } catch (e) { prePreviewCam = null; }
+        }
+        openPanel("data");
+        renderDataPanel();
+        updatePreview(true);
+      }
+      function buildLayerDefFromState(idOverride) {
+        var style = addState.style, choices = addState.fieldChoices;
+        var renderer = buildDataRenderer(style, choices, addState.features, addState.numeric);
+        var labelingInfo = buildDataLabelingInfo(choices.label);
+        var fields = addState.fields.slice();
+        if (style.id === "pie_chart" && !fields.some(function (f) { return f.name === "_pieTotal"; })) {
+          fields = fields.concat([{ name: "_pieTotal", type: "esriFieldTypeDouble", alias: "_pieTotal" }]);
+        }
+        var popupFieldInfos = addState.fields
+          .filter(function (f) {
+            return f.type !== "esriFieldTypeOID" && COORD_NAMES.indexOf(f.name.toLowerCase()) < 0 && f.name !== "_pieTotal";
+          })
+          .map(function (f) { return { fieldName: f.name, label: f.alias || f.name.replace(/_/g, " ") }; });
+        var title = addState.fileName.replace(/\.csv$/i, "").replace(/[_]+/g, " ").trim() || "My data";
+        return {
+          id: idOverride || ("csv" + (++dataLayerSeq)),
+          title: title,
+          geometryType: "point",
+          objectIdField: "ObjectId",
+          spatialReference: { wkid: 102100, latestWkid: 3857 },
+          fields: fields,
+          renderer: renderer,
+          labelingInfo: labelingInfo,
+          popupInfo: { title: buildDataPopupTitle(style, choices), content: [{ type: "fields", fieldInfos: popupFieldInfos }] },
+          features: addState.features
+        };
+      }
+
+      // -- Live preview: the map re-renders as options change (fieldwork behaviour) --
+      var previewLayer = null, previewTimer = null, prePreviewCam = null;
+      function removePreview(restoreCam) {
+        if (previewTimer) { clearTimeout(previewTimer); previewTimer = null; }
+        if (previewLayer) {
+          try { map.remove(previewLayer); } catch (e) {}
+          try { if (view.map && view.map !== map) view.map.remove(previewLayer); } catch (e) {}
+          previewLayer = null;
+        }
+        if (restoreCam && prePreviewCam) {
+          try { view.goTo({ center: prePreviewCam.center, zoom: prePreviewCam.zoom }, { animate: false }).catch(function () {}); } catch (e) {}
+        }
+        if (restoreCam) prePreviewCam = null;
+      }
+      function updatePreview(frameIt) {
+        if (!addState) return;
+        if (previewTimer) clearTimeout(previewTimer);
+        previewTimer = setTimeout(function () {
+          previewTimer = null;
+          if (!addState) return;
+          if (previewLayer) {
+            try { map.remove(previewLayer); } catch (e) {}
+            try { if (view.map && view.map !== map) view.map.remove(previewLayer); } catch (e) {}
+            previewLayer = null;
+          }
+          var fl;
+          try { fl = buildDataLayer(buildLayerDefFromState("csvPreview")); } catch (e) { return; }
+          previewLayer = fl;
+          (view.map || map).add(fl);
+          if (frameIt) {
+            fl.when().then(function () { return fl.queryExtent(); }).then(function (r) {
+              if (r && r.extent) {
+                var ext = r.extent;
+                try { if (ext.expand) ext = ext.expand(1.2); } catch (e) {}
+                view.goTo(ext, { animate: false }).catch(function () {});
+              }
+            }).catch(function () {});
+          }
+        }, frameIt ? 0 : 200);
+      }
+
+      function submitData() {
+        if (!addState) { closePanels(); return; }
+        var ld = buildLayerDefFromState();
+        var fl;
+        try { fl = buildDataLayer(ld); } catch (e) { toast("Couldn't build that layer."); return; }
+        removePreview(false);
+        prePreviewCam = null;
+        dataLayers.push(fl);
+        (view.map || map).add(fl);
+        var count = addState.features.length;
+        addState = null;
+        closePanels();
+        markDirty();
+        fl.when().then(function () { return fl.queryExtent(); }).then(function (r) {
+          if (r && r.extent) {
+            var ext = r.extent;
+            try { if (ext.expand) ext = ext.expand(1.2); } catch (e) {}
+            view.goTo(ext, { animate: false }).catch(function () {});
+          }
+        }).catch(function () {});
+        toast("Added " + count + " point(s) to the map. Save keeps them in your .mmap.");
+      }
+
+      // ================= Bookmarks (saved with the map) + Map layers =================
+      // A bookmark records the viewpoint AND which layers were visible — the
+      // enhancement over MapMaker's AGOL bookmarks. Saved in the .mmap under
+      // `bookmarks`, restored on open. Thumbnails via view.takeScreenshot.
+      var bookmarks = [];      // {title, viewpoint:{center:[lon,lat], zoom}, layers:[{id,title,visible}], thumb}
+      var bmEditIndex = -1;    // -1 = adding
+      function activeMap() { return view.map || map; }
+      function eachToggleableLayer(fn) {
+        // sketch layer first, then operational layers (data layers + any group-webmap layers)
+        fn(graphicsLayer, "__sketch", "Sketches");
+        activeMap().layers.forEach(function (ly) {
+          if (ly === graphicsLayer || ly === previewLayer) return;
+          fn(ly, ly.id, ly.title || ly.id);
+        });
+      }
+      function layerSnapshot() {
+        var snap = [];
+        eachToggleableLayer(function (ly, id, title) {
+          snap.push({ id: id, title: title, visible: ly.visible !== false });
+        });
+        return snap;
+      }
+      function applyLayerSnapshot(snap) {
+        if (!snap || !snap.length) return;
+        eachToggleableLayer(function (ly, id, title) {
+          var rec = null;
+          for (var i = 0; i < snap.length; i++) {
+            if (snap[i].id === id || (snap[i].title && snap[i].title === title)) { rec = snap[i]; break; }
+          }
+          if (rec) ly.visible = !!rec.visible;
+        });
+        if (!$("layersPanel").hidden) renderLayersPanel();
+      }
+      function captureThumb(bm) {
+        try {
+          view.takeScreenshot({ width: 148, height: 96, format: "jpg", quality: 70 }).then(function (shot) {
+            if (shot && shot.dataUrl) { bm.thumb = shot.dataUrl; renderBookmarks(); }
+          }).catch(function () {});
+        } catch (e) {}
+      }
+      function applyBookmark(bm) {
+        try {
+          view.goTo({ center: bm.viewpoint.center, zoom: bm.viewpoint.zoom }, { duration: 800 }).catch(function () {});
+        } catch (e) {}
+        applyLayerSnapshot(bm.layers);
+      }
+      function renderBookmarks() {
+        var list = $("bmList"); list.innerHTML = "";
+        $("bmEmpty").hidden = bookmarks.length > 0;
+        bookmarks.forEach(function (bm, i) {
+          var row = document.createElement("div"); row.className = "bm-item";
+          var th = document.createElement("div"); th.className = "bm-thumb";
+          if (bm.thumb) th.style.backgroundImage = "url(" + bm.thumb + ")";
+          var t = document.createElement("div"); t.className = "bm-title"; t.textContent = bm.title;
+          var p = document.createElement("button"); p.type = "button"; p.className = "bm-pencil"; p.title = "Edit bookmark"; p.innerHTML = "&#9998;";
+          p.addEventListener("click", function (e) { e.stopPropagation(); showBmEdit(i); });
+          row.addEventListener("click", function () { applyBookmark(bm); });
+          row.appendChild(th); row.appendChild(t); row.appendChild(p);
+          list.appendChild(row);
+        });
+      }
+      function showBmList() {
+        bmEditIndex = -1;
+        $("bmEditView").hidden = true;
+        $("bmListView").hidden = false;
+        renderBookmarks();
+      }
+      function showBmEdit(i) {
+        bmEditIndex = (typeof i === "number") ? i : -1;
+        var editing = bmEditIndex >= 0;
+        $("bmListView").hidden = true;
+        $("bmEditView").hidden = false;
+        $("bmEditTitle").textContent = editing ? "Edit bookmark" : "Add bookmark";
+        $("bmSave").textContent = editing ? "Save" : "Add";
+        $("bmDelete").hidden = !editing;
+        $("bmHint").hidden = editing;
+        $("bmTitleInput").value = editing ? bookmarks[bmEditIndex].title : "";
+        try { $("bmTitleInput").focus(); } catch (e) {}
+      }
+      $("bookmarksTool").addEventListener("click", function () {
+        if (!$("bookmarksPanel").hidden) { closePanels(); return; }
+        openPanel("bookmarks");
+      });
+      $("bmClose").addEventListener("click", closePanels);
+      $("bmAddBtn").addEventListener("click", function () { showBmEdit(-1); });
+      $("bmBack").addEventListener("click", showBmList);
+      $("bmCancel").addEventListener("click", showBmList);
+      $("bmSave").addEventListener("click", function () {
+        var title = $("bmTitleInput").value.trim();
+        if (bmEditIndex >= 0) {
+          bookmarks[bmEditIndex].title = title || bookmarks[bmEditIndex].title;
+        } else {
+          var bm = {
+            title: title || ("Bookmark " + (bookmarks.length + 1)),
+            viewpoint: { center: [view.center.longitude, view.center.latitude], zoom: view.zoom },
+            layers: layerSnapshot(),
+            thumb: null
+          };
+          bookmarks.push(bm);
+          captureThumb(bm);
+        }
+        markDirty();
+        showBmList();
+      });
+      $("bmTitleInput").addEventListener("keydown", function (e) { if (e.key === "Enter") $("bmSave").click(); });
+      $("bmDelete").addEventListener("click", function () {
+        if (bmEditIndex >= 0) { bookmarks.splice(bmEditIndex, 1); markDirty(); }
+        showBmList();
+      });
+
+      var ZOOM_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="M8 10.5h5M10.5 8v5"/></svg>';
+      var TRASH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m3 0-1 13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 7"/><path d="M10 11v6M14 11v6"/></svg>';
+      function zoomToLayer(ly) {
+        if (ly === graphicsLayer) {
+          var gfx = graphicsLayer.graphics.toArray();
+          if (gfx.length) view.goTo(gfx, { duration: 600 }).catch(function () {});
+          else toast("No sketches yet.");
+          return;
+        }
+        if (ly.queryExtent) {
+          ly.when().then(function () { return ly.queryExtent(); }).then(function (r) {
+            if (r && r.extent) {
+              var ext = r.extent;
+              try { if (ext.expand) ext = ext.expand(1.2); } catch (e) {}
+              view.goTo(ext, { duration: 600 }).catch(function () {});
+            }
+          }).catch(function () {});
+        }
+      }
+      function removeDataLayer(ly) {
+        var i = dataLayers.indexOf(ly);
+        if (i >= 0) dataLayers.splice(i, 1);
+        try { map.remove(ly); } catch (e) {}
+        try { if (view.map && view.map !== map) view.map.remove(ly); } catch (e) {}
+        markDirty();
+        renderLayersPanel();
+        toast("Layer removed.");
+      }
+      function renderLayersPanel() {
+        var list = $("layersList"); list.innerHTML = "";
+        var any = false;
+        eachToggleableLayer(function (ly, id, title) {
+          any = true;
+          var item = document.createElement("div"); item.className = "layer-item";
+          var top = document.createElement("div"); top.className = "layer-top";
+          var nm = document.createElement("span");
+          nm.className = "layer-name" + (ly.visible === false ? " off" : "");
+          nm.textContent = title;
+          var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = ly.visible !== false;
+          cb.addEventListener("change", function () {
+            ly.visible = cb.checked;
+            nm.className = "layer-name" + (cb.checked ? "" : " off");
+          });
+          top.appendChild(nm); top.appendChild(cb);
+          var acts = document.createElement("div"); acts.className = "layer-actions";
+          var z = document.createElement("button"); z.type = "button"; z.className = "layer-act"; z.title = "Zoom to layer"; z.innerHTML = ZOOM_SVG;
+          z.addEventListener("click", function () { zoomToLayer(ly); });
+          acts.appendChild(z);
+          if (dataLayers.indexOf(ly) >= 0) {
+            var d = document.createElement("button"); d.type = "button"; d.className = "layer-act"; d.title = "Remove layer"; d.innerHTML = TRASH_SVG;
+            d.addEventListener("click", function () { removeDataLayer(ly); });
+            acts.appendChild(d);
+          }
+          item.appendChild(top); item.appendChild(acts);
+          list.appendChild(item);
+        });
+        if (!any) list.innerHTML = '<div class="layers-empty">No layers yet — add data or open a map.</div>';
+      }
+      $("layersTool").addEventListener("click", function () {
+        if (!$("layersPanel").hidden) { closePanels(); return; }
+        openPanel("layers");
+      });
+      $("layersClose").addEventListener("click", closePanels);
+
+      // -- Drag & drop + toolbar trigger --
+      function dtHasFiles(e) {
+        var dt = e.dataTransfer;
+        if (!dt || !dt.types) return false;
+        return Array.prototype.indexOf.call(dt.types, "Files") >= 0;
+      }
+      var dropDepth = 0;
+      window.addEventListener("dragover", function (e) { if (dtHasFiles(e)) e.preventDefault(); });
+      window.addEventListener("dragenter", function (e) {
+        if (!dtHasFiles(e)) return;
+        dropDepth++;
+        $("dropOverlay").hidden = false;
+      });
+      window.addEventListener("dragleave", function (e) {
+        if (!dtHasFiles(e)) return;
+        dropDepth = Math.max(0, dropDepth - 1);
+        if (!dropDepth) $("dropOverlay").hidden = true;
+      });
+      window.addEventListener("drop", function (e) {
+        if (!dtHasFiles(e)) return;
+        e.preventDefault();
+        dropDepth = 0;
+        $("dropOverlay").hidden = true;
+        var f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) handleDroppedFile(f);
+      });
+      function handleDroppedFile(f) {
+        var name = f.name || "";
+        if (/\.(mmap|json)$/i.test(name)) {
+          if (!confirmDiscard()) return;
+          var r = new FileReader();
+          r.onload = function () { currentFileHandle = null; parseAndLoad(r.result); };
+          r.readAsText(f);
+          return;
+        }
+        if (/\.csv$/i.test(name) || f.type === "text/csv") {
+          var r2 = new FileReader();
+          r2.onload = function () { handleCsvText(name, r2.result); };
+          r2.readAsText(f);
+          return;
+        }
+        toast("Drop a .csv file to add data, or a .mmap to open a saved map.");
+      }
+      $("addDataTool").addEventListener("click", function () {
+        if (!$("dataPanel").hidden) { closePanels(); return; }
+        var input = document.createElement("input");
+        input.type = "file"; input.accept = ".csv,text/csv";
+        input.addEventListener("change", function (e) {
+          var f = e.target.files && e.target.files[0];
+          if (f) handleDroppedFile(f);
+        });
+        input.click();
+      });
+      $("dataClose").addEventListener("click", function () { addState = null; removePreview(true); closePanels(); });
+      $("dataCancel").addEventListener("click", function () { addState = null; removePreview(true); closePanels(); });
+      $("dataSubmit").addEventListener("click", submitData);
+      $("dataSize").addEventListener("input", function () {
+        var v = parseInt($("dataSize").value, 10) || 12;
+        if (addState) addState.symbolChoices.size = v;
+        $("dataSizeVal").textContent = v + " px";
+        if (addState) { updateConfigSummary(); updatePreview(false); }
+      });
+
+      // Wire save panel + open toolbar button
+      $("saveMapTile").addEventListener("click", function () { saveMap(false); });
+      $("saveAsTile").addEventListener("click", function () { saveMap(true); });
+      $("screenshotTile").addEventListener("click", takeScreenshot);
+      $("openMapLink").addEventListener("click", function () { closePanels(); openOpenModal("mine"); });
+      $("openTool").addEventListener("click", function () { openOpenModal("group"); });
+      $("tabGroup").addEventListener("click", function () { switchOpenTab("group"); if (!groupLoaded) { loadGroupMaps(""); groupLoaded = true; } });
+      $("tabMine").addEventListener("click", function () { switchOpenTab("mine"); });
+      $("openModalClose").addEventListener("click", closeOpenModal);
+      $("browseDevice").addEventListener("click", openMap);
+      $("groupSearch").addEventListener("input", onGroupSearch);
+      $("openModal").addEventListener("click", function (e) { if (e.target === $("openModal")) closeOpenModal(); });
+
+      window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+      view.when(function () {
+        if (view.popup) view.popup.autoOpenEnabled = false;
+        var v = $("appVer"); if (v) v.textContent = "Prototype v" + APP_VERSION;
+      });
+    })();
+  </script>
+</body>
+</html>
