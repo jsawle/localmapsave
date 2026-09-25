@@ -2,7 +2,7 @@
 // One Map is shared by a 2D MapView and a 3D SceneView. Everything a distributor changes lives in config/<name>.json.
 import { readCsv, buildCsvLayerDef, rendererFor, CSV_VERSION } from "./modules/csv.js";
 
-const APP_VERSION = "0.1";
+const APP_VERSION = "0.2";
 const DOC_TYPE = "MapMakerLocalDocument", DOC_VERSION = 4;   // same file type as the Atlas local-save concept, so its .mmap files open here
 
 const STRINGS = {
@@ -23,7 +23,7 @@ const STRINGS = {
   csvTooMany: "That's {n} rows. This app can map up to {max}. Try a smaller file.",
   csvNoLatLon: "Couldn't find latitude and longitude columns. Name them Latitude and Longitude (Lat and Lon also work).",
   csvNoCoords: "None of the rows had usable latitude and longitude. Use decimal degrees, for example 51.5 and -0.12.",
-  needs3d: "This animation needs the 3D view.", closeAnim: "Close animation", start: "Open", loadingAnim: "Loading the animation…"
+  needs3d: "This animation needs the 3D view.", no3d: "The 3D view couldn\u2019t start on this device.", cantSwitch: "Couldn\u2019t switch the view.", closeAnim: "Close animation", start: "Open", loadingAnim: "Loading the animation…"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -127,12 +127,19 @@ async function setMode(m) {
   if (m === mode) return;
   const vp = activeView().viewpoint.clone();
   if (m === "2d") stopAnimation();
-  $("measurement").clear?.();
-  if (m === "3d") {
-    if (!sceneEl.map) sceneEl.map = map;
-    sceneEl.hidden = false; await sceneEl.viewOnReady(); sceneEl.view.viewpoint = vp; mapEl.hidden = true;
-  } else {
-    mapEl.hidden = false; await mapEl.viewOnReady(); mapEl.view.viewpoint = vp; sceneEl.hidden = true;
+  try { await $("measurement").clear?.(); } catch (e) {}
+  try {
+    if (m === "3d") {
+      // The scene component makes its own empty map on load, so always hand it ours.
+      if (sceneEl.map !== map) sceneEl.map = map;
+      sceneEl.hidden = false; await sceneEl.viewOnReady(); sceneEl.view.viewpoint = vp; mapEl.hidden = true;
+    } else {
+      mapEl.hidden = false; await mapEl.viewOnReady(); mapEl.view.viewpoint = vp; sceneEl.hidden = true;
+    }
+  } catch (e) {
+    console.error("Couldn't switch view", e);
+    mapEl.hidden = false; sceneEl.hidden = true; mode = "2d";
+    toast(m === "3d" ? S.no3d : S.cantSwitch, 6000); return;
   }
   mode = m;
   $("to2d").setAttribute("aria-pressed", String(m === "2d")); $("to3d").setAttribute("aria-pressed", String(m === "3d"));
@@ -360,7 +367,7 @@ function stopAnimation() {
 // ---------- About: versions ----------
 async function renderVersions() {
   await loadAnimMeta().catch(() => {});
-  const rows = [["App", APP_VERSION, "Map Studio shell: 2D/3D, layers, tools, save/open"], ["CSV import", CSV_VERSION, "Latitude/longitude CSV to a map layer"],
+  const rows = [["App", APP_VERSION, "Map Studio shell: 2D/3D, layers, tools, save/open. 0.2: fixed the 3D switch"], ["CSV import", CSV_VERSION, "Latitude/longitude CSV to a map layer"],
     ["Saved map format", String(DOC_VERSION), "MapMakerLocalDocument (.mmap). Opens files from the Atlas local-save concept"],
     ["Config", `${cfgName} v${cfg.configVersion || 1}`, "Branding and content for this programme"]];
   for (const [, m] of anim.mods) for (const [name, v, what] of m.meta.models || [[m.meta.title, m.meta.version, m.meta.summary]]) rows.push([name, v, what]);
