@@ -1,0 +1,25 @@
+{
+  "configVersion": 1,
+  "appName": "Map Studio",
+  "tagline": "Explore, add your own data and save your map",
+  "locale": "en",
+  "dir": "ltr",
+  "logo": { "url": "", "alt": "", "link": "" },
+  "theme": {
+    "brand": "#0b5c8e",
+    "brandInk": "#ffffff",
+    "header": "#10222e",
+    "headerInk": "#ffffff",
+    "accent": "#f2a900"
+  },
+  "portalUrl": "https://www.arcgis.com",
+  "contentGroup": "36443e9570294a1f883b5d2c5abfe6b5",
+  "basemapGroup": "406646c98d0f4c608a9438d40ce2df9e",
+  "defaultBasemap": "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
+  "startView": { "center": [0, 20], "zoom": 2 },
+  "units": "metric",
+  "features": { "addLayers": true, "sketch": true, "measure": true, "csv": true, "localSave": true, "threeD": true, "animations": true },
+  "animations": ["vesuvius-1944"],
+  "disclaimer": "Basemaps and map layers may not reflect the current map policy of this programme.",
+  "strings": {}
+}

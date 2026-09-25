@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Map Studio</title>
+<meta name="description" content="A configurable school mapping app: Schools Living Atlas layers, 2D and 3D, your own CSV data, local save with no account, and 3D process animations." />
+<script type="module" src="https://js.arcgis.com/5.1/"></script>
+<style>
+  :root {
+    --brand: #0b5c8e; --brand-ink: #fff; --header: #10222e; --header-ink: #fff; --accent: #f2a900;
+    --bg: #f4f6f7; --panel: #ffffff; --ink: #17232b; --muted: #5b6a73; --rule: #d9e0e4; --chip: #eef2f4;
+    --rail-w: 64px; --panel-w: 340px; --head-h: 52px;
+    --font: "Avenir Next", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font); }
+  button, input, select { font: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  /* Header */
+  #top { height: var(--head-h); background: var(--header); color: var(--header-ink); display: flex; align-items: center; gap: 12px; padding: 0 12px; }
+  #logo { height: 34px; width: auto; display: block; }
+  #appName { font-weight: 700; font-size: 17px; white-space: nowrap; }
+  #docTitle { flex: 0 1 280px; min-width: 80px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25); color: var(--header-ink); border-radius: 6px; padding: 5px 9px; }
+  #docTitle::placeholder { color: rgba(255,255,255,.6); }
+  #dirty { font-size: 12px; opacity: .75; white-space: nowrap; }
+  .spacer { flex: 1; }
+  .hbtn { background: transparent; color: var(--header-ink); border: 1px solid rgba(255,255,255,.3); border-radius: 6px; padding: 6px 12px; white-space: nowrap; }
+  .hbtn:hover { background: rgba(255,255,255,.12); }
+  .hbtn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+
+  /* Layout */
+  #body { position: absolute; top: var(--head-h); bottom: 0; left: 0; right: 0; display: flex; }
+  #rail { width: var(--rail-w); background: var(--panel); border-right: 1px solid var(--rule); display: flex; flex-direction: column; padding: 6px 0; gap: 2px; overflow-y: auto; }
+  .rbtn { background: none; border: 0; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px; font-size: 10.5px; line-height: 1.15; text-align: center; }
+  .rbtn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .rbtn:hover { color: var(--ink); background: var(--chip); }
+  .rbtn[aria-pressed="true"] { color: var(--brand); background: var(--chip); box-shadow: inset 3px 0 0 var(--brand); }
+  #panel { width: var(--panel-w); background: var(--panel); border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-width: 0; }
+  #panelHead { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+  #panelTitle { margin: 0; font-size: 16px; }
+  #panelClose { background: none; border: 0; font-size: 20px; color: var(--muted); line-height: 1; }
+  #panelBody { flex: 1; overflow-y: auto; }
+  .pane { padding: 12px 14px 24px; }
+  #main { flex: 1; position: relative; min-width: 0; }
+  arcgis-map, arcgis-scene { position: absolute; inset: 0; display: block; }
+
+  /* Controls */
+  .row { display: flex; gap: 8px; align-items: center; }
+  .btn { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 12px; color: var(--ink); }
+  .btn:hover { border-color: var(--brand); }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+  .btn[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .field { width: 100%; padding: 7px 9px; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); color: var(--ink); }
+  .hint { color: var(--muted); font-size: 13px; }
+  h3 { font-size: 14px; margin: 16px 0 6px; }
+  .ver { font: 600 11px/1 ui-monospace, Menlo, Consolas, monospace; color: var(--muted); background: var(--chip); border: 1px solid var(--rule); border-radius: 4px; padding: 2px 5px; vertical-align: 1px; margin-left: 4px; white-space: nowrap; }
+
+  /* Layer browser */
+  #lbResults { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .lb-item { display: grid; grid-template-columns: 64px 1fr; gap: 10px; border: 1px solid var(--rule); border-radius: 8px; padding: 8px; }
+  .lb-item img { width: 64px; height: 43px; object-fit: cover; border-radius: 4px; background: var(--chip); }
+  .lb-item .t { font-weight: 600; font-size: 14px; line-height: 1.25; }
+  .lb-item .k { font-size: 12px; color: var(--muted); }
+  .lb-item .a { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 6px; }
+
+  /* 2D/3D switch */
+  #modeSwitch { position: absolute; top: 12px; right: 12px; z-index: 5; display: flex; background: var(--panel); border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.25); overflow: hidden; }
+  #modeSwitch button { border: 0; background: none; padding: 7px 14px; font-weight: 600; color: var(--muted); }
+  #modeSwitch button[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
+
+  /* Drop zone + toast */
+  #drop { position: absolute; inset: 0; z-index: 20; background: rgba(11,92,142,.18); border: 3px dashed var(--brand); display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  #drop div { background: var(--panel); padding: 16px 20px; border-radius: 10px; font-weight: 600; max-width: 380px; text-align: center; }
+  #toast { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 30; background: #17232b; color: #fff; padding: 9px 16px; border-radius: 20px; font-size: 14px; max-width: calc(100% - 32px); text-align: center; }
+
+  /* CSV + animation panes */
+  .csv-box { border: 1px solid var(--rule); border-radius: 8px; padding: 10px; margin-top: 10px; }
+  #animList { display: flex; flex-direction: column; gap: 8px; }
+  .anim-card { border: 1px solid var(--rule); border-radius: 8px; padding: 10px; }
+  .anim-card .t { font-weight: 700; }
+  table.vers { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.vers td, table.vers th { text-align: left; padding: 4px 6px; border-top: 1px solid var(--rule); vertical-align: top; }
+
+  @media (max-width: 760px) {
+    :root { --panel-w: 100vw; }
+    #appName, #dirty { display: none; }
+    #body { flex-direction: column-reverse; }
+    #rail { width: 100%; flex-direction: row; border-right: 0; border-top: 1px solid var(--rule); padding: 0 4px; overflow-x: auto; }
+    .rbtn { min-width: 62px; }
+    #panel { width: 100%; height: 46%; border-right: 0; border-top: 1px solid var(--rule); }
+    #main { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<header id="top">
+  <a id="logoLink" hidden><img id="logo" alt="" /></a>
+  <div id="appName">Map Studio</div>
+  <input id="docTitle" aria-label="Map title" data-i18n-placeholder="untitled" placeholder="Untitled map" />
+  <span id="dirty"></span>
+  <div class="spacer"></div>
+  <button class="hbtn" id="newBtn" data-i18n="newMap">New</button>
+  <button class="hbtn" id="openBtn" data-i18n="open">Open</button>
+  <button class="hbtn primary" id="saveBtn" data-i18n="save">Save</button>
+  <input type="file" id="fileInput" accept=".mmap,.json,.csv,text/csv,application/json" hidden />
+</header>
+
+<div id="body">
+  <nav id="rail" aria-label="Tools"></nav>
+  <aside id="panel" hidden>
+    <div id="panelHead"><h2 id="panelTitle"></h2><button id="panelClose" aria-label="Close panel">×</button></div>
+    <div id="panelBody">
+      <section class="pane" data-pane="addLayers">
+        <select id="lbTopic" class="field" aria-label="Topic"></select>
+        <div class="row" style="margin-top:8px"><input id="lbSearch" class="field" type="search" data-i18n-placeholder="searchLayers" placeholder="Search layers" /></div>
+        <div id="lbResults"></div>
+        <div class="row" style="justify-content:center;margin-top:10px"><button class="btn" id="lbMore" hidden>More</button></div>
+        <h3 data-i18n="yourData">Your own data</h3>
+        <p class="hint" data-i18n="dropHint">Drop a CSV file with latitude and longitude columns onto the map, or a saved map (.mmap).</p>
+        <button class="btn" id="csvPick" data-i18n="chooseCsv">Choose a CSV file</button>
+        <div id="csvBox"></div>
+      </section>
+      <section class="pane" data-pane="layers"><arcgis-layer-list id="layerList" drag-enabled show-errors></arcgis-layer-list></section>
+      <section class="pane" data-pane="legend"><arcgis-legend id="legend"></arcgis-legend></section>
+      <section class="pane" data-pane="basemaps"><arcgis-basemap-gallery id="basemapGallery"></arcgis-basemap-gallery></section>
+      <section class="pane" data-pane="measure">
+        <div class="row">
+          <button class="btn" id="mDistance" data-i18n="distance">Distance</button>
+          <button class="btn" id="mArea" data-i18n="area">Area</button>
+          <button class="btn" id="mClear" data-i18n="clear">Clear</button>
+        </div>
+        <arcgis-measurement id="measurement" style="margin-top:10px"></arcgis-measurement>
+      </section>
+      <section class="pane" data-pane="sketch">
+        <p class="hint" data-i18n="sketchHint">Draw points, lines and areas. They are saved with your map.</p>
+        <arcgis-sketch id="sketch" creation-mode="update"></arcgis-sketch>
+      </section>
+      <section class="pane" data-pane="animations">
+        <p class="hint" data-i18n="animHint">3D animations of physical processes. They open in the 3D view.</p>
+        <div id="animList"></div>
+        <div id="animHost"></div>
+      </section>
+      <section class="pane" data-pane="about">
+        <p id="aboutTagline"></p>
+        <h3>Versions</h3>
+        <table class="vers" id="versTable"></table>
+        <h3>About your data</h3>
+        <p class="hint">Nothing you add or draw leaves your device. Saving creates a .mmap file on your computer. No account is needed.</p>
+        <p class="hint" id="disclaimer"></p>
+      </section>
+    </div>
+  </aside>
+  <main id="main">
+    <arcgis-map id="mapEl">
+      <arcgis-zoom slot="top-left"></arcgis-zoom>
+      <arcgis-home slot="top-left"></arcgis-home>
+      <arcgis-search slot="top-left" id="search2d"></arcgis-search>
+      <arcgis-scale-bar slot="bottom-left"></arcgis-scale-bar>
+    </arcgis-map>
+    <arcgis-scene id="sceneEl" hidden>
+      <arcgis-zoom slot="top-left"></arcgis-zoom>
+      <arcgis-navigation-toggle slot="top-left"></arcgis-navigation-toggle>
+      <arcgis-compass slot="top-left"></arcgis-compass>
+      <arcgis-home slot="top-left"></arcgis-home>
+      <arcgis-search slot="top-left" id="search3d"></arcgis-search>
+    </arcgis-scene>
+    <div id="modeSwitch" role="group" aria-label="Map view">
+      <button id="to2d" aria-pressed="true" data-i18n="view2d">2D</button>
+      <button id="to3d" aria-pressed="false" data-i18n="view3d">3D</button>
+    </div>
+    <div id="drop" hidden><div data-i18n="dropHint">Drop a CSV file with latitude and longitude columns, or a saved map (.mmap)</div></div>
+    <div id="toast" hidden></div>
+  </main>
+</div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
