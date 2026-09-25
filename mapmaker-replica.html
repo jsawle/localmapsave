@@ -16,10 +16,10 @@
       --font:"Avenir Next W00","Avenir Next","Helvetica Neue",Arial,sans-serif;
     }
     *{ box-sizing:border-box; }
-    html,body{ height:100%; margin:0; }
+    html,body{ height:100%; margin:0; overflow:hidden; }
     body{ font-family:var(--font); color:var(--ink); background:#fff; -webkit-font-smoothing:antialiased; }
 
-    #app{ display:flex; flex-direction:column; height:100vh; }
+    #app{ display:flex; flex-direction:column; height:100vh; height:100dvh; }   /* dvh = the visible screen on iPad/phone Safari */
 
     /* ---- Top bar ---- */
     .topbar{
@@ -645,7 +645,7 @@
 
       var DOC_TYPE = "MapMakerLocalDocument";
       var DOC_VERSION = 2;
-      var APP_VERSION = "3.0";   // replica: v2.8 mock-up + SDK 5.1, MapMaker header, basemaps, measure, 2D/3D, 3D animations
+      var APP_VERSION = "3.0.1";   // replica: v2.8 mock-up + SDK 5.1, MapMaker header, basemaps, measure, 2D/3D, 3D animations
       var PORTAL = "https://www.arcgis.com";
       var GROUP_ID = "36443e9570294a1f883b5d2c5abfe6b5"; // MapMaker web maps group ("Schools Living Atlas")
       var PALETTE = ["#0079c1","#d4572a","#1a7f37","#8250df","#b4453a","#9a6700","#e3116c","#2b2b2b"];
@@ -1100,7 +1100,7 @@
       $("appVer").addEventListener("click", function () { togglePanel("about"); });
       async function renderVersions() {
         await loadAnimations();
-        var rows = [["MapMaker replica (app)", APP_VERSION, "The v2.8 Atlas local-save mock-up on SDK 5.1, plus MapMaker header, basemaps, measure, 2D/3D and 3D animations"],
+        var rows = [["MapMaker replica (app)", APP_VERSION, "The v2.8 Atlas local-save mock-up on SDK 5.1, plus MapMaker header, basemaps, measure, 2D/3D and 3D animations. 3.0.1: page fits the visible screen on iPad and phone Safari"],
           ["Saved map file (.mmap)", "3", "MapMakerLocalDocument. Basemaps from ArcGIS Online are saved as item:<id>"],
           ["CSV import", "2.8", "Fieldwork CSV panel: styles incl. pie charts (2D only), live preview"]];
         ANIMATIONS.forEach(function (a) { var m = animMods[a.id]; if (m) (m.meta.models || []).forEach(function (r) { rows.push(r); }); });
