@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atlas</title>
+  <meta name="description" content="A configurable (white-label) version of the MapMaker classroom map app: curated maps and layers, sketch, measure, bookmarks, 2D and 3D, your own spreadsheet data, local save without an account, and ArcGIS Online sign-in." />
+  <link rel="stylesheet" href="https://js.arcgis.com/5.1/esri/themes/light/main.css" />
+  <script type="module" src="https://js.arcgis.com/5.1/"></script>
+  <style>
+    :root{
+      --font:"Avenir Next W00","Avenir Next","Helvetica Neue",Arial,sans-serif;
+      --ink:#323232; --ink2:#4c4c4c; --muted:#6b6b6b; --line:#e1e1e1; --line2:#d0d0d0; --soft:#f3f3f3;
+      --brand:#0079c1; --brand-ink:#ffffff; --brand-soft:#e6f2fa; --brand-strong:#005e96;
+      --header-bg:#ffffff; --header-ink:#000000; --header-line:#e1e1e1;
+      --pill-dark:#000000; --pill-dark-ink:#ffffff;
+      --focus:#1a73e8; --danger:#a13c2c;
+      --tb-h:74px;
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; overflow:hidden; }
+    body{ font-family:var(--font); color:var(--ink); background:#fff; -webkit-font-smoothing:antialiased; }
+    button,input,select,textarea{ font-family:inherit; }
+    :focus-visible{ outline:3px solid var(--focus); outline-offset:2px; }
+    .sr-only{ position:absolute!important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    .skip{ position:absolute; left:8px; top:-60px; z-index:100; background:#fff; color:#000; padding:10px 14px; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,.3); font-weight:600; }
+    .skip:focus{ top:8px; }
+    [hidden]{ display:none!important; }
+
+    #app{ display:flex; flex-direction:column; height:100vh; height:100dvh; }
+
+    /* ---------- Header ---------- */
+    .hdr{ height:64px; flex:0 0 auto; display:flex; align-items:center; gap:16px; padding:0 16px; background:var(--header-bg); color:var(--header-ink); border-bottom:1px solid var(--header-line); z-index:10; }
+    .hdr-logo{ display:flex; align-items:center; gap:10px; color:inherit; text-decoration:none; flex:0 0 auto; min-width:0; }
+    .hdr-logo img{ height:40px; width:auto; display:block; }
+    .hdr-logo .compact{ display:none; }
+    .logo-text{ font-size:19px; font-weight:700; letter-spacing:.2px; white-space:nowrap; }
+    .hdr-title{ flex:1 1 auto; min-width:0; display:flex; justify-content:center; align-items:center; gap:4px; }
+    .doc-title{ border:1px solid transparent; border-radius:5px; background:transparent; color:inherit; font-size:17px; font-weight:600; padding:5px 9px; width:auto; min-width:8ch; max-width:100%; text-align:center; text-overflow:ellipsis; }
+    .doc-title:hover{ background:rgba(127,127,127,.12); }
+    .doc-title:focus{ border-color:var(--line2); background:#fff; color:#000; }
+    .icon-btn{ border:none; background:transparent; color:inherit; width:34px; height:34px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto; }
+    .icon-btn:hover{ background:rgba(127,127,127,.15); }
+    .icon-btn svg{ width:20px; height:20px; }
+    .hdr-links{ display:flex; align-items:center; gap:10px; flex:0 0 auto; }
+    .pill{ display:inline-block; font-size:13px; font-weight:700; line-height:1; padding:7px 12px; border-radius:999px; text-decoration:none; white-space:nowrap; border:2px solid var(--pill-dark); cursor:pointer; background:#fff; color:#000; }
+    .pill.dark{ background:var(--pill-dark); color:var(--pill-dark-ink); }
+    .hdr-partners{ display:flex; align-items:center; gap:10px; flex:0 0 auto; }
+    .hdr-partners img{ height:40px; width:auto; display:block; }
+    .hdr-user{ position:relative; flex:0 0 auto; }
+    .user-btn{ display:flex; align-items:center; gap:8px; border:1px solid var(--line2); background:#fff; color:#000; border-radius:999px; padding:3px 10px 3px 3px; cursor:pointer; font-size:13px; font-weight:600; max-width:200px; }
+    .avatar{ width:28px; height:28px; border-radius:50%; background:var(--brand); color:var(--brand-ink); display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; background-size:cover; background-position:center; flex:0 0 auto; }
+    .user-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .menu{ position:absolute; right:0; top:calc(100% + 6px); background:#fff; border:1px solid var(--line2); border-radius:6px; box-shadow:0 6px 24px rgba(0,0,0,.18); min-width:190px; padding:6px; z-index:50; }
+    .menu button{ display:block; width:100%; text-align:left; border:none; background:none; padding:9px 10px; border-radius:4px; font-size:14px; color:var(--ink); cursor:pointer; }
+    .menu button:hover, .menu button:focus-visible{ background:var(--soft); }
+    .ver-btn{ font:600 11px/1 ui-monospace,Menlo,Consolas,monospace; color:var(--muted); background:var(--soft); border:1px solid var(--line); border-radius:4px; padding:4px 6px; cursor:pointer; flex:0 0 auto; }
+
+    /* ---------- Map area ---------- */
+    .map-wrap{ position:relative; flex:1 1 auto; min-height:0; }
+    #viewDiv, #sceneDiv{ position:absolute; inset:0; }
+    .corner{ position:absolute; right:8px; bottom:22px; z-index:15; display:flex; flex-direction:column; align-items:flex-end; gap:4px; pointer-events:none; max-width:min(46%, 420px); }
+    .corner.raised{ bottom:calc(var(--tb-h) + 34px); }
+    .disclaimer{ font-size:11px; color:#333; background:rgba(255,255,255,.88); padding:2px 6px; border-radius:3px; text-align:right; }
+    .credit{ font-size:11px; font-weight:600; color:#333; background:rgba(255,255,255,.94); border:1px solid var(--line2); padding:3px 8px; border-radius:4px; white-space:nowrap; }
+
+    /* ---------- Toolbar ---------- */
+    .toolbar{ position:absolute; left:50%; bottom:22px; transform:translateX(-50%); display:flex; align-items:stretch; gap:2px; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,.18); padding:6px; z-index:20; max-width:calc(100% - 24px); overflow-x:auto; scrollbar-width:thin; }
+    .tool{ display:flex; flex-direction:column; align-items:center; gap:5px; min-width:64px; padding:8px 9px; border:none; background:transparent; border-radius:6px; color:var(--ink2); cursor:pointer; font-size:11.5px; white-space:nowrap; }
+    .tool svg{ width:22px; height:22px; flex:0 0 auto; }
+    .tool:hover{ background:var(--soft); }
+    .tool[aria-expanded="true"]{ background:var(--brand); color:var(--brand-ink); }
+    .seg{ display:flex; flex-direction:column; gap:3px; justify-content:center; padding:2px 4px; }
+    .seg button{ font-size:11.5px; font-weight:700; border:none; border-radius:4px; padding:5px 14px; cursor:pointer; background:transparent; color:#767676; }
+    .seg button[aria-pressed="true"]{ background:var(--brand-soft); color:var(--brand-strong); }
+    .tb-sep{ width:1px; background:var(--line); margin:4px 2px; }
+
+    /* ---------- Side panels ---------- */
+    .panel{ position:absolute; top:14px; right:14px; width:360px; max-height:calc(100% - var(--tb-h) - 40px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--line2); border-radius:6px; box-shadow:0 2px 16px rgba(0,0,0,.2); z-index:25; }
+    .panel.wide{ width:400px; }
+    .panel-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 14px; border-bottom:1px solid #ededed; flex:0 0 auto; }
+    .panel-head h2{ margin:0; font-size:16px; font-weight:600; color:var(--ink); outline:none; }
+    .x-btn{ border:none; background:none; font-size:22px; line-height:1; color:#555; cursor:pointer; padding:2px 8px; border-radius:4px; }
+    .x-btn:hover{ background:var(--soft); }
+    .panel-body{ padding:14px; overflow-y:auto; flex:1 1 auto; min-height:0; }
+    .panel-foot{ flex:0 0 auto; display:flex; gap:10px; justify-content:flex-end; padding:10px 14px; border-top:1px solid #ededed; }
+    .section{ margin-bottom:20px; }
+    .section:last-child{ margin-bottom:0; }
+    .label{ font-size:13px; font-weight:600; color:var(--ink); margin:0 0 8px; }
+    .hint{ font-size:12.5px; color:var(--muted); line-height:1.5; margin:0 0 10px; }
+    .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .btn{ background:#fff; border:1px solid var(--line2); border-radius:5px; padding:7px 12px; font-size:13.5px; font-weight:600; color:var(--ink); cursor:pointer; }
+    .btn:hover{ background:var(--soft); }
+    .btn.primary{ background:var(--brand); border-color:var(--brand); color:var(--brand-ink); }
+    .btn[aria-pressed="true"]{ background:var(--brand); border-color:var(--brand); color:var(--brand-ink); }
+    .btn:disabled{ opacity:.5; cursor:default; }
+    .btn.danger{ color:var(--danger); border-color:#e4b6ae; }
+    .field{ width:100%; padding:8px 10px; border:1px solid var(--line2); border-radius:4px; font-size:14px; color:var(--ink); background:#fff; }
+    .field:focus{ border-color:var(--brand); }
+    .field:disabled{ background:#f7f7f7; color:#999; }
+    textarea.field{ resize:vertical; min-height:64px; line-height:1.45; }
+    .stack > * + *{ margin-top:8px; }
+    label.lbl{ display:block; font-size:13px; color:#444; margin:8px 0 4px; }
+
+    /* sketch */
+    .tbtn{ width:42px; height:42px; border:1px solid var(--line2); border-radius:5px; background:#fff; color:var(--ink2); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
+    .tbtn svg{ width:20px; height:20px; }
+    .tbtn:hover{ background:var(--soft); }
+    .tbtn[aria-pressed="true"]{ border-color:var(--brand); color:var(--brand-strong); box-shadow:0 0 0 1px var(--brand) inset; background:var(--brand-soft); }
+    .swatches{ display:flex; gap:8px; flex-wrap:wrap; }
+    .swatch{ width:30px; height:30px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--line2); cursor:pointer; padding:0; }
+    .swatch[aria-pressed="true"]{ box-shadow:0 0 0 3px var(--ink); }
+    .slider-row{ display:flex; align-items:center; gap:12px; }
+    .slider-row input[type=range]{ flex:1; accent-color:var(--brand); }
+    .slider-val{ font-size:13px; color:var(--ink2); min-width:44px; text-align:right; }
+    .img-pick{ width:100%; padding:8px 10px; border:1px dashed var(--line2); border-radius:4px; background:#fafafa; color:var(--muted); font-size:14px; cursor:pointer; text-align:left; }
+    .img-pick:disabled{ cursor:not-allowed; color:#aaa; }
+    .img-preview{ position:relative; }
+    .img-preview img{ display:block; max-width:100%; height:auto; border-radius:4px; border:1px solid var(--line2); }
+    .img-remove{ position:absolute; top:6px; right:6px; width:26px; height:26px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:16px; line-height:1; cursor:pointer; }
+
+    /* lists */
+    .list{ list-style:none; margin:0; padding:0; }
+    .li{ display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid #f0f0f0; }
+    .li:last-child{ border-bottom:none; }
+    .li-main{ flex:1 1 auto; min-width:0; }
+    .li-title{ font-size:14px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+    .li-sub{ font-size:12px; color:var(--muted); display:block; }
+    .li-title.off{ color:#9a9a9a; }
+    .mini{ border:none; background:none; cursor:pointer; color:#555; padding:5px; border-radius:4px; line-height:0; }
+    .mini:hover{ background:var(--soft); color:var(--ink); }
+    .mini svg{ width:17px; height:17px; }
+    .li input[type=checkbox]{ width:18px; height:18px; accent-color:var(--brand); cursor:pointer; flex:0 0 auto; }
+    .empty{ font-size:13px; color:var(--muted); line-height:1.5; padding:6px 2px; }
+
+    /* bookmarks */
+    .bm{ display:flex; align-items:center; gap:10px; padding:6px; border-radius:6px; }
+    .bm:hover{ background:#f2f6fa; }
+    .bm-go{ flex:1 1 auto; display:flex; align-items:center; gap:10px; border:none; background:none; cursor:pointer; text-align:left; padding:0; min-width:0; color:var(--ink); font-size:13.5px; }
+    .bm-thumb{ width:64px; height:42px; border-radius:4px; background:#e8edf1 center/cover no-repeat; flex:0 0 auto; border:1px solid var(--line2); }
+    .bm-title{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .center{ text-align:center; }
+
+    /* save */
+    .tiles{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:14px; }
+    .tile{ display:flex; flex-direction:column; align-items:center; gap:8px; padding:14px 6px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; font-size:13.5px; color:var(--ink); }
+    .tile:hover{ background:#f7f7f7; }
+    .tile-icon{ width:44px; height:44px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:#eef0f2; color:#5b5b5b; }
+    .tile.primary .tile-icon{ background:var(--brand); color:var(--brand-ink); }
+    .tile-icon svg{ width:24px; height:24px; }
+    .note{ font-size:13px; line-height:1.55; color:var(--ink2); margin:0 0 10px; }
+    .link-btn{ border:none; background:none; color:var(--brand-strong); padding:0; cursor:pointer; font-size:inherit; text-decoration:underline; }
+    .divider{ border:none; border-top:1px solid var(--line); margin:16px 0; }
+    .status{ font-size:13px; color:var(--ink2); margin-top:8px; line-height:1.5; }
+    .status a{ color:var(--brand-strong); }
+
+    /* add layer / catalogue */
+    .search-row{ display:flex; gap:8px; margin-bottom:10px; }
+    .search-row .field{ flex:1 1 auto; }
+    select.field{ padding:7px 8px; }
+    .add-btn{ flex:0 0 auto; }
+    .add-btn[aria-pressed="true"]{ background:var(--brand-soft); color:var(--brand-strong); border-color:var(--brand); }
+
+    /* CSV configure */
+    .data-summary{ font-size:12.5px; color:var(--muted); margin:0 0 10px; line-height:1.5; }
+    .cfg-h{ font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:#666; margin:12px 0 6px; font-weight:700; }
+    .style-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:6px; }
+    .style-card{ border:2px solid #ddd; border-radius:6px; padding:8px 4px; cursor:pointer; background:#fff; text-align:center; min-width:0; }
+    .style-card:hover:not(:disabled){ border-color:#8ab8d8; }
+    .style-card[aria-pressed="true"]{ border-color:var(--brand); background:var(--brand-soft); }
+    .style-card:disabled{ opacity:.4; cursor:not-allowed; }
+    .s-ico{ font-size:18px; display:block; margin-bottom:3px; line-height:1.2; }
+    .s-name{ font-size:11.5px; font-weight:600; line-height:1.25; color:var(--ink); display:block; }
+    .style-desc{ font-size:12px; color:var(--ink2); background:var(--brand-soft); border-left:3px solid var(--brand); padding:6px 10px; border-radius:0 4px 4px 0; line-height:1.45; }
+    .sym-row{ display:flex; align-items:center; gap:10px; padding:4px 0; }
+    .sym-label{ flex:0 0 56px; font-size:13px; color:#555; }
+    .shape-btn{ width:34px; height:30px; border:2px solid #ddd; border-radius:6px; background:#fff; cursor:pointer; font-size:15px; color:#444; padding:0; }
+    .shape-btn[aria-pressed="true"]{ border-color:var(--brand); background:var(--brand-soft); }
+    .ramp-btn{ width:44px; height:22px; border-radius:4px; border:2px solid rgba(0,0,0,.15); cursor:pointer; padding:0; }
+    .ramp-btn[aria-pressed="true"]{ border-color:#1a1a1a; }
+    .sym-row .swatch{ width:24px; height:24px; }
+    .cfg-summary{ color:#444; font-size:12.5px; line-height:1.5; padding:8px 12px; background:#f5f6f7; border-radius:4px; margin-top:8px; }
+    .error-box{ font-size:13.5px; line-height:1.55; color:#7a2a1e; background:#fdefec; border:1px solid #f2c9c0; border-radius:5px; padding:10px 12px; margin-bottom:10px; }
+
+    /* drop overlay, toast */
+    .drop-overlay{ position:absolute; inset:0; z-index:35; background:rgba(0,90,156,.12); outline:3px dashed var(--brand); outline-offset:-10px; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+    .drop-inner{ background:#fff; border-radius:8px; padding:14px 22px; font-size:15px; font-weight:600; box-shadow:0 4px 18px rgba(0,0,0,.18); }
+    .toast{ position:absolute; left:50%; bottom:calc(var(--tb-h) + 34px); transform:translateX(-50%); background:#323232; color:#fff; font-size:13.5px; padding:9px 16px; border-radius:18px; z-index:40; box-shadow:0 2px 10px rgba(0,0,0,.28); max-width:calc(100% - 32px); text-align:center; }
+    .toast:empty{ display:none; }
+
+    /* pop-up content */
+    .mm-popup-text{ margin:0 0 8px; font-size:13.5px; line-height:1.5; white-space:pre-wrap; }
+    .mm-popup-img{ display:block; max-width:100%; height:auto; border-radius:5px; }
+    .mm-popup-empty{ margin:0; font-size:13px; color:var(--muted); font-style:italic; }
+
+    /* ---------- Modals ---------- */
+    .modal{ position:fixed; inset:0; background:rgba(30,30,30,.5); display:flex; align-items:center; justify-content:center; z-index:60; padding:20px; }
+    .modal.top{ align-items:flex-start; padding-top:56px; }
+    .card{ background:#fff; border-radius:8px; padding:22px; width:100%; max-width:420px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:calc(100% - 20px); overflow:auto; }
+    .card h2{ margin:0 0 12px; font-size:18px; outline:none; }
+    .card .actions{ display:flex; justify-content:flex-end; gap:9px; margin-top:18px; flex-wrap:wrap; }
+    .rich{ font-size:14px; line-height:1.55; color:var(--ink2); }
+    .rich img{ max-width:100%; height:auto; }
+    .filename-row{ display:flex; border:1px solid var(--line2); border-radius:4px; overflow:hidden; }
+    .filename-row .field{ border:none; border-radius:0; }
+    .ext{ padding:0 12px; font-size:14px; color:var(--muted); background:#f4f6f9; display:flex; align-items:center; border-left:1px solid var(--line2); }
+    .open-card{ background:#fff; border-radius:8px; width:100%; max-width:960px; max-height:calc(100vh - 80px); display:flex; flex-direction:column; box-shadow:0 16px 50px rgba(0,0,0,.32); overflow:hidden; }
+    .open-head{ display:flex; align-items:flex-start; justify-content:space-between; padding:18px 22px 4px; }
+    .open-head h2{ margin:0; font-size:19px; font-weight:600; outline:none; }
+    .open-head p{ margin:4px 0 0; font-size:13px; color:var(--muted); }
+    .tabs{ display:flex; gap:24px; padding:8px 22px 0; border-bottom:1px solid var(--line); overflow-x:auto; }
+    .tab{ border:none; background:none; padding:10px 2px; font-size:14px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:3px solid transparent; white-space:nowrap; }
+    .tab[aria-selected="true"]{ color:var(--brand-strong); border-bottom-color:var(--brand); }
+    .open-tools{ display:flex; gap:10px; padding:14px 22px 0; flex-wrap:wrap; }
+    .open-tools .field{ flex:1 1 220px; }
+    .open-tools select{ flex:0 1 260px; }
+    .open-body{ flex:1 1 auto; overflow-y:auto; padding:16px 22px 22px; }
+    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; list-style:none; margin:0; padding:0; }
+    .map-card{ border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; display:flex; flex-direction:column; }
+    .card-thumb{ height:140px; background:#e9eef2 center/cover no-repeat; }
+    .card-body{ padding:12px 14px 14px; display:flex; flex-direction:column; gap:8px; flex:1 1 auto; }
+    .card-title{ font-size:14.5px; font-weight:600; line-height:1.3; margin:0; }
+    .card-snippet{ font-size:12.5px; color:var(--muted); line-height:1.45; margin:0; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+    .card-actions{ display:flex; gap:12px; margin-top:auto; }
+    .more-row{ text-align:center; margin-top:16px; }
+    table.vers{ border-collapse:collapse; width:100%; font-size:12.5px; }
+    table.vers td, table.vers th{ text-align:left; padding:6px 4px; border-top:1px solid var(--line); vertical-align:top; }
+
+    /* print */
+    #printSheet{ display:none; }
+    @media print{
+      @page{ margin:12mm; }
+      html,body{ height:auto; overflow:visible; }
+      #app, .modal, .skip{ display:none!important; }
+      #printSheet{ display:block!important; font-family:var(--font); color:#000; }
+      #printSheet h1{ font-size:20pt; margin:0 0 6pt; }
+      #printSheet img{ width:100%; height:auto; border:1px solid #999; }
+      #printSheet .meta{ font-size:9.5pt; margin-top:8pt; line-height:1.45; }
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width:1024px){
+      .tool{ min-width:46px; padding:9px 8px; }
+      .tool .tl{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+      :root{ --tb-h:56px; }
+      .hdr-logo .wide{ display:none; }
+      .hdr-logo .compact{ display:block; height:44px; }
+      .hdr-links .pill.outline{ display:none; }
+      .doc-title{ font-size:15px; }
+    }
+    @media (max-width:640px){
+      .hdr{ gap:8px; padding:0 10px; }
+      .hdr-title .doc-title{ display:none; }
+      .hdr-title{ justify-content:flex-end; }
+      .hdr-links, .ver-btn{ display:none; }
+      .hdr-partners img{ height:30px; }
+      .user-name{ display:none; }
+      .user-btn{ padding:3px; }
+      .toolbar{ left:6px; right:6px; transform:none; max-width:none; bottom:20px; justify-content:flex-start; }
+      .corner, .corner.raised{ bottom:calc(var(--tb-h) + 34px); max-width:70%; }
+      .panel, .panel.wide{ left:8px; right:8px; width:auto; top:auto; bottom:calc(var(--tb-h) + 28px); max-height:58%; }
+      .open-card{ max-height:calc(100vh - 40px); }
+      .modal.top{ padding-top:20px; }
+    }
+    @media (prefers-reduced-motion: reduce){ *{ scroll-behavior:auto!important; transition:none!important; animation:none!important; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#toolbar" data-i18n="skipToTools">Skip to map tools</a>
+  <div id="app">
+    <header class="hdr" id="hdr">
+      <a class="hdr-logo" id="logoLink" href="./">
+        <img class="wide" id="logoImg" alt="" hidden />
+        <img class="compact" id="logoCompact" alt="" hidden />
+        <span class="logo-text" id="logoText"></span>
+      </a>
+      <div class="hdr-title">
+        <label for="docTitle" class="sr-only" data-i18n="mapTitle">Map title</label>
+        <input id="docTitle" class="doc-title" type="text" value="" spellcheck="false" autocomplete="off" />
+        <button class="icon-btn" id="infoBtn" type="button" data-i18n-aria="aboutMap" data-i18n-title="aboutMap">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        </button>
+      </div>
+      <nav class="hdr-links" id="hdrLinks" aria-label="Help"></nav>
+      <div class="hdr-partners" id="hdrPartners"></div>
+      <div class="hdr-user">
+        <button class="pill" id="signInBtn" type="button" data-i18n="signIn" hidden>Sign in</button>
+        <div id="userWrap" hidden>
+          <button class="user-btn" id="userBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenu">
+            <span class="avatar" id="avatar" aria-hidden="true"></span><span class="user-name" id="userName"></span>
+          </button>
+          <div class="menu" id="userMenu" role="menu" hidden>
+            <button type="button" role="menuitem" id="myMapsBtn" data-i18n="myArcgisMaps">My ArcGIS maps</button>
+            <button type="button" role="menuitem" id="signOutBtn" data-i18n="signOut">Sign out</button>
+          </div>
+        </div>
+      </div>
+      <button class="ver-btn" id="verBtn" type="button" aria-expanded="false" aria-controls="aboutPanel">v1</button>
+    </header>
+
+    <main class="map-wrap" id="mapWrap">
+      <div id="viewDiv"></div>
+      <div id="sceneDiv" hidden></div>
+      <div class="corner"><div class="disclaimer" id="disclaimer" hidden></div><div class="credit">Created by Jason Sawle</div></div>
+
+      <nav class="toolbar" id="toolbar" tabindex="-1" data-i18n-aria="tools">
+        <button class="tool" type="button" id="tool-open" data-feature="openMap">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>
+          <span class="tl" data-i18n="openMap">Open map</span></button>
+        <button class="tool" type="button" id="tool-add" data-panel="add" aria-expanded="false" aria-controls="addPanel" data-feature="addLayer">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+          <span class="tl" data-i18n="addLayer">Add layer</span></button>
+        <button class="tool" type="button" id="tool-layers" data-panel="layers" aria-expanded="false" aria-controls="layersPanel" data-feature="layers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5zM3 13l9 5 9-5M3 18l9 5 9-5"/></svg>
+          <span class="tl" data-i18n="mapLayers">Map layers</span></button>
+        <button class="tool" type="button" id="tool-legend" data-panel="legend" aria-expanded="false" aria-controls="legendPanel" data-feature="legend">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h3v3H3V5zm5 0h13v3H8V5zM3 10.5h3v3H3v-3zm5 0h13v3H8v-3zM3 16h3v3H3v-3zm5 0h13v3H8v-3z"/></svg>
+          <span class="tl" data-i18n="legend">Legend</span></button>
+        <button class="tool" type="button" id="tool-basemaps" data-panel="basemaps" aria-expanded="false" aria-controls="basemapsPanel" data-feature="basemaps">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 0h7v7h-7v-7z"/></svg>
+          <span class="tl" data-i18n="basemaps">Basemaps</span></button>
+        <button class="tool" type="button" id="tool-measure" data-panel="measure" aria-expanded="false" aria-controls="measurePanel" data-feature="measure">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h18v8H3z"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4" stroke-width="1.6"/></svg>
+          <span class="tl" data-i18n="measure">Measure</span></button>
+        <button class="tool" type="button" id="tool-sketch" data-panel="sketch" aria-expanded="false" aria-controls="sketchPanel" data-feature="sketch">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          <span class="tl" data-i18n="sketch">Sketch</span></button>
+        <button class="tool" type="button" id="tool-bookmarks" data-panel="bookmarks" aria-expanded="false" aria-controls="bookmarksPanel" data-feature="bookmarks">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 2h12a1 1 0 0 1 1 1v18l-7-4-7 4V3a1 1 0 0 1 1-1z"/></svg>
+          <span class="tl" data-i18n="bookmarks">Bookmarks</span></button>
+        <div class="seg" role="group" id="viewSeg" data-feature="threeD" data-i18n-aria="viewMode">
+          <button type="button" id="tg2d" aria-pressed="true" data-i18n="view2d">2D</button>
+          <button type="button" id="tg3d" aria-pressed="false" data-i18n="view3d">3D</button>
+        </div>
+        <button class="tool" type="button" id="tool-save" data-panel="save" aria-expanded="false" aria-controls="savePanel" data-feature="save">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg>
+          <span class="tl" data-i18n="save">Save</span></button>
+      </nav>
+
+      <!-- ===== Panels ===== -->
+      <section class="panel" id="addPanel" hidden aria-labelledby="addH">
+        <div class="panel-head"><h2 id="addH" tabindex="-1" data-i18n="addLayer">Add layer</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body">
+          <p class="hint" id="addIntro"></p>
+          <div class="section" id="csvSection" data-feature="csv">
+            <p class="label" data-i18n="yourData">Your own data</p>
+            <p class="hint" data-i18n="yourDataHint">Drop a CSV file with latitude and longitude columns anywhere on the map, or choose one.</p>
+            <button class="btn" type="button" id="csvPick" data-i18n="chooseCsv">Choose a CSV file…</button>
+          </div>
+          <div class="section">
+            <p class="label" id="catalogLabel"></p>
+            <div class="search-row">
+              <label class="sr-only" for="layerSearch" data-i18n="search">Search</label>
+              <input class="field" id="layerSearch" type="search" data-i18n-ph="search" />
+            </div>
+            <label class="sr-only" for="layerCat" data-i18n="allCategories">All topics</label>
+            <select class="field" id="layerCat"></select>
+            <ul class="list" id="layerList" aria-live="polite" style="margin-top:8px"></ul>
+            <div class="more-row" id="layerMoreRow" hidden><button class="btn" type="button" id="layerMore" data-i18n="loadMore">Show more</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel wide" id="dataPanel" hidden aria-labelledby="dataH">
+        <div class="panel-head"><h2 id="dataH" tabindex="-1" data-i18n="addData">Add data</h2><button class="x-btn" type="button" id="dataClose" data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body">
+          <div class="error-box" id="dataError" role="alert" hidden></div>
+          <div id="llPicker" hidden>
+            <p class="note" data-i18n="pickLatLon">We couldn't find latitude and longitude columns. Which columns hold them?</p>
+            <label class="lbl" for="latSel" data-i18n="latitude">Latitude</label><select class="field" id="latSel"></select>
+            <label class="lbl" for="lonSel" data-i18n="longitude">Longitude</label><select class="field" id="lonSel"></select>
+            <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="llUse" data-i18n="useColumns">Use these columns</button></div>
+          </div>
+          <div id="dataControls">
+            <p class="data-summary" id="dataSummary"></p>
+            <h3 class="cfg-h" data-i18n="mapStyle">Map style</h3>
+            <div class="style-grid" id="styleList"></div>
+            <div class="style-desc" id="styleDesc"></div>
+            <h3 class="cfg-h" data-i18n="fields">Columns</h3>
+            <div id="fieldRows"></div>
+            <h3 class="cfg-h" data-i18n="points">Points</h3>
+            <div class="sym-row" id="shapeRow"><span class="sym-label" data-i18n="shape">Shape</span><div class="row" id="shapeOptions"></div></div>
+            <div class="sym-row" id="colorRow"><span class="sym-label" data-i18n="colour">Colour</span><div class="swatches" id="dataSwatches"></div></div>
+            <div class="sym-row" id="rampRow"><span class="sym-label" data-i18n="ramp">Colours</span><div class="row" id="rampList"></div></div>
+            <div class="sym-row"><label class="sym-label" for="dataSize" data-i18n="size">Size</label><input type="range" id="dataSize" min="6" max="28" value="12" style="flex:1" /><span class="slider-val" id="dataSizeVal">12 px</span></div>
+            <div class="cfg-summary" id="cfgSummary" aria-live="polite"></div>
+            <p class="hint" style="margin-top:8px" data-i18n="livePreview">Live preview: the map updates as you change options.</p>
+          </div>
+        </div>
+        <div class="panel-foot"><button class="btn" type="button" id="dataCancel" data-i18n="cancel">Cancel</button><button class="btn primary" type="button" id="dataSubmit" data-i18n="addToMap">Add to map</button></div>
+      </section>
+
+      <section class="panel" id="layersPanel" hidden aria-labelledby="layersH">
+        <div class="panel-head"><h2 id="layersH" tabindex="-1" data-i18n="mapLayers">Map layers</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body"><p class="hint" data-i18n="layersIntro">Turn layers on and off. Bookmarks remember these settings.</p><ul class="list" id="layersList"></ul></div>
+      </section>
+
+      <section class="panel" id="legendPanel" hidden aria-labelledby="legendH">
+        <div class="panel-head"><h2 id="legendH" tabindex="-1" data-i18n="legend">Legend</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body"><div id="legendBody"></div></div>
+      </section>
+
+      <section class="panel" id="basemapsPanel" hidden aria-labelledby="basemapsH">
+        <div class="panel-head"><h2 id="basemapsH" tabindex="-1" data-i18n="basemaps">Basemaps</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body"><p class="hint" data-i18n="basemapsIntro">Choose the map underneath your layers.</p><div id="basemapsBody"></div></div>
+      </section>
+
+      <section class="panel" id="measurePanel" hidden aria-labelledby="measureH">
+        <div class="panel-head"><h2 id="measureH" tabindex="-1" data-i18n="measure">Measure</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body">
+          <div class="row" style="margin-bottom:10px">
+            <button class="btn" type="button" id="mDist" aria-pressed="false" data-i18n="distance">Distance</button>
+            <button class="btn" type="button" id="mArea" aria-pressed="false" data-i18n="area">Area</button>
+            <button class="btn" type="button" id="mCoord" aria-pressed="false" data-i18n="coordinates">Coordinates</button>
+            <button class="btn" type="button" id="mClear" data-i18n="clear">Clear</button>
+          </div>
+          <p class="hint" data-i18n="measureHint">Choose a tool, then click on the map. Double-click to finish.</p>
+          <div id="measureBody"></div><div id="coordBody" hidden></div>
+        </div>
+      </section>
+
+      <section class="panel" id="sketchPanel" hidden aria-labelledby="sketchH">
+        <div class="panel-head"><h2 id="sketchH" tabindex="-1" data-i18n="sketch">Sketch</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body">
+          <div class="section">
+            <p class="label" data-i18n="drawTools">Tools</p>
+            <div class="row" role="group" id="sketchTools">
+              <button class="tbtn" type="button" data-tool="point" aria-pressed="false" data-i18n-aria="toolPoint" data-i18n-title="toolPoint"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg></button>
+              <button class="tbtn" type="button" data-tool="polyline" aria-pressed="false" data-i18n-aria="toolLine" data-i18n-title="toolLine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l5-5 4 3 7-8"/></svg></button>
+              <button class="tbtn" type="button" data-tool="polygon" aria-pressed="false" data-i18n-aria="toolPolygon" data-i18n-title="toolPolygon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 6.5-3.4 10.5H6.4L3 9.5z"/></svg></button>
+              <button class="tbtn" type="button" data-tool="circle" aria-pressed="false" data-i18n-aria="toolCircle" data-i18n-title="toolCircle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/></svg></button>
+              <button class="tbtn" type="button" data-tool="text" aria-pressed="false" data-i18n-aria="toolText" data-i18n-title="toolText"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 19l5-14h2.1l5 14h-2.3l-1.25-3.7H8.55L7.3 19H5zm4.2-5.6h4.1l-2.05-6.05L9.2 13.4z"/></svg></button>
+              <button class="tbtn" type="button" data-tool="select" aria-pressed="false" data-i18n-aria="toolSelect" data-i18n-title="toolSelect"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 3l15 7.5-6.4 2.1-2.1 6.4L5 3z"/></svg></button>
+            </div>
+          </div>
+          <div class="section">
+            <div class="row" style="justify-content:space-between;margin-bottom:8px"><p class="label" style="margin:0" data-i18n="popup">Pop-up</p><button class="btn danger" type="button" id="deleteFeature" data-i18n="deleteFeature">Delete</button></div>
+            <p class="hint" id="popupHint" data-i18n="popupHint">Draw something, or select it on the map, to add its pop-up.</p>
+            <div class="stack">
+              <input id="fImageFile" type="file" accept="image/*" hidden />
+              <button class="img-pick" type="button" id="imgPick" data-i18n="addImage">Add image (optional)</button>
+              <div class="img-preview" id="imgPreview" hidden><img id="imgThumb" alt="" /><button class="img-remove" type="button" id="imgRemove" data-i18n-aria="removeImage">&times;</button></div>
+              <label class="sr-only" for="fTitle" data-i18n="titleOptional">Title (optional)</label>
+              <input class="field" id="fTitle" type="text" data-i18n-ph="titleOptional" />
+              <label class="sr-only" for="fDesc" data-i18n="descOptional">Description (optional)</label>
+              <textarea class="field" id="fDesc" data-i18n-ph="descOptional"></textarea>
+            </div>
+          </div>
+          <div class="section"><p class="label" data-i18n="symbol">Colour</p><div class="swatches" id="swatches" role="group"></div></div>
+          <div class="section"><label class="label" for="fSize" data-i18n="size">Size</label><div class="slider-row"><input type="range" id="fSize" min="6" max="48" value="12" /><span class="slider-val" id="sizeVal">12</span></div></div>
+          <div class="section"><label class="label" for="fRot" data-i18n="rotation">Rotation</label><div class="slider-row"><input type="range" id="fRot" min="0" max="360" value="0" /><span class="slider-val" id="rotVal">0°</span></div></div>
+        </div>
+      </section>
+
+      <section class="panel" id="bookmarksPanel" hidden aria-labelledby="bookmarksH">
+        <div class="panel-head"><h2 id="bookmarksH" tabindex="-1" data-i18n="bookmarks">Bookmarks</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body">
+          <div id="bmListView">
+            <div class="center" id="bmEmpty" hidden><div style="font-size:30px;color:#9a9a9a" aria-hidden="true">&#9873;</div><p class="label" style="margin-top:8px" data-i18n="noBookmarks">No bookmarks</p><p class="hint" data-i18n="noBookmarksText"></p></div>
+            <ul class="list" id="bmList"></ul>
+            <div class="center" style="margin-top:12px"><button class="btn" type="button" id="bmAddBtn" data-i18n="addBookmark">+ Add bookmark</button></div>
+          </div>
+          <div id="bmEditView" hidden>
+            <div class="row" style="margin-bottom:10px"><button class="btn" type="button" id="bmBack" data-i18n-aria="back">&#8249;</button><h3 id="bmEditTitle" style="margin:0;font-size:15px" tabindex="-1"></h3></div>
+            <label class="lbl" for="bmTitleInput" data-i18n="bookmarkTitle">Title</label>
+            <input class="field" id="bmTitleInput" type="text" data-i18n-ph="enterTitle" />
+            <p class="hint" id="bmHint" style="margin-top:8px" data-i18n="bookmarkHint">Saves the current location and which layers are on.</p>
+            <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" type="button" id="bmCancel" data-i18n="cancel">Cancel</button><button class="btn primary" type="button" id="bmSave"></button></div>
+            <button class="btn danger" type="button" id="bmDelete" style="width:100%;margin-top:14px" data-i18n="deleteBookmark" hidden>Delete bookmark</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="savePanel" hidden aria-labelledby="saveH">
+        <div class="panel-head"><h2 id="saveH" tabindex="-1" data-i18n="save">Save</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body">
+          <div class="tiles">
+            <button class="tile primary" type="button" id="saveTile" data-feature="localSave"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg></span><span data-i18n="saveDevice">Save map</span></button>
+            <button class="tile" type="button" id="saveAsTile" data-feature="localSave"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9"/><path d="M17 3l4 4v5"/><path d="M8 3v5h7"/><path d="M18 15v6M15 18h6"/></svg></span><span data-i18n="saveAs">Save as…</span></button>
+            <button class="tile" type="button" id="shotTile" data-feature="screenshot"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm8 3.2A3.3 3.3 0 1 0 12 16.8 3.3 3.3 0 0 0 12 10.2z"/></svg></span><span data-i18n="screenshot">Screenshot</span></button>
+            <button class="tile" type="button" id="printTile" data-feature="print"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 3h10v4H7zM5 8h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2zm4 7v3h6v-3H9z"/></svg></span><span data-i18n="print">Print</span></button>
+          </div>
+          <p class="note" data-feature="localSave"><span data-i18n="saveNote"></span> <button class="link-btn" type="button" id="openSavedLink" data-i18n="openSaved">Open a saved map</button></p>
+          <div id="agolSection" hidden>
+            <hr class="divider" />
+            <p class="label" data-i18n="arcgisSection">ArcGIS Online</p>
+            <div id="agolSignedOut"><p class="note" data-i18n="arcgisSignedOut"></p><button class="btn" type="button" id="agolSignIn" data-i18n="signIn">Sign in</button></div>
+            <div id="agolSignedIn" hidden>
+              <div class="row"><button class="btn primary" type="button" id="agolSaveNew" data-i18n="saveToArcgis">Save to ArcGIS Online</button><button class="btn" type="button" id="agolUpdate" hidden></button></div>
+              <div class="status" id="agolStatus" aria-live="polite"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="aboutPanel" hidden aria-labelledby="aboutH">
+        <div class="panel-head"><h2 id="aboutH" tabindex="-1" data-i18n="versions">Versions</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body"><p class="hint" data-i18n="versionsIntro"></p><table class="vers" id="versTable"></table></div>
+      </section>
+
+      <div class="drop-overlay" id="dropOverlay" hidden><div class="drop-inner" data-i18n="dropHere">Drop your file to add it to the map</div></div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <!-- ===== Modals ===== -->
+  <div class="modal top" id="openModal" hidden>
+    <div class="open-card" role="dialog" aria-modal="true" aria-labelledby="openH">
+      <div class="open-head"><div><h2 id="openH" tabindex="-1" data-i18n="openMap">Open map</h2><p data-i18n="openMapIntro"></p></div><button class="x-btn" type="button" data-modal-close data-i18n-aria="close">&times;</button></div>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" type="button" id="tabGroup" aria-selected="true" aria-controls="paneGroup"></button>
+        <button class="tab" role="tab" type="button" id="tabDevice" aria-selected="false" aria-controls="paneDevice" data-i18n="tabDevice" data-feature="localSave">On this device</button>
+        <button class="tab" role="tab" type="button" id="tabArcgis" aria-selected="false" aria-controls="paneArcgis" data-i18n="tabArcgis" hidden>My ArcGIS maps</button>
+      </div>
+      <div id="paneGroup" role="tabpanel" aria-labelledby="tabGroup" style="display:flex;flex-direction:column;min-height:0;flex:1 1 auto">
+        <div class="open-tools">
+          <label class="sr-only" for="groupSearch" data-i18n="search">Search</label><input class="field" id="groupSearch" type="search" data-i18n-ph="search" />
+          <label class="sr-only" for="groupCat" data-i18n="allCategories">All topics</label><select class="field" id="groupCat"></select>
+        </div>
+        <div class="open-body"><ul class="grid" id="groupGrid" aria-live="polite"></ul><p class="empty" id="groupStatus"></p><div class="more-row" id="groupMoreRow" hidden><button class="btn" type="button" id="groupMore" data-i18n="loadMore">Show more</button></div>
+          <p class="center" style="margin-top:18px"><button class="link-btn" type="button" id="newMapBtn" data-i18n="newBlankMap">Start a new blank map</button></p></div>
+      </div>
+      <div id="paneDevice" role="tabpanel" aria-labelledby="tabDevice" hidden><div class="open-body"><p class="note" data-i18n="deviceLead"></p><button class="btn primary" type="button" id="browseDevice" data-i18n="browseDevice">Browse this device…</button></div></div>
+      <div id="paneArcgis" role="tabpanel" aria-labelledby="tabArcgis" hidden style="flex-direction:column;min-height:0;flex:1 1 auto">
+        <div class="open-tools"><label class="sr-only" for="agolSearch" data-i18n="search">Search</label><input class="field" id="agolSearch" type="search" data-i18n-ph="search" /></div>
+        <div class="open-body"><p class="hint" data-i18n="arcgisLead"></p><ul class="grid" id="agolGrid" aria-live="polite"></ul><p class="empty" id="agolStatus2"></p><div class="more-row" id="agolMoreRow" hidden><button class="btn" type="button" id="agolMore" data-i18n="loadMore">Show more</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="infoModal" hidden>
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="infoH" style="max-width:620px">
+      <h2 id="infoH" tabindex="-1"></h2>
+      <div class="rich" id="infoBody"></div>
+      <div class="actions"><a class="btn" id="infoItemLink" target="_blank" rel="noopener" hidden data-i18n="openItemPage">Item page</a><button class="btn primary" type="button" data-modal-close data-i18n="close">Close</button></div>
+    </div>
+  </div>
+
+  <div class="modal" id="signInModal" hidden>
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="signInH">
+      <h2 id="signInH" tabindex="-1"></h2>
+      <div class="rich" id="signInBody"></div>
+      <div class="actions"><button class="btn" type="button" data-modal-close data-i18n="cancel">Cancel</button><button class="btn primary" type="button" id="signInGo" data-i18n="continue">Continue</button></div>
+    </div>
+  </div>
+
+  <div class="modal" id="nameModal" hidden>
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="nameH">
+      <h2 id="nameH" tabindex="-1" data-i18n="saveYourMap">Save your map</h2>
+      <label class="sr-only" for="fileNameInput" data-i18n="fileName">File name</label>
+      <div class="filename-row"><input class="field" id="fileNameInput" spellcheck="false" /><span class="ext">.mmap</span></div>
+      <p class="hint" style="margin-top:10px" data-i18n="downloadsNote"></p>
+      <div class="actions"><button class="btn" type="button" data-modal-close data-i18n="cancel">Cancel</button><button class="btn primary" type="button" id="nameConfirm" data-i18n="save">Save</button></div>
+    </div>
+  </div>
+
+  <div class="modal" id="firstSaveModal" hidden>
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="firstSaveH">
+      <h2 id="firstSaveH" tabindex="-1" data-i18n="firstSaveTitle">Save changes to this file?</h2>
+      <p class="note" id="firstSaveText"></p>
+      <div class="actions"><button class="btn" type="button" data-modal-close data-i18n="cancel">Cancel</button><button class="btn" type="button" id="fsUpdate" data-i18n="updateOriginal">Update the original</button><button class="btn primary" type="button" id="fsCopy" data-i18n="saveOwnCopy">Save my own copy…</button></div>
+    </div>
+  </div>
+
+  <div class="modal" id="agolModal" hidden>
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="agolH">
+      <h2 id="agolH" tabindex="-1" data-i18n="saveToArcgis">Save to ArcGIS Online</h2>
+      <label class="lbl" for="agolTitle" data-i18n="agolTitleLabel">Title</label><input class="field" id="agolTitle" />
+      <label class="lbl" for="agolSummary" data-i18n="agolSummaryLabel">Summary (optional)</label><textarea class="field" id="agolSummary"></textarea>
+      <p class="hint" style="margin-top:10px" data-i18n="agolPrivate"></p>
+      <div class="actions"><button class="btn" type="button" data-modal-close data-i18n="cancel">Cancel</button><button class="btn primary" type="button" id="agolConfirm" data-i18n="save">Save</button></div>
+    </div>
+  </div>
+
+  <div id="printSheet" aria-hidden="true"></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

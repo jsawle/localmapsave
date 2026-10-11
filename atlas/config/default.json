@@ -1,0 +1,23 @@
+{
+  "configVersion": 1,
+  "appName": "School Atlas",
+  "locale": "en",
+  "dir": "ltr",
+  "logo": { "url": "", "compactUrl": "", "alt": "", "link": "", "showName": false },
+  "headerLinks": [],
+  "partnerLogos": [],
+  "theme": { "brand": "#0b5c8e", "header": "#ffffff", "headerInk": "#000000", "pill": "#000000" },
+  "portalUrl": "https://www.arcgis.com",
+  "contentGroup": "36443e9570294a1f883b5d2c5abfe6b5",
+  "basemapGroup": "406646c98d0f4c608a9438d40ce2df9e",
+  "defaultBasemap": "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
+  "startView": { "center": [0, 20], "zoom": 2 },
+  "units": "metric",
+  "scalebar": "dual",
+  "disclaimer": "Basemaps and map layers may not reflect the official map policy of this programme.",
+  "signIn": { "clientId": "", "popup": true, "onboardingTitle": "Sign in with ArcGIS", "onboardingHtml": "<p>Use your ArcGIS account to sign in. Signing in lets you save maps to your ArcGIS Online account.</p><p>You don't need an account to use the app or to save maps on this device.</p>" },
+  "agolTags": ["school map"],
+  "csvMaxRows": 1000,
+  "features": { "openMap": true, "addLayer": true, "csv": true, "layers": true, "legend": true, "basemaps": true, "measure": true, "sketch": true, "bookmarks": true, "threeD": true, "save": true, "localSave": true, "screenshot": true, "print": true, "search": true, "signIn": true },
+  "strings": {}
+}
