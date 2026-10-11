@@ -1,0 +1,1627 @@
+// Atlas: a white-label build of the MapMaker classroom map app.
+// ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
+// Created by Jason Sawle.
+import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef } from "./lib/csv.js";
+import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, AUTHORING_APP, sanitizeDoc, cleanBookmarks, docToWebMap,
+  operationalLayersToSketch, operationalLayerToDataDef, isOwnLayerJson, specToBookmarks, xyToLonLat } from "./lib/doc.js";
+import { DEFAULT_STRINGS } from "./lib/strings.js";
+
+const APP_VERSION = "1.0.0";
+const SKETCH_VERSION = "1.0";
+const CONFIG_SCHEMA = 1;
+const SDK_VERSION = "5.1";
+const AUTH_STASH = "atlas.authReturn";
+
+const $ = (id) => document.getElementById(id);
+const fmt = (s, o) => String(s == null ? "" : s).replace(/\{(\w+)\}/g, (_, k) => (o && o[k] != null ? o[k] : ""));
+const HEX32 = /^[0-9a-f]{32}$/i;
+const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ============================================================ Config
+const DEFAULT_CONFIG = {
+  configVersion: 1,
+  appName: "School Atlas",
+  locale: "en", dir: "ltr",
+  logo: { url: "", compactUrl: "", alt: "", link: "", showName: false },
+  headerLinks: [],
+  partnerLogos: [],
+  theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
+  portalUrl: "https://www.arcgis.com",
+  contentGroup: "36443e9570294a1f883b5d2c5abfe6b5",
+  basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
+  defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
+  startView: { center: [0, 20], zoom: 2 },
+  units: "metric",
+  scalebar: "dual",
+  disclaimer: "",
+  signIn: { clientId: "", popup: true, onboardingTitle: "", onboardingHtml: "" },
+  agolTags: ["school map"],
+  csvMaxRows: 1000,
+  features: { openMap: true, addLayer: true, csv: true, layers: true, legend: true, basemaps: true, measure: true, sketch: true,
+    bookmarks: true, threeD: true, save: true, localSave: true, screenshot: true, print: true, search: true, signIn: true },
+  strings: {}
+};
+function mergeConfig(base, over) {
+  const out = Array.isArray(base) ? base.slice() : { ...base };
+  for (const k of Object.keys(over || {})) {
+    const b = base ? base[k] : undefined, o = over[k];
+    out[k] = b && o && typeof b === "object" && typeof o === "object" && !Array.isArray(b) && !Array.isArray(o) ? mergeConfig(b, o) : o;
+  }
+  return out;
+}
+function readAuthStash() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(AUTH_STASH) || "null");
+    sessionStorage.removeItem(AUTH_STASH);
+    if (s && Date.now() - (s.t || 0) < 30 * 60 * 1000) return s;
+  } catch (e) { /* storage unavailable */ }
+  return null;
+}
+const params = new URLSearchParams(location.search);
+const returningFromSignIn = params.has("code") && params.has("state");
+const authStash = returningFromSignIn ? readAuthStash() : null;
+let cfgName = (params.get("config") || (authStash && authStash.config) || "default").replace(/[^\w-]/g, "") || "default";
+let configMissing = null;
+async function fetchConfig(name) { const r = await fetch(`./config/${name}.json`, { cache: "no-cache" }); if (!r.ok) throw new Error(String(r.status)); return r.json(); }
+let rawCfg = {};
+try { rawCfg = await fetchConfig(cfgName); }
+catch (e) {
+  console.warn("Config not found:", cfgName, e);
+  if (cfgName !== "default") { configMissing = cfgName; cfgName = "default"; try { rawCfg = await fetchConfig("default"); } catch (e2) { rawCfg = {}; } }
+}
+const cfg = mergeConfig(DEFAULT_CONFIG, rawCfg);
+for (const k of ["contentGroup", "basemapGroup", "defaultBasemap"]) if (!HEX32.test(cfg[k] || "")) { console.warn("Config " + k + " isn't a 32-character item or group ID; using the default."); cfg[k] = DEFAULT_CONFIG[k]; }
+const F = cfg.features;
+const S = { ...DEFAULT_STRINGS, ...(cfg.strings || {}) };
+const APPV = { app: cfg.appName };
+const t = (key, o) => fmt(S[key] != null ? S[key] : key, { ...APPV, ...(o || {}) });
+const PORTAL = String(cfg.portalUrl || "https://www.arcgis.com").replace(/\/+$/, "");
+
+// ============================================================ Branding and text
+function hexToRgb(hex) {
+  let h = String(hex || "").replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  return Number.isFinite(n) ? [(n >> 16) & 255, (n >> 8) & 255, n & 255] : [0, 0, 0];
+}
+function luminance(hex) { return hexToRgb(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); }
+function contrast(a, b) { const la = luminance(a), lb = luminance(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); }
+const bestInk = (bg) => (contrast(bg, "#ffffff") >= contrast(bg, "#000000") ? "#ffffff" : "#000000");
+function mix(hex, withHex, w) { const a = hexToRgb(hex), b = hexToRgb(withHex); return "#" + a.map((v, i) => Math.round(v * (1 - w) + b[i] * w).toString(16).padStart(2, "0")).join(""); }
+const safeUrl = (u) => (typeof u === "string" && /^(https:\/\/|\.\/|\/|[\w-]+\.(png|svg|jpe?g|webp))/i.test(u) ? u : "");
+
+function applyTheme() {
+  const th = cfg.theme, r = document.documentElement.style;
+  const set = (k, v) => { if (v) r.setProperty(k, v); };
+  const soft = th.brandSoft || mix(th.brand, "#ffffff", 0.88);
+  let strong = th.brand;   // brand-coloured text on the soft tint must still reach 4.5:1
+  for (let i = 0; i < 20 && contrast(strong, soft) < 4.5; i++) strong = mix(strong, "#000000", 0.08);
+  set("--brand", th.brand); set("--brand-ink", th.brandInk || bestInk(th.brand)); set("--brand-soft", soft); set("--brand-strong", strong);
+  set("--header-bg", th.header); set("--header-ink", th.headerInk || bestInk(th.header)); set("--header-line", th.headerLine);
+  set("--pill-dark", th.pill); set("--pill-dark-ink", th.pillInk || bestInk(th.pill));
+  if (th.font) set("--font", th.font);
+  if (contrast(th.brand, th.brandInk || bestInk(th.brand)) < 4.5) console.warn("Theme: brand colour and its text colour are below WCAG 4.5:1 contrast.");
+}
+function applyStrings(root) {
+  root = root || document;
+  root.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  root.querySelectorAll("[data-i18n-aria]").forEach((el) => el.setAttribute("aria-label", t(el.dataset.i18nAria)));
+  root.querySelectorAll("[data-i18n-title]").forEach((el) => el.setAttribute("title", t(el.dataset.i18nTitle)));
+  root.querySelectorAll("[data-i18n-ph]").forEach((el) => el.setAttribute("placeholder", t(el.dataset.i18nPh)));
+}
+function applyHeader() {
+  document.documentElement.lang = cfg.locale || "en";
+  document.documentElement.dir = cfg.dir === "rtl" ? "rtl" : "ltr";
+  document.title = cfg.appName;
+  const logo = cfg.logo || {};
+  const link = $("logoLink");
+  link.href = safeUrl(logo.link) || ("./" + (cfgName !== "default" ? "?config=" + encodeURIComponent(cfgName) : ""));
+  if (logo.link) { link.target = "_blank"; link.rel = "noopener"; }
+  const wide = safeUrl(logo.url), compact = safeUrl(logo.compactUrl) || wide;
+  if (wide) {
+    $("logoImg").src = wide; $("logoImg").alt = logo.alt || cfg.appName; $("logoImg").hidden = false;
+    $("logoCompact").src = compact; $("logoCompact").alt = logo.alt || cfg.appName; $("logoCompact").hidden = false;
+  }
+  $("logoText").textContent = !wide || logo.showName ? cfg.appName : "";
+  $("logoText").hidden = !!wide && !logo.showName;
+  const links = $("hdrLinks"); links.innerHTML = "";
+  for (const l of cfg.headerLinks || []) {
+    if (!l || !/^https:\/\//i.test(l.url || "") || !l.label) continue;
+    const a = document.createElement("a");
+    a.className = "pill " + (l.style === "outline" ? "outline" : "dark");
+    a.href = l.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = l.label;
+    links.appendChild(a);
+  }
+  links.hidden = !links.children.length;
+  const partners = $("hdrPartners"); partners.innerHTML = "";
+  for (const p of cfg.partnerLogos || []) {
+    const src = safeUrl(p && p.url);
+    if (!src) continue;
+    const img = document.createElement("img"); img.src = src; img.alt = p.alt || "";
+    if (p.link && /^https:\/\//i.test(p.link)) { const a = document.createElement("a"); a.href = p.link; a.target = "_blank"; a.rel = "noopener"; a.appendChild(img); partners.appendChild(a); }
+    else partners.appendChild(img);
+  }
+  if (cfg.disclaimer) { $("disclaimer").textContent = cfg.disclaimer; $("disclaimer").hidden = false; }
+  $("docTitle").placeholder = S.untitled;
+  $("docTitle").setAttribute("aria-label", S.mapTitle);
+  $("verBtn").textContent = "v" + APP_VERSION;
+  $("verBtn").setAttribute("aria-label", S.versions + " v" + APP_VERSION);
+  $("tabGroup").textContent = t("tabGroup");
+  $("addIntro").textContent = t("addLayerIntro");
+  $("catalogLabel").textContent = t("layersFrom");
+  document.querySelectorAll("[data-feature]").forEach((el) => { if (F[el.dataset.feature] === false) el.hidden = true; });
+  $("signInBtn").hidden = F.signIn === false;
+  $("agolSection").hidden = F.signIn === false;
+}
+applyTheme();
+applyStrings();
+applyHeader();
+
+// ============================================================ ArcGIS SDK
+const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel, Basemap, BasemapGallery,
+  PortalBasemapsSource, Measurement, CoordinateConversion, ScaleBar, Search, Expand, Home, Compass, NavigationToggle, Legend, Layer,
+  Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils] = await $arcgis.import([
+  "@arcgis/core/Map.js", "@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js", "@arcgis/core/views/SceneView.js",
+  "@arcgis/core/layers/GraphicsLayer.js", "@arcgis/core/layers/FeatureLayer.js", "@arcgis/core/Graphic.js",
+  "@arcgis/core/widgets/Sketch/SketchViewModel.js", "@arcgis/core/Basemap.js", "@arcgis/core/widgets/BasemapGallery.js",
+  "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js", "@arcgis/core/widgets/Measurement.js",
+  "@arcgis/core/widgets/CoordinateConversion.js", "@arcgis/core/widgets/ScaleBar.js", "@arcgis/core/widgets/Search.js",
+  "@arcgis/core/widgets/Expand.js", "@arcgis/core/widgets/Home.js", "@arcgis/core/widgets/Compass.js",
+  "@arcgis/core/widgets/NavigationToggle.js", "@arcgis/core/widgets/Legend.js", "@arcgis/core/layers/Layer.js",
+  "@arcgis/core/layers/support/Field.js", "@arcgis/core/layers/support/LabelClass.js", "@arcgis/core/renderers/support/jsonUtils.js",
+  "@arcgis/core/geometry/Extent.js", "@arcgis/core/config.js", "@arcgis/core/intl.js", "@arcgis/core/identity/IdentityManager.js",
+  "@arcgis/core/identity/OAuthInfo.js", "@arcgis/core/portal/Portal.js", "@arcgis/core/request.js", "@arcgis/core/core/reactiveUtils.js"
+]);
+esriConfig.portalUrl = PORTAL;
+try { if (cfg.locale && cfg.locale !== "en") intl.setLocale(cfg.locale); } catch (e) { console.warn("Locale not supported", e); }
+
+async function restGet(path, query) {
+  const r = await esriRequest(PORTAL + path, { query: { f: "json", ...(query || {}) }, responseType: "json" });
+  if (r.data && r.data.error) throw new Error(r.data.error.message || "Request failed");
+  return r.data;
+}
+
+// ============================================================ Map, views and widgets
+const graphicsLayer = new GraphicsLayer({ id: "__sketch", title: S.sketchLayer, elevationInfo: { mode: "on-the-ground" }, listMode: "hide" });
+const defaultBasemap = () => new Basemap({ portalItem: { id: cfg.defaultBasemap } });
+const localMap = new EsriMap({ basemap: defaultBasemap(), ground: "world-elevation", layers: [graphicsLayer] });
+const startCenter = Array.isArray(cfg.startView.center) ? cfg.startView.center : [0, 20];
+const mapView = new MapView({ container: "viewDiv", map: localMap, center: startCenter, zoom: Number(cfg.startView.zoom) || 2 });
+let view = mapView, sceneView = null, mode = "2d";
+const viewHandlers = [];
+function onViews(evt, fn) { viewHandlers.push([evt, fn]); mapView.on(evt, fn); if (sceneView) sceneView.on(evt, fn); }
+function activeMap() { return view.map; }
+function addViewUI(v, is3d) {
+  if (F.search !== false) v.ui.add(new Expand({ view: v, content: new Search({ view: v }), expandIcon: "search", expandTooltip: S.search, group: "top-left" }), { position: "top-left", index: 0 });
+  v.ui.add(new Home({ view: v }), { position: "top-left", index: 1 });
+  if (is3d) v.ui.add(new NavigationToggle({ view: v }), "top-left");
+  v.ui.add(new Compass({ view: v }), "bottom-left");
+  if (!is3d) v.ui.add(new ScaleBar({ view: v, unit: ["dual", "metric", "imperial"].includes(cfg.scalebar) ? cfg.scalebar : "dual" }), "bottom-left");
+}
+addViewUI(mapView, false);
+function goToSafe(target, opts) {
+  const o = { animate: !reduceMotion, ...(opts || {}) };
+  let tries = 0;
+  const attempt = () => view.goTo(target, o).catch((e) => {
+    if (e && e.name === "AbortError") return;
+    if (++tries < 4) return new Promise((res) => setTimeout(res, 350)).then(attempt);
+  });
+  return view.when().then(attempt);
+}
+
+// ============================================================ State
+let dirty = false;
+let currentSource = null;          // the web map opened from the collection or ArcGIS Online: { itemId, title, item, data }
+let currentAgolItem = null;        // the signed-in user's own ArcGIS Online item for this map: { id, owner, title }
+const dataLayers = [];              // FeatureLayers from CSV files (each keeps its definition in _srcDef)
+const portalLayers = new Map();    // itemId -> layer added from the collection
+let bookmarks = [];
+let currentFileHandle = null, openedHandleUnsaved = false;
+let portalUser = null;
+function markDirty() { dirty = true; }
+function markClean() { dirty = false; }
+function confirmDiscard() { return !dirty || window.confirm(S.discard); }
+window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+function sizeTitle() { const el = $("docTitle"); el.size = Math.max(8, Math.min(60, (el.value || el.placeholder || "").length + 2)); }
+$("docTitle").addEventListener("input", () => { markDirty(); sizeTitle(); });
+function currentTitle() { return ($("docTitle").value || "").trim() || S.untitled; }
+function setTitle(v) { $("docTitle").value = (v && String(v).trim()) || ""; sizeTitle(); }
+sizeTitle();
+// Keep the disclaimer and credit clear of the toolbar: lift them above it when they would overlap.
+function layoutCorner() {
+  const c = document.querySelector(".corner"), tb = $("toolbar");
+  if (!c || !tb) return;
+  c.classList.remove("raised");
+  const a = c.getBoundingClientRect(), b = tb.getBoundingClientRect();
+  if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) c.classList.add("raised");
+}
+window.addEventListener("resize", layoutCorner);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutCorner);
+layoutCorner();
+function titleSlug() { return currentTitle().replace(/[^\w\-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "map"; }
+
+// ============================================================ Toast, panels, modals (keyboard accessible)
+let toastTimer = 0;
+function toast(msg, ms) { const el = $("toast"); el.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.textContent = ""; }, ms || 3400); }
+
+const PANELS = { add: "addPanel", data: "dataPanel", layers: "layersPanel", legend: "legendPanel", basemaps: "basemapsPanel",
+  measure: "measurePanel", sketch: "sketchPanel", bookmarks: "bookmarksPanel", save: "savePanel", about: "aboutPanel" };
+const TRIGGERS = { add: "tool-add", data: "tool-add", layers: "tool-layers", legend: "tool-legend", basemaps: "tool-basemaps",
+  measure: "tool-measure", sketch: "tool-sketch", bookmarks: "tool-bookmarks", save: "tool-save", about: "verBtn" };
+let openPanelName = null;
+function setExpanded(name) {
+  new Set(Object.values(TRIGGERS)).forEach((id) => { const el = $(id); if (el) el.setAttribute("aria-expanded", "false"); });
+  if (name && $(TRIGGERS[name])) $(TRIGGERS[name]).setAttribute("aria-expanded", "true");
+}
+function openPanel(name, opts) {
+  if (openPanelName && openPanelName !== name) panelClosing(openPanelName);
+  for (const [k, id] of Object.entries(PANELS)) $(id).hidden = k !== name;
+  openPanelName = name;
+  setExpanded(name);
+  panelOpening(name);
+  updatePopupEnabled();
+  if (!opts || opts.focus !== false) { const h = $(PANELS[name]).querySelector("h2"); if (h) h.focus(); }
+}
+function closePanels(restoreFocus) {
+  const name = openPanelName;
+  if (!name) return;
+  panelClosing(name);
+  const panel = $(PANELS[name]);
+  const hadFocus = panel.contains(document.activeElement);
+  for (const id of Object.values(PANELS)) $(id).hidden = true;
+  openPanelName = null;
+  setExpanded(null);
+  updatePopupEnabled();
+  if (restoreFocus !== false && hadFocus && $(TRIGGERS[name])) $(TRIGGERS[name]).focus();
+}
+function togglePanel(name) { if (openPanelName === name) closePanels(); else openPanel(name); }
+function panelOpening(name) {
+  if (name === "sketch") { sketchPanelOpen = true; setTool("select"); selectForEdit(null); }
+  if (name === "layers") renderLayers();
+  if (name === "bookmarks") showBmList();
+  if (name === "add") ensureCatalog();
+  if (name === "save") renderAgol();
+  if (name === "about") renderVersions();
+  if (name === "legend") ensureLegend();
+  if (name === "basemaps") ensureGallery();
+  if (name === "measure") ensureMeasure();
+}
+function panelClosing(name) {
+  if (name === "sketch") { endSketchOps(); sketchPanelOpen = false; placingText = false; currentTool = null; selectedFeature = null; updateToolButtons(); }
+  if (name === "measure") stopMeasuring();
+  if (name === "data") { addState = null; removePreview(true); }
+}
+document.querySelectorAll("[data-panel]").forEach((b) => b.addEventListener("click", () => togglePanel(b.dataset.panel)));
+document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => closePanels()));
+$("verBtn").addEventListener("click", () => togglePanel("about"));
+
+const modalStack = [];
+function openModal(id, focusEl) {
+  const m = $(id);
+  if (!m.hidden) return;
+  modalStack.push({ id, ret: document.activeElement });
+  m.hidden = false;
+  setTimeout(() => { const f = focusEl || m.querySelector("h2"); if (f) f.focus(); }, 0);
+}
+function closeModal(id) {
+  const m = $(id);
+  if (!m || m.hidden) return;
+  m.hidden = true;
+  const i = modalStack.findIndex((x) => x.id === id);
+  const rec = i >= 0 ? modalStack.splice(i, 1)[0] : null;
+  if (rec && rec.ret && document.contains(rec.ret) && rec.ret.focus) rec.ret.focus();
+}
+document.querySelectorAll(".modal").forEach((m) => m.addEventListener("click", (e) => { if (e.target === m) closeModal(m.id); }));
+document.querySelectorAll("[data-modal-close]").forEach((b) => b.addEventListener("click", () => closeModal(b.closest(".modal").id)));
+function focusables(root) { return [...root.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])')].filter((el) => el.offsetParent !== null); }
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Tab" && modalStack.length) {
+    const m = $(modalStack[modalStack.length - 1].id), f = focusables(m);
+    if (!f.length) return;
+    if (e.shiftKey && (document.activeElement === f[0] || !m.contains(document.activeElement))) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+    return;
+  }
+  if (e.key !== "Escape") {
+    const ae = document.activeElement || document.body;
+    const inMap = $("viewDiv").contains(ae) || $("sceneDiv").contains(ae);
+    if (sketchPanelOpen && selectedFeature && (e.key === "Delete" || (e.key === "Backspace" && inMap)) && !/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) { e.preventDefault(); deleteSelected(); }
+    return;
+  }
+  if (modalStack.length) { e.preventDefault(); closeModal(modalStack[modalStack.length - 1].id); return; }
+  if (!$("userMenu").hidden) { closeUserMenu(true); return; }
+  if (sketchPanelOpen && (drawing || placingText)) { setTool("select"); return; }
+  if (openPanelName) closePanels();
+});
+
+// ============================================================ Pop-ups
+let sketchPanelOpen = false, measureActive = false;
+function updatePopupEnabled() {
+  const on = !sketchPanelOpen && !measureActive && !placingText;
+  for (const v of [mapView, sceneView]) {
+    if (!v) continue;
+    v.popupEnabled = on;
+    if (!on) { try { v.closePopup(); } catch (e) { /* no popup */ } }
+  }
+}
+
+// ============================================================ Sketch
+const COLOUR_NAMES = String(S.colourNames || "").split(",");
+let drawing = false, placingText = false, selectedFeature = null, currentTool = null;
+let pendingStyle = { color: PALETTE_HEX[0], size: 12, rotation: 0 };
+const newUid = () => "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const sketchVM = new SketchViewModel({ view, layer: graphicsLayer, updateOnGraphicClick: false, defaultUpdateOptions: { toggleToolOnClick: false, enableRotation: false } });
+
+function symbolFor(kind, o) {
+  const rgb = hexToRgb(o.color);
+  if (kind === "text") return { type: "text", text: o.text || S.textDefault, color: o.color, haloColor: "#ffffff", haloSize: 1.5, angle: o.rotation || 0, font: { size: Math.max(10, o.size || 16), weight: "bold" } };
+  if (kind === "polyline") return { type: "simple-line", color: o.color, width: Math.max(2, Math.round((o.size || 12) / 4)) };
+  if (kind === "polygon") return { type: "simple-fill", color: [rgb[0], rgb[1], rgb[2], 0.25], outline: { color: o.color, width: 2 } };
+  return { type: "simple-marker", style: "circle", color: o.color, size: o.size || 12, angle: o.rotation || 0, outline: { color: "#ffffff", width: 1.5 } };
+}
+function applyStyle(g) {
+  const a = g.attributes || (g.attributes = {});
+  const kind = a.kind === "text" ? "text" : (g.geometry && g.geometry.type) || "point";
+  g.symbol = symbolFor(kind, { color: a.color || PALETTE_HEX[0], size: a.size || 12, rotation: a.rotation || 0, text: a.title });
+}
+function popupContent(event) {
+  const a = (event && event.graphic && event.graphic.attributes) || {};
+  const wrap = document.createElement("div");
+  if (a.description) { const p = document.createElement("p"); p.className = "mm-popup-text"; p.textContent = a.description; wrap.appendChild(p); }
+  if (a.imageUrl && /^data:image\//.test(a.imageUrl)) { const img = document.createElement("img"); img.className = "mm-popup-img"; img.src = a.imageUrl; img.alt = a.title || ""; wrap.appendChild(img); }
+  if (!a.description && !a.imageUrl) { const p = document.createElement("p"); p.className = "mm-popup-empty"; p.textContent = S.noPopupYet; wrap.appendChild(p); }
+  return wrap;
+}
+const popupTemplate = () => ({ title: "{title}", content: popupContent });
+function addSketchGraphic(gj) {
+  const g = Graphic.fromJSON({ geometry: gj.geometry, attributes: gj.attributes });
+  g.attributes = { ...gj.attributes };
+  applyStyle(g);
+  g.popupTemplate = popupTemplate();
+  graphicsLayer.add(g);
+  return g;
+}
+
+function popupFieldsEnabled(on) {
+  for (const id of ["imgPick", "fTitle", "fDesc", "deleteFeature"]) $(id).disabled = !on;
+  $("popupHint").hidden = on;
+}
+function setImagePreview(dataUrl) {
+  if (dataUrl) { $("imgThumb").src = dataUrl; $("imgPreview").hidden = false; $("imgPick").textContent = S.replaceImage; }
+  else { $("imgThumb").removeAttribute("src"); $("imgPreview").hidden = true; $("imgPick").textContent = S.addImage; }
+}
+function highlightSwatch(hex) { [...$("swatches").children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.color === hex))); }
+function populateSketchPanel() {
+  const sel = selectedFeature, a = sel ? sel.attributes : null;
+  popupFieldsEnabled(!!sel);
+  setImagePreview(a ? a.imageUrl || "" : "");
+  $("fTitle").value = a ? a.title || "" : "";
+  $("fDesc").value = a ? a.description || "" : "";
+  const color = a ? a.color || PALETTE_HEX[0] : pendingStyle.color, size = a ? a.size || 12 : pendingStyle.size, rot = a ? a.rotation || 0 : pendingStyle.rotation;
+  highlightSwatch(color);
+  $("fSize").value = size; $("sizeVal").textContent = size;
+  $("fRot").value = rot; $("rotVal").textContent = rot + "°";
+}
+function selectForEdit(g) { selectedFeature = g || null; populateSketchPanel(); }
+PALETTE_HEX.forEach((hex, i) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "swatch"; b.style.background = hex; b.dataset.color = hex;
+  b.setAttribute("aria-label", (COLOUR_NAMES[i] || hex).trim()); b.title = (COLOUR_NAMES[i] || hex).trim(); b.setAttribute("aria-pressed", "false");
+  b.addEventListener("click", () => {
+    if (selectedFeature) { selectedFeature.attributes.color = hex; applyStyle(selectedFeature); markDirty(); } else pendingStyle.color = hex;
+    highlightSwatch(hex);
+  });
+  $("swatches").appendChild(b);
+});
+$("fTitle").addEventListener("input", () => { if (!selectedFeature) return; selectedFeature.attributes.title = $("fTitle").value; if (selectedFeature.attributes.kind === "text") applyStyle(selectedFeature); markDirty(); });
+$("fDesc").addEventListener("input", () => { if (!selectedFeature) return; selectedFeature.attributes.description = $("fDesc").value; markDirty(); });
+function fileToDataUrl(file, cb) {     // downscale to 1200px JPEG so images don't bloat the map file; no EXIF/GPS survives the canvas
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let w = img.width, h = img.height; const max = 1200;
+        if (w > max || h > max) { const s = Math.min(max / w, max / h); w = Math.round(w * s); h = Math.round(h * s); }
+        const c = document.createElement("canvas"); c.width = w; c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        cb(c.toDataURL("image/jpeg", 0.85));
+      } catch (e) { toast(S.imageFailed); }
+    };
+    img.onerror = () => toast(S.imageFailed);
+    img.src = reader.result;
+  };
+  reader.onerror = () => toast(S.imageFailed);
+  reader.readAsDataURL(file);
+}
+$("imgPick").addEventListener("click", () => { if (!$("imgPick").disabled) $("fImageFile").click(); });
+$("fImageFile").addEventListener("change", () => {
+  const file = $("fImageFile").files && $("fImageFile").files[0];
+  $("fImageFile").value = "";
+  if (!file || !selectedFeature) return;
+  if (!/^image\//.test(file.type)) { toast(S.imageOnly); return; }
+  const target = selectedFeature;
+  fileToDataUrl(file, (url) => { target.attributes.imageUrl = url; if (target === selectedFeature) setImagePreview(url); markDirty(); });
+});
+$("imgRemove").addEventListener("click", () => { if (!selectedFeature) return; selectedFeature.attributes.imageUrl = ""; setImagePreview(""); markDirty(); });
+$("fSize").addEventListener("input", () => {
+  const v = parseInt($("fSize").value, 10); $("sizeVal").textContent = v;
+  if (selectedFeature) { selectedFeature.attributes.size = v; applyStyle(selectedFeature); markDirty(); } else pendingStyle.size = v;
+});
+$("fRot").addEventListener("input", () => {
+  const v = parseInt($("fRot").value, 10); $("rotVal").textContent = v + "°";
+  if (selectedFeature) { selectedFeature.attributes.rotation = v; applyStyle(selectedFeature); markDirty(); } else pendingStyle.rotation = v;
+});
+$("deleteFeature").addEventListener("click", deleteSelected);
+function deleteSelected() {
+  const g = selectedFeature;
+  if (!g) return;
+  endSketchOps();
+  graphicsLayer.remove(g);
+  selectForEdit(null);
+  markDirty();
+  if (!$("layersPanel").hidden) renderLayers();
+}
+function endSketchOps() {
+  try { if (sketchVM.createGraphic) sketchVM.cancel(); } catch (e) { /* idle */ }
+  try { if (sketchVM.updateGraphics && sketchVM.updateGraphics.length) sketchVM.complete(); } catch (e) { /* idle */ }
+  drawing = false;
+}
+function updateToolButtons() { document.querySelectorAll("#sketchTools [data-tool]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tool === currentTool))); }
+function setTool(tool) {
+  endSketchOps();
+  currentTool = tool; placingText = false;
+  updateToolButtons();
+  if (["point", "polyline", "polygon", "circle"].includes(tool)) sketchVM.create(tool);
+  else if (tool === "text") { placingText = true; toast(S.placeText); }
+  updatePopupEnabled();
+}
+document.querySelectorAll("#sketchTools [data-tool]").forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
+function startEdit(g) {
+  if (g && selectedFeature === g && sketchVM.updateGraphics && sketchVM.updateGraphics.includes(g)) return;
+  endSketchOps();
+  selectForEdit(g);
+  if (!g) return;
+  sketchVM.update([g], { tool: g.geometry.type === "point" ? "move" : "reshape" }).catch(() => {});
+}
+sketchVM.on("create", (event) => {
+  if (event.state === "start" || event.state === "active") drawing = true;
+  if (event.state === "cancel") drawing = false;
+  if (event.state === "complete" && event.graphic) {
+    drawing = false;
+    const g = event.graphic;
+    g.attributes = { uid: newUid(), kind: (g.geometry && g.geometry.type) || "point", title: "", description: "", imageUrl: "",
+      color: pendingStyle.color, size: pendingStyle.size, rotation: pendingStyle.rotation };
+    applyStyle(g);
+    g.popupTemplate = popupTemplate();
+    currentTool = "select"; updateToolButtons();
+    selectForEdit(g);
+    markDirty();
+  }
+});
+sketchVM.on("update", (event) => {
+  const info = event.toolEventInfo;
+  if (info && /-stop$/.test(info.type || "")) markDirty();
+  if (event.state === "complete" && selectedFeature && event.graphics && event.graphics.includes(selectedFeature) && !sketchPanelOpen) selectedFeature = null;
+});
+onViews("click", (event) => {
+  if (!sketchPanelOpen) return;   // outside sketching, the map's own pop-ups handle clicks
+  if (placingText) {
+    event.stopPropagation();
+    placingText = false;
+    const g = new Graphic({ geometry: event.mapPoint, attributes: { uid: newUid(), kind: "text", title: S.textDefault, description: "", imageUrl: "",
+      color: pendingStyle.color, size: Math.max(14, pendingStyle.size), rotation: pendingStyle.rotation } });
+    applyStyle(g); g.popupTemplate = popupTemplate();
+    graphicsLayer.add(g);
+    currentTool = "select"; updateToolButtons(); updatePopupEnabled();
+    selectForEdit(g); markDirty();
+    setTimeout(() => { $("fTitle").focus(); $("fTitle").select(); }, 0);
+    return;
+  }
+  if (drawing || currentTool !== "select") return;
+  view.hitTest(event, { include: [graphicsLayer] }).then((resp) => {
+    const hit = (resp.results || []).find((r) => r.graphic && r.graphic.layer === graphicsLayer);
+    startEdit(hit ? hit.graphic : null);
+  }).catch(() => {});
+});
+
+// ============================================================ Legend, basemaps, measure
+let legend = null, basemapGallery = null, measurement = null, coordWidget = null;
+function ensureLegend() { if (!legend) legend = new Legend({ view, container: "legendBody" }); else legend.view = view; }
+function ensureGallery() {
+  if (!basemapGallery) {
+    basemapGallery = new BasemapGallery({ view, container: "basemapsBody", source: new PortalBasemapsSource({ query: { id: cfg.basemapGroup } }) });
+    reactiveUtils.watch(() => basemapGallery.activeBasemap, (b, old) => { if (old && b && b !== old) markDirty(); });
+  } else basemapGallery.view = view;
+}
+const units = cfg.units === "imperial" ? "imperial" : "metric";
+function ensureMeasure() { if (!measurement) measurement = new Measurement({ view, container: "measureBody", linearUnit: units, areaUnit: units }); else measurement.view = view; }
+function measurePressed(id) { ["mDist", "mArea", "mCoord"].forEach((b) => $(b).setAttribute("aria-pressed", String(b === id))); }
+function stopMeasuring() {
+  try { if (measurement) measurement.clear(); } catch (e) { /* idle */ }
+  measurePressed(null); measureActive = false; $("coordBody").hidden = true;
+  updatePopupEnabled();
+}
+$("mDist").addEventListener("click", () => { ensureMeasure(); $("coordBody").hidden = true; measurement.activeTool = mode === "3d" ? "direct-line" : "distance"; measurePressed("mDist"); measureActive = true; updatePopupEnabled(); });
+$("mArea").addEventListener("click", () => { ensureMeasure(); $("coordBody").hidden = true; measurement.activeTool = "area"; measurePressed("mArea"); measureActive = true; updatePopupEnabled(); });
+$("mCoord").addEventListener("click", () => {
+  try { if (measurement) measurement.clear(); } catch (e) { /* idle */ }
+  if (!coordWidget) coordWidget = new CoordinateConversion({ view, container: "coordBody" }); else coordWidget.view = view;
+  $("coordBody").hidden = false; measurePressed("mCoord"); measureActive = false; updatePopupEnabled();
+});
+$("mClear").addEventListener("click", stopMeasuring);
+
+// ============================================================ 2D / 3D
+let switching = false;
+async function setMode(m) {
+  if (m === mode || switching) return;
+  if (m === "3d" && F.threeD === false) return;
+  switching = true;
+  const from = view, vp = from.viewpoint ? from.viewpoint.clone() : null, curMap = from.map;
+  stopMeasuring();
+  endSketchOps();
+  try {
+    if (m === "3d") {
+      if (!curMap.ground || !curMap.ground.layers || !curMap.ground.layers.length) curMap.ground = "world-elevation";
+      $("sceneDiv").hidden = false;
+      if (!sceneView) { sceneView = new SceneView({ container: "sceneDiv", map: curMap }); addViewUI(sceneView, true); viewHandlers.forEach((h) => sceneView.on(h[0], h[1])); }
+      else if (sceneView.map !== curMap) sceneView.map = curMap;
+      await sceneView.when();
+      if (vp) sceneView.viewpoint = vp;
+      $("viewDiv").hidden = true; view = sceneView;
+    } else {
+      $("viewDiv").hidden = false;
+      if (mapView.map !== curMap) mapView.map = curMap;
+      await mapView.when();
+      if (vp) mapView.viewpoint = vp;
+      $("sceneDiv").hidden = true; view = mapView;
+    }
+  } catch (e) {
+    console.error("Couldn't switch view", e);
+    $("viewDiv").hidden = false; $("sceneDiv").hidden = true; view = mapView; m = "2d";
+    toast(S.no3d);
+  }
+  mode = m; switching = false;
+  $("tg2d").setAttribute("aria-pressed", String(m === "2d")); $("tg3d").setAttribute("aria-pressed", String(m === "3d"));
+  sketchVM.view = view;
+  if (basemapGallery) basemapGallery.view = view;
+  if (measurement) measurement.view = view;
+  if (coordWidget) coordWidget.view = view;
+  if (legend) legend.view = view;
+  updatePopupEnabled();
+  if (m === "3d" && dataLayers.some((l) => l.renderer && l.renderer.type === "pie-chart")) toast(S.pieIn3d);
+}
+$("tg2d").addEventListener("click", () => setMode("2d"));
+$("tg3d").addEventListener("click", () => setMode("3d"));
+
+// ============================================================ Maps and layers
+function setActiveMap(m) {
+  const old = view.map;
+  if (old && old !== m) { try { old.remove(graphicsLayer); } catch (e) { /* not there */ } }
+  if (!m.layers.includes(graphicsLayer)) m.add(graphicsLayer);
+  mapView.map = m;
+  if (sceneView) sceneView.map = m;
+}
+function keepSketchOnTop() { const m = activeMap(); try { m.reorder(graphicsLayer, m.layers.length - 1); } catch (e) { /* ok */ } }
+function removeFromMaps(l) { for (const m of new Set([localMap, mapView.map, sceneView && sceneView.map])) { if (m) { try { m.remove(l); } catch (e) { /* not there */ } } } }
+function resetWorkspace() {
+  addState = null; removePreview(false);
+  dataLayers.splice(0).forEach(removeFromMaps);
+  [...portalLayers.values()].forEach(removeFromMaps); portalLayers.clear();
+  endSketchOps(); graphicsLayer.removeAll(); graphicsLayer.visible = true; selectedFeature = null;
+  bookmarks = [];
+  currentSource = null; currentAgolItem = null;
+  if (!$("bookmarksPanel").hidden) showBmList();
+  if (!$("layersPanel").hidden) renderLayers();
+  if (catalogLoaded) refreshCatalogButtons();
+}
+function sourceLayers() {
+  const own = new Set([graphicsLayer, previewLayer, ...dataLayers, ...portalLayers.values()]);
+  return activeMap().layers.toArray().filter((l) => !own.has(l));
+}
+function basemapFrom(ref) { return typeof ref === "string" && ref.startsWith("item:") ? new Basemap({ portalItem: { id: ref.slice(5) } }) : ref; }
+function basemapRef() { const b = activeMap().basemap; return b && b.portalItem && b.portalItem.id ? "item:" + b.portalItem.id : null; }
+
+async function openWebMapItem(itemId, opts) {
+  opts = opts || {};
+  if (!HEX32.test(itemId || "")) return false;
+  if (!opts.keepWorkspace && !opts.skipConfirm && !confirmDiscard()) return false;
+  closeModal("openModal");
+  if (!opts.quiet) toast(t("openingMap", { title: opts.title || "" }));
+  try {
+    const [item, data] = await Promise.all([restGet(`/sharing/rest/content/items/${itemId}`), restGet(`/sharing/rest/content/items/${itemId}/data`)]);
+    const wm = new WebMap({ portalItem: { id: itemId } });
+    await wm.load();
+    if (!opts.keepWorkspace) resetWorkspace();
+    const own = (data.operationalLayers || []).filter(isOwnLayerJson);
+    for (const op of own) { const l = wm.layers.find((x) => x.id === op.id); if (l) wm.remove(l); }
+    setActiveMap(wm);
+    currentSource = { itemId, title: item.title, item, data };
+    if (portalUser && item.owner === portalUser.username) currentAgolItem = { id: itemId, owner: item.owner, title: item.title };
+    if (!opts.keepWorkspace) {
+      if (data.authoringApp === AUTHORING_APP) {
+        for (const gj of operationalLayersToSketch(own)) addSketchGraphic(gj);
+        for (const op of own.filter((o) => o.id.startsWith("__data_"))) { const def = operationalLayerToDataDef(op); if (def) addDataLayer(def, { silent: true }); }
+        bookmarks = data.atlasBookmarks ? cleanBookmarks(data.atlasBookmarks) : specToBookmarks(data.bookmarks);
+      } else {
+        bookmarks = specToBookmarks(data.bookmarks);
+      }
+      keepSketchOnTop();
+      setTitle(item.title); markClean(); currentFileHandle = null; openedHandleUnsaved = false;
+      const vp = wm.initialViewProperties && wm.initialViewProperties.viewpoint;
+      if (vp) goToSafe(vp, { animate: false });
+      if (!opts.quiet) toast(t("openedMap", { title: item.title }));
+    }
+    if (!$("bookmarksPanel").hidden) showBmList();
+    if (!$("layersPanel").hidden) renderLayers();
+    if (legend) legend.view = view;
+    return true;
+  } catch (e) {
+    console.error("Open map failed", e);
+    if (!opts.quiet) toast(S.openFailed, 5000);
+    return false;
+  }
+}
+
+function newBlankMap() {
+  if (!confirmDiscard()) return;
+  closeModal("openModal");
+  resetWorkspace();
+  setActiveMap(localMap);
+  localMap.basemap = defaultBasemap();
+  setTitle(""); currentFileHandle = null; openedHandleUnsaved = false; markClean();
+  goToSafe({ center: startCenter, zoom: Number(cfg.startView.zoom) || 2 });
+  toast(S.newMapStarted);
+}
+
+async function addPortalLayer(info, opts) {
+  opts = opts || {};
+  if (portalLayers.has(info.itemId)) return portalLayers.get(info.itemId);
+  try {
+    const layer = await Layer.fromPortalItem({ portalItem: { id: info.itemId } });
+    layer.__item = { itemId: info.itemId, type: info.type || "", title: info.title || layer.title };
+    if (opts.visible === false) layer.visible = false;
+    if (typeof opts.opacity === "number") layer.opacity = opts.opacity;
+    activeMap().add(layer);
+    keepSketchOnTop();
+    portalLayers.set(info.itemId, layer);
+    if (!opts.silent) { toast(t("addedLayer", { title: layer.__item.title })); markDirty(); }
+    if (!$("layersPanel").hidden) renderLayers();
+    return layer;
+  } catch (e) {
+    console.error("Add layer failed", e);
+    toast(t("layerFailed", { title: info.title || "" }), 5000);
+    return null;
+  }
+}
+function removePortalLayer(itemId) {
+  const l = portalLayers.get(itemId);
+  if (!l) return;
+  removeFromMaps(l); portalLayers.delete(itemId); markDirty();
+  toast(t("removedLayer", { title: l.__item.title }));
+  if (!$("layersPanel").hidden) renderLayers();
+}
+
+// ============================================================ Data layers (CSV) — client-side FeatureLayers
+function buildDataLayer(ld) {
+  const gtype = ld.geometryType || "point";
+  const rawFields = (ld.fields || []).slice();
+  let oidField = ld.objectIdField;
+  if (!oidField) { const o = rawFields.find((f) => f.type === "esriFieldTypeOID" || f.type === "oid"); oidField = o ? o.name : "__oid"; }
+  if (!rawFields.some((f) => f.name === oidField)) rawFields.unshift({ name: oidField, alias: oidField, type: "esriFieldTypeOID" });
+  const fields = rawFields.map((f) => (typeof f.type === "string" && f.type.indexOf("esriFieldType") === 0 ? Field.fromJSON(f) : f));
+  const feats = (ld.features || []).map((f, i) => {
+    let gj = f.geometry || null;
+    if (gj && !gj.type) gj = { ...gj, type: gtype };
+    const attrs = { ...(f.attributes || {}) };
+    if (attrs[oidField] == null) attrs[oidField] = i + 1;
+    return new Graphic({ geometry: gj, attributes: attrs });
+  });
+  const props = { source: feats, objectIdField: oidField, fields, geometryType: gtype, spatialReference: ld.spatialReference || { wkid: 102100 },
+    title: ld.title || "Data", popupEnabled: true };
+  if (ld.renderer) { const rj = ld.renderer; props.renderer = rj.type && rj.type.indexOf("-") >= 0 ? rj : rendererJsonUtils.fromJSON(rj); }
+  if (ld.labelingInfo && ld.labelingInfo.length) props.labelingInfo = ld.labelingInfo.map((l) => (l && l.symbol && l.symbol.type === "esriTS" ? LabelClass.fromJSON(l) : l));
+  if (ld.popupInfo) props.popupTemplate = { title: ld.popupInfo.title || "", content: ld.popupInfo.content || [{ type: "fields", fieldInfos: ld.popupInfo.fieldInfos || [] }], fieldInfos: ld.popupInfo.fieldInfos || [] };
+  const fl = new FeatureLayer(props);
+  fl.labelsVisible = true;
+  const def = { ...ld }; delete def.visible; delete def.opacity;
+  fl._srcDef = def;
+  return fl;
+}
+function addDataLayer(def, opts) {
+  const fl = buildDataLayer(def);
+  if (def.visible === false) fl.visible = false;
+  if (typeof def.opacity === "number") fl.opacity = def.opacity;
+  dataLayers.push(fl);
+  activeMap().add(fl);
+  keepSketchOnTop();
+  if (!(opts && opts.silent)) markDirty();
+  return fl;
+}
+
+// ============================================================ Map layers panel
+const ICON_ZOOM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="M8 10.5h5M10.5 8v5"/></svg>';
+const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m3 0-1 13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 7"/><path d="M10 11v6M14 11v6"/></svg>';
+const ICON_INFO = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>';
+function eachToggleableLayer(fn) {
+  fn(graphicsLayer, "__sketch", S.sketchLayer);
+  activeMap().layers.toArray().slice().reverse().forEach((l) => { if (l !== graphicsLayer && l !== previewLayer) fn(l, l.id, l.title || l.id); });
+}
+function zoomToLayer(l) {
+  if (l === graphicsLayer) { const g = graphicsLayer.graphics.toArray(); if (g.length) goToSafe(g); else toast(S.noSketches); return; }
+  if (l.queryExtent) { l.when().then(() => l.queryExtent()).then((r) => { if (r && r.extent) goToSafe(r.extent.expand(1.2)); }).catch(() => {}); return; }
+  if (l.fullExtent) goToSafe(l.fullExtent);
+}
+function renderLayers() {
+  const list = $("layersList"); list.innerHTML = "";
+  let n = 0;
+  eachToggleableLayer((l, id, title) => {
+    n++;
+    const li = document.createElement("li"); li.className = "li";
+    const cbId = "lyr-" + n;
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = cbId; cb.checked = l.visible !== false;
+    const main = document.createElement("label"); main.className = "li-main"; main.htmlFor = cbId;
+    const tt = document.createElement("span"); tt.className = "li-title" + (l.visible === false ? " off" : ""); tt.textContent = title;
+    main.appendChild(tt);
+    cb.addEventListener("change", () => { l.visible = cb.checked; tt.className = "li-title" + (cb.checked ? "" : " off"); markDirty(); });
+    const z = document.createElement("button"); z.type = "button"; z.className = "mini"; z.innerHTML = ICON_ZOOM; z.title = S.zoomTo; z.setAttribute("aria-label", S.zoomTo + ": " + title);
+    z.addEventListener("click", () => zoomToLayer(l));
+    li.append(main, z);
+    const isData = dataLayers.includes(l), isPortal = !!l.__item && portalLayers.get(l.__item.itemId) === l;
+    if (isData || isPortal) {
+      const d = document.createElement("button"); d.type = "button"; d.className = "mini"; d.innerHTML = ICON_TRASH; d.title = S.removeLayer; d.setAttribute("aria-label", S.removeLayer + ": " + title);
+      d.addEventListener("click", () => {
+        if (isData) { dataLayers.splice(dataLayers.indexOf(l), 1); removeFromMaps(l); markDirty(); toast(S.layerRemoved); renderLayers(); }
+        else removePortalLayer(l.__item.itemId);
+        if (catalogLoaded) refreshCatalogButtons();
+      });
+      li.appendChild(d);
+    }
+    li.appendChild(cb);
+    list.appendChild(li);
+  });
+  if (n <= 1 && !graphicsLayer.graphics.length) { const p = document.createElement("li"); p.className = "empty"; p.textContent = S.noLayers; list.appendChild(p); }
+}
+
+// ============================================================ Bookmarks
+let bmEditIndex = -1;
+function layerSnapshot() { const s = []; eachToggleableLayer((l, id, title) => s.push({ id, title, visible: l.visible !== false })); return s; }
+function applyLayerSnapshot(snap) {
+  if (!snap || !snap.length) return;
+  eachToggleableLayer((l, id, title) => { const rec = snap.find((r) => r.id === id) || snap.find((r) => r.title && r.title === title); if (rec) l.visible = !!rec.visible; });
+  if (!$("layersPanel").hidden) renderLayers();
+}
+function applyBookmark(bm) {
+  const vp = bm.viewpoint;
+  if (vp.center) goToSafe({ center: vp.center, zoom: vp.zoom }, { duration: 800 });
+  else if (vp.extent) goToSafe(Extent.fromJSON(vp.extent), { duration: 800 });
+  applyLayerSnapshot(bm.layers);
+}
+function captureThumb(bm) {
+  view.takeScreenshot({ width: 148, height: 96, format: "jpg", quality: 70 }).then((s) => { if (s && s.dataUrl) { bm.thumb = s.dataUrl; renderBookmarks(); } }).catch(() => {});
+}
+function renderBookmarks() {
+  const list = $("bmList"); list.innerHTML = "";
+  $("bmEmpty").hidden = bookmarks.length > 0;
+  bookmarks.forEach((bm, i) => {
+    const li = document.createElement("li"); li.className = "bm";
+    const go = document.createElement("button"); go.type = "button"; go.className = "bm-go";
+    const th = document.createElement("span"); th.className = "bm-thumb"; th.setAttribute("aria-hidden", "true");
+    if (bm.thumb) th.style.backgroundImage = "url(" + bm.thumb + ")";
+    const tt = document.createElement("span"); tt.className = "bm-title"; tt.textContent = bm.title;
+    go.append(th, tt); go.addEventListener("click", () => applyBookmark(bm));
+    const ed = document.createElement("button"); ed.type = "button"; ed.className = "mini"; ed.innerHTML = "&#9998;"; ed.title = S.editBookmark; ed.setAttribute("aria-label", S.editBookmark + ": " + bm.title);
+    ed.addEventListener("click", () => showBmEdit(i));
+    li.append(go, ed); list.appendChild(li);
+  });
+}
+function showBmList() { bmEditIndex = -1; $("bmEditView").hidden = true; $("bmListView").hidden = false; renderBookmarks(); }
+function showBmEdit(i) {
+  bmEditIndex = typeof i === "number" ? i : -1;
+  const editing = bmEditIndex >= 0;
+  $("bmListView").hidden = true; $("bmEditView").hidden = false;
+  $("bmEditTitle").textContent = editing ? S.editBookmark : S.addBookmark.replace(/^\+\s*/, "");
+  $("bmSave").textContent = editing ? S.save : S.add;
+  $("bmDelete").hidden = !editing; $("bmHint").hidden = editing;
+  $("bmTitleInput").value = editing ? bookmarks[bmEditIndex].title : "";
+  $("bmTitleInput").focus();
+}
+$("bmAddBtn").addEventListener("click", () => showBmEdit(-1));
+$("bmBack").addEventListener("click", showBmList);
+$("bmCancel").addEventListener("click", showBmList);
+$("bmSave").addEventListener("click", () => {
+  const title = $("bmTitleInput").value.trim();
+  if (bmEditIndex >= 0) bookmarks[bmEditIndex].title = title || bookmarks[bmEditIndex].title;
+  else {
+    const bm = { title: title || t("bookmarkDefault", { n: bookmarks.length + 1 }), viewpoint: { center: [view.center.longitude, view.center.latitude], zoom: view.zoom }, layers: layerSnapshot(), thumb: null };
+    bookmarks.push(bm); captureThumb(bm);
+  }
+  markDirty(); showBmList();
+  $("bmAddBtn").focus();
+});
+$("bmTitleInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("bmSave").click(); });
+$("bmDelete").addEventListener("click", () => { if (bmEditIndex >= 0) { bookmarks.splice(bmEditIndex, 1); markDirty(); } showBmList(); $("bmAddBtn").focus(); });
+
+// ============================================================ Categories (shared by Open map and Add layer)
+let categoryOptions = null;
+async function loadCategories() {
+  if (categoryOptions) return categoryOptions;
+  categoryOptions = [];
+  try {
+    const schema = await restGet(`/sharing/rest/community/groups/${cfg.contentGroup}/categorySchema`);
+    const walk = (nodes, path, depth) => (nodes || []).forEach((n) => { const p = path + "/" + n.title; categoryOptions.push({ value: p, label: " ".repeat(depth) + n.title }); walk(n.categories, p, depth + 1); });
+    for (const root of schema.categorySchema || []) walk(root.categories, "/" + root.title, 0);
+  } catch (e) { console.warn("No category schema", e); }
+  return categoryOptions;
+}
+async function fillCategorySelect(sel) {
+  const opts = await loadCategories();
+  sel.innerHTML = "";
+  const all = document.createElement("option"); all.value = ""; all.textContent = S.allCategories; sel.appendChild(all);
+  for (const o of opts) { const op = document.createElement("option"); op.value = o.value; op.textContent = o.label; sel.appendChild(op); }
+  sel.hidden = !opts.length;
+}
+const cleanQuery = (s) => String(s || "").replace(/["':()\\[\]{}^~*?]/g, " ").replace(/\s+/g, " ").trim();
+function thumbUrl(item) {
+  if (!item || !item.thumbnail) return "";
+  let u = `${PORTAL}/sharing/rest/content/items/${item.id}/info/${item.thumbnail}`;
+  if (item.access && item.access !== "public") { const c = IdentityManager.findCredential(PORTAL + "/sharing"); if (c && c.token) u += "?token=" + encodeURIComponent(c.token); }
+  return u;
+}
+
+// ============================================================ Open map dialog
+const groupState = { start: 1, loading: false }, agolState = { start: 1, loading: false };
+function mapCard(item, onOpen) {
+  const li = document.createElement("li"); li.className = "map-card";
+  const th = document.createElement("div"); th.className = "card-thumb"; th.setAttribute("aria-hidden", "true");
+  const tu = thumbUrl(item); if (tu) th.style.backgroundImage = "url('" + tu.replace(/'/g, "%27") + "')";
+  const body = document.createElement("div"); body.className = "card-body";
+  const h = document.createElement("h3"); h.className = "card-title"; h.textContent = item.title || S.untitled;
+  const sn = document.createElement("p"); sn.className = "card-snippet"; sn.textContent = item.snippet || "";
+  const acts = document.createElement("div"); acts.className = "card-actions";
+  const open = document.createElement("button"); open.type = "button"; open.className = "btn primary"; open.textContent = S.openThisMap;
+  open.setAttribute("aria-label", S.openThisMap + ": " + (item.title || ""));
+  open.addEventListener("click", () => onOpen(item));
+  const det = document.createElement("button"); det.type = "button"; det.className = "btn"; det.textContent = S.details;
+  det.setAttribute("aria-label", S.details + ": " + (item.title || ""));
+  det.addEventListener("click", () => showItemInfo(item.id));
+  acts.append(open, det);
+  body.append(h, sn, acts); li.append(th, body);
+  return li;
+}
+async function loadGroupMaps(reset) {
+  if (groupState.loading) return;
+  groupState.loading = true;
+  if (reset) { groupState.start = 1; $("groupGrid").innerHTML = ""; }
+  $("groupStatus").textContent = S.loadingMaps; $("groupGrid").setAttribute("aria-busy", "true");
+  const text = cleanQuery($("groupSearch").value);
+  const q = { num: 24, start: groupState.start, q: 'type:"Web Map"' + (text ? " AND (" + text + ")" : "") };
+  if (!text) { q.sortField = "title"; q.sortOrder = "asc"; }
+  if ($("groupCat").value) q.categories = $("groupCat").value;
+  try {
+    const d = await restGet(`/sharing/rest/content/groups/${cfg.contentGroup}/search`, q);
+    for (const item of d.results || []) $("groupGrid").appendChild(mapCard(item, (it) => openWebMapItem(it.id, { title: it.title })));
+    groupState.start = d.nextStart;
+    $("groupMoreRow").hidden = !(d.nextStart > 0);
+    $("groupStatus").textContent = $("groupGrid").children.length ? "" : (text || q.categories ? S.noMatch : S.noMaps);
+  } catch (e) { console.error(e); $("groupStatus").textContent = S.groupError; }
+  $("groupGrid").removeAttribute("aria-busy");
+  groupState.loading = false;
+}
+async function loadAgolMaps(reset) {
+  if (!portalUser || agolState.loading) return;
+  agolState.loading = true;
+  if (reset) { agolState.start = 1; $("agolGrid").innerHTML = ""; }
+  $("agolStatus2").textContent = S.loadingMaps;
+  const text = cleanQuery($("agolSearch").value);
+  try {
+    const d = await restGet("/sharing/rest/search", { num: 24, start: agolState.start, sortField: "modified", sortOrder: "desc",
+      q: 'owner:"' + portalUser.username + '" AND type:"Web Map"' + (text ? " AND (" + text + ")" : "") });
+    for (const item of d.results || []) $("agolGrid").appendChild(mapCard(item, (it) => openWebMapItem(it.id, { title: it.title })));
+    agolState.start = d.nextStart;
+    $("agolMoreRow").hidden = !(d.nextStart > 0);
+    $("agolStatus2").textContent = $("agolGrid").children.length ? "" : (text ? S.noMatch : S.noMaps);
+  } catch (e) { console.error(e); $("agolStatus2").textContent = S.groupError; }
+  agolState.loading = false;
+}
+let groupLoaded = false, catsFilled = false;
+const TABS = [["tabGroup", "paneGroup"], ["tabDevice", "paneDevice"], ["tabArcgis", "paneArcgis"]];
+function switchTab(tabId) {
+  for (const [tb, pane] of TABS) { const on = tb === tabId; $(tb).setAttribute("aria-selected", String(on)); $(tb).tabIndex = on ? 0 : -1; $(pane).hidden = !on; }
+  if (tabId === "tabGroup" && !groupLoaded) { groupLoaded = true; loadGroupMaps(true); }
+  if (tabId === "tabArcgis") loadAgolMaps(true);
+}
+async function openOpenModal(tabId) {
+  openModal("openModal");
+  if (!catsFilled) { catsFilled = true; fillCategorySelect($("groupCat")); }
+  switchTab(tabId || "tabGroup");
+}
+$("tool-open").addEventListener("click", () => openOpenModal("tabGroup"));
+TABS.forEach(([tb]) => $(tb).addEventListener("click", () => switchTab(tb)));
+$("tabGroup").parentElement.addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  const vis = TABS.map((x) => x[0]).filter((id) => !$(id).hidden);
+  const i = vis.indexOf(document.activeElement && document.activeElement.id);
+  if (i < 0) return;
+  const next = vis[(i + (e.key === "ArrowRight" ? 1 : vis.length - 1)) % vis.length];
+  $(next).focus(); switchTab(next);
+});
+let searchTimer = 0;
+$("groupSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadGroupMaps(true), 350); });
+$("groupCat").addEventListener("change", () => loadGroupMaps(true));
+$("groupMore").addEventListener("click", () => loadGroupMaps(false));
+$("agolSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadAgolMaps(true), 350); });
+$("agolMore").addEventListener("click", () => loadAgolMaps(false));
+$("browseDevice").addEventListener("click", openFromDevice);
+$("newMapBtn").addEventListener("click", newBlankMap);
+
+// ============================================================ Add layer panel (collection layers)
+let catalogLoaded = false;
+const catalogState = { start: 1, loading: false };
+const SUPPORTED_TYPES = { "Feature Service": "typeLayer", "Feature Collection": "typeLayer", "Map Service": "typeMapLayer", "Image Service": "typeImagery",
+  "Vector Tile Service": "typeTiles", "Group Layer": "typeGroup", "WMS": "typeMapLayer", "KML": "typeLayer", "GeoJson": "typeLayer", "CSV": "typeLayer" };
+function ensureCatalog() { if (catalogLoaded) return; catalogLoaded = true; fillCategorySelect($("layerCat")); loadCatalog(true); }
+function refreshCatalogButtons() {
+  document.querySelectorAll("#layerList [data-item]").forEach((b) => {
+    const on = portalLayers.has(b.dataset.item);
+    b.setAttribute("aria-pressed", String(on)); b.textContent = on ? S.added : S.add;
+  });
+}
+async function loadCatalog(reset) {
+  if (catalogState.loading) return;
+  catalogState.loading = true;
+  if (reset) { catalogState.start = 1; $("layerList").innerHTML = ""; }
+  const text = cleanQuery($("layerSearch").value);
+  const q = { num: 20, start: catalogState.start, q: '-type:"Web Map"' + (text ? " AND (" + text + ")" : "") };
+  if (!text) { q.sortField = "title"; q.sortOrder = "asc"; }
+  if ($("layerCat").value) q.categories = $("layerCat").value;
+  try {
+    const d = await restGet(`/sharing/rest/content/groups/${cfg.contentGroup}/search`, q);
+    for (const item of d.results || []) {
+      const key = SUPPORTED_TYPES[item.type];
+      if (!key) continue;
+      const li = document.createElement("li"); li.className = "li";
+      const main = document.createElement("div"); main.className = "li-main";
+      const tt = document.createElement("span"); tt.className = "li-title"; tt.textContent = item.title;
+      const sub = document.createElement("span"); sub.className = "li-sub"; sub.textContent = S[key];
+      main.append(tt, sub);
+      const info = document.createElement("button"); info.type = "button"; info.className = "mini"; info.innerHTML = ICON_INFO; info.title = S.details;
+      info.setAttribute("aria-label", S.details + ": " + item.title);
+      info.addEventListener("click", () => showItemInfo(item.id));
+      const add = document.createElement("button"); add.type = "button"; add.className = "btn add-btn"; add.dataset.item = item.id;
+      add.setAttribute("aria-label", S.add + ": " + item.title);
+      add.addEventListener("click", async () => {
+        if (portalLayers.has(item.id)) removePortalLayer(item.id);
+        else { add.disabled = true; await addPortalLayer({ itemId: item.id, type: item.type, title: item.title }); add.disabled = false; }
+        refreshCatalogButtons();
+      });
+      li.append(main, info, add);
+      $("layerList").appendChild(li);
+    }
+    catalogState.start = d.nextStart;
+    $("layerMoreRow").hidden = !(d.nextStart > 0);
+    if (!$("layerList").children.length) { const p = document.createElement("li"); p.className = "empty"; p.textContent = text ? S.noMatch : S.noMaps; $("layerList").appendChild(p); }
+    refreshCatalogButtons();
+  } catch (e) { console.error(e); $("layerList").innerHTML = '<li class="empty"></li>'; $("layerList").firstChild.textContent = S.groupError; }
+  catalogState.loading = false;
+}
+$("layerSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadCatalog(true), 350); });
+$("layerCat").addEventListener("change", () => loadCatalog(true));
+$("layerMore").addEventListener("click", () => loadCatalog(false));
+
+// ============================================================ Map and item information (ⓘ)
+function safeFragment(html) {
+  const src = new DOMParser().parseFromString(String(html || ""), "text/html").body;
+  const frag = document.createDocumentFragment();
+  const ALLOWED = new Set(["P", "BR", "STRONG", "B", "EM", "I", "U", "UL", "OL", "LI", "A", "SPAN", "DIV", "BLOCKQUOTE", "IMG", "SUB", "SUP", "FIGURE", "FIGCAPTION", "TABLE", "THEAD", "TBODY", "TR", "TD", "TH"]);
+  const DROP = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "FORM", "INPUT", "BUTTON", "TEXTAREA", "SELECT", "SVG", "MATH", "LINK", "META"]);
+  const copy = (node, into) => {
+    for (const n of node.childNodes) {
+      if (n.nodeType === 3) { into.appendChild(document.createTextNode(n.nodeValue)); continue; }
+      if (n.nodeType !== 1 || DROP.has(n.tagName)) continue;
+      let tag = n.tagName;
+      if (/^H[1-6]$/.test(tag)) tag = "STRONG";
+      if (!ALLOWED.has(tag) && tag !== "STRONG") { copy(n, into); continue; }
+      const el = document.createElement(tag);
+      if (tag === "A") { const href = n.getAttribute("href") || ""; if (/^https?:\/\//i.test(href)) { el.href = href; el.target = "_blank"; el.rel = "noopener noreferrer"; } }
+      if (tag === "IMG") { const s = n.getAttribute("src") || ""; if (!/^https:\/\//i.test(s)) continue; el.src = s; el.alt = n.getAttribute("alt") || ""; el.loading = "lazy"; }
+      copy(n, el);
+      into.appendChild(el);
+      if (n.tagName !== tag) into.appendChild(document.createElement("br"));
+    }
+  };
+  copy(src, frag);
+  return frag;
+}
+function fillInfo(item) {
+  $("infoH").textContent = item ? item.title : currentTitle();
+  const body = $("infoBody"); body.innerHTML = "";
+  if (!item) {
+    const p = document.createElement("p"); p.textContent = S.aboutLocal; body.appendChild(p);
+    $("infoItemLink").hidden = true;
+    return;
+  }
+  if (item.snippet) { const p = document.createElement("p"); const s = document.createElement("strong"); s.textContent = item.snippet; p.appendChild(s); body.appendChild(p); }
+  if (item.description) body.appendChild(safeFragment(item.description));
+  else if (!item.snippet) { const p = document.createElement("p"); p.textContent = S.noDescription; body.appendChild(p); }
+  if (item.accessInformation) { const h = document.createElement("p"); const s = document.createElement("strong"); s.textContent = S.credits + ": "; h.appendChild(s); h.appendChild(document.createTextNode(item.accessInformation)); body.appendChild(h); }
+  $("infoItemLink").href = `${PORTAL}/home/item.html?id=${item.id}`; $("infoItemLink").hidden = false;
+}
+async function showItemInfo(itemId) {
+  try { const item = await restGet(`/sharing/rest/content/items/${itemId}`); fillInfo(item); openModal("infoModal"); }
+  catch (e) { toast(S.openFailed); }
+}
+$("infoBtn").addEventListener("click", () => { fillInfo(currentSource ? currentSource.item : null); openModal("infoModal"); });
+
+// ============================================================ CSV import (configure panel with live preview)
+let addState = null, previewLayer = null, previewTimer = 0, prePreviewCam = null, pendingParse = null, dataLayerSeq = 0;
+const STYLE_TEXT = { simple: ["styleSimple", "styleSimpleHint"], categorical: ["styleCategorical", "styleCategoricalHint"], graduated: ["styleGraduated", "styleGraduatedHint"],
+  numeric_color_size: ["styleNumericColorSize", "styleNumericColorSizeHint"], categorical_size: ["styleCategoricalSize", "styleCategoricalSizeHint"], pie_chart: ["stylePie", "stylePieHint"] };
+const FIELD_LABEL = { color: "colorBy", size: "sizeBy", label: "labelBy" };
+const NONE = "__none__";
+function showDataError(msg) {
+  addState = null; removePreview(true);
+  openPanel("data");
+  $("dataH").textContent = S.addData;
+  $("dataError").textContent = msg; $("dataError").hidden = false;
+  $("llPicker").hidden = true; $("dataControls").hidden = true; $("dataSubmit").disabled = true;
+}
+function handleCsvText(name, text) {
+  const parsed = readCsv(text, Number(cfg.csvMaxRows) || 1000);
+  if (!parsed.ok) { showDataError(t(parsed.code, parsed.params)); return; }
+  if (parsed.latIdx < 0 || parsed.lonIdx < 0) { showLatLonPicker(name, parsed); return; }
+  continueCsv(name, parsed, parsed.latIdx, parsed.lonIdx);
+}
+function showLatLonPicker(name, parsed) {
+  addState = null; removePreview(true);
+  pendingParse = { name, parsed };
+  openPanel("data");
+  $("dataH").textContent = S.addData;
+  $("dataError").hidden = true; $("dataControls").hidden = true; $("dataSubmit").disabled = true; $("llPicker").hidden = false;
+  for (const [id, guess] of [["latSel", parsed.latIdx], ["lonSel", parsed.lonIdx]]) {
+    const sel = $(id); sel.innerHTML = "";
+    parsed.header.forEach((h, i) => { const o = document.createElement("option"); o.value = String(i); o.textContent = h; sel.appendChild(o); });
+    sel.value = String(guess >= 0 ? guess : (id === "lonSel" && parsed.header.length > 1 ? 1 : 0));
+  }
+}
+$("llUse").addEventListener("click", () => {
+  if (!pendingParse) return;
+  const la = parseInt($("latSel").value, 10), lo = parseInt($("lonSel").value, 10);
+  if (la === lo) { toast(S.pickLatLon); return; }
+  const p = pendingParse; pendingParse = null;
+  continueCsv(p.name, p.parsed, la, lo);
+});
+function continueCsv(name, parsed, latIdx, lonIdx) {
+  const data = buildLayerData(name, parsed, latIdx, lonIdx);
+  if (!data.ok) { showDataError(t(data.code, data.params)); return; }
+  addState = data;
+  addState.symbolChoices = { shape: "esriSMSCircle", color: hexToRgb(PALETTE_HEX[0]), size: 12, ramp: "blue" };
+  addState.style = pickAutoStyle(addState);
+  addState.fieldChoices = pickAutoFields(addState.style, addState);
+  removePreview(false);
+  if (!prePreviewCam) { try { prePreviewCam = { center: [view.center.longitude, view.center.latitude], zoom: view.zoom }; } catch (e) { prePreviewCam = null; } }
+  openPanel("data");
+  renderDataPanel();
+  updatePreview(true);
+}
+function renderDataPanel() {
+  $("dataH").textContent = S.dataLooksGood;
+  $("dataError").hidden = true; $("llPicker").hidden = true; $("dataControls").hidden = false; $("dataSubmit").disabled = false;
+  let s = t("dataSummary", { n: addState.features.length, num: addState.numeric.length, cat: addState.categorical.length });
+  if (addState.dropped) s += " " + t("dataSkipped", { n: addState.dropped });
+  $("dataSummary").textContent = s;
+  $("dataSize").value = addState.symbolChoices.size; $("dataSizeVal").textContent = addState.symbolChoices.size + " px";
+  renderStyleList(); renderFieldRows(); renderSymbolBlocks();
+}
+function renderStyleList() {
+  const wrap = $("styleList"); wrap.innerHTML = "";
+  for (const style of DATA_STYLES) {
+    const ok = styleAvailable(style, addState);
+    const b = document.createElement("button"); b.type = "button"; b.className = "style-card"; b.disabled = !ok;
+    b.setAttribute("aria-pressed", String(addState.style.id === style.id));
+    b.title = ok ? S[STYLE_TEXT[style.id][1]] : S.styleNeeds;
+    b.innerHTML = '<span class="s-ico" aria-hidden="true">' + style.icon + '</span><span class="s-name"></span>';
+    b.querySelector(".s-name").textContent = S[STYLE_TEXT[style.id][0]];
+    if (ok) b.addEventListener("click", () => { addState.style = style; addState.fieldChoices = pickAutoFields(style, addState); renderStyleList(); renderFieldRows(); renderSymbolBlocks(); });
+    wrap.appendChild(b);
+  }
+  $("styleDesc").textContent = S[STYLE_TEXT[addState.style.id][0]] + " — " + S[STYLE_TEXT[addState.style.id][1]];
+}
+function fieldOptions(key) {
+  if (key === "size") return addState.numeric;
+  if (key === "color") return addState.style.id === "numeric_color_size" ? addState.numeric : addState.categorical;
+  return addState.fields.filter((f) => f.type !== "esriFieldTypeOID" && !addState.coordNames.includes(f.name)).map((f) => f.name);
+}
+function renderFieldRows() {
+  const wrap = $("fieldRows"); wrap.innerHTML = "";
+  addState.style.fields.forEach((key, i) => {
+    const id = "fld-" + key + "-" + i;
+    const lbl = document.createElement("label"); lbl.className = "lbl"; lbl.htmlFor = id; lbl.textContent = S[FIELD_LABEL[key]];
+    const sel = document.createElement("select"); sel.className = "field"; sel.id = id;
+    if (key === "label") { const o = document.createElement("option"); o.value = NONE; o.textContent = S.none; sel.appendChild(o); }
+    for (const name of fieldOptions(key)) { const o = document.createElement("option"); o.value = name; o.textContent = aliasOf(addState, name); sel.appendChild(o); }
+    const cur = addState.fieldChoices[key];
+    sel.value = cur == null ? (key === "label" ? NONE : sel.value) : cur;
+    if (key !== "label" && cur == null && sel.options.length) addState.fieldChoices[key] = sel.value;
+    sel.addEventListener("change", () => { addState.fieldChoices[key] = sel.value === NONE ? null : sel.value; renderSymbolBlocks(); });
+    wrap.append(lbl, sel);
+  });
+}
+function renderSymbolBlocks() {
+  const c = addState.symbolChoices, isPie = addState.style.id === "pie_chart";
+  const single = addState.style.id === "simple" || addState.style.id === "graduated";
+  const ramp = !isPie && addState.style.fields.includes("color") && !!addState.fieldChoices.color && addState.numeric.includes(addState.fieldChoices.color);
+  $("shapeRow").hidden = isPie; $("colorRow").hidden = isPie || !single; $("rampRow").hidden = !ramp;
+  const sw = $("shapeOptions"); sw.innerHTML = "";
+  for (const s of SHAPES) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "shape-btn"; b.textContent = s.glyph;
+    b.setAttribute("aria-label", s.id.replace("esriSMS", "")); b.setAttribute("aria-pressed", String(c.shape === s.id));
+    b.addEventListener("click", () => { c.shape = s.id; renderSymbolBlocks(); }); sw.appendChild(b);
+  }
+  const cw = $("dataSwatches"); cw.innerHTML = "";
+  PALETTE_HEX.forEach((hex, i) => {
+    const rgb = hexToRgb(hex);
+    const b = document.createElement("button"); b.type = "button"; b.className = "swatch"; b.style.background = hex;
+    b.setAttribute("aria-label", (COLOUR_NAMES[i] || hex).trim()); b.setAttribute("aria-pressed", String(c.color.join(",") === rgb.join(",")));
+    b.addEventListener("click", () => { c.color = rgb; renderSymbolBlocks(); }); cw.appendChild(b);
+  });
+  const rl = $("rampList"); rl.innerHTML = "";
+  if (ramp) for (const r of COLOR_RAMPS) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "ramp-btn"; b.setAttribute("aria-label", r.name); b.title = r.name;
+    b.setAttribute("aria-pressed", String(c.ramp === r.id));
+    b.style.background = "linear-gradient(90deg," + r.colors.map((col) => "rgb(" + col.join(",") + ")").join(",") + ")";
+    b.addEventListener("click", () => { c.ramp = r.id; renderSymbolBlocks(); }); rl.appendChild(b);
+  }
+  updateConfigSummary();
+  updatePreview(false);
+}
+function updateConfigSummary() {
+  const c = addState.fieldChoices, A = (n) => (n ? aliasOf(addState, n) : "—");
+  const numColor = c.color && addState.numeric.includes(c.color);
+  let s;
+  switch (addState.style.id) {
+    case "pie_chart": s = t("sumPie", { n: Math.min(8, addState.numeric.length) }); break;
+    case "numeric_color_size": s = t("sumColorSize", { color: A(c.color), size: A(c.size) }); break;
+    case "categorical_size": s = t(numColor ? "sumColorSize" : "sumTypeSize", { color: A(c.color), size: A(c.size) }); break;
+    case "categorical": s = t(numColor ? "sumShade" : "sumType", { color: A(c.color) }); break;
+    case "graduated": s = t("sumSize", { size: A(c.size) }); break;
+    default: s = S.sumSimple;
+  }
+  if (c.label) s += t("sumLabels", { label: A(c.label) });
+  $("cfgSummary").textContent = s;
+}
+function removePreview(restoreCam) {
+  clearTimeout(previewTimer); previewTimer = 0;
+  if (previewLayer) { removeFromMaps(previewLayer); previewLayer = null; }
+  if (restoreCam && prePreviewCam) goToSafe({ center: prePreviewCam.center, zoom: prePreviewCam.zoom }, { animate: false });
+  if (restoreCam) prePreviewCam = null;
+}
+function updatePreview(frame) {
+  if (!addState) return;
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => {
+    previewTimer = 0;
+    if (!addState) return;
+    if (previewLayer) { removeFromMaps(previewLayer); previewLayer = null; }
+    let fl;
+    try { fl = buildDataLayer(buildLayerDef(addState, "csvPreview")); } catch (e) { console.error(e); return; }
+    previewLayer = fl; activeMap().add(fl); keepSketchOnTop();
+    if (frame) fl.when().then(() => fl.queryExtent()).then((r) => { if (r && r.extent) goToSafe(r.extent.expand(1.2), { animate: false }); }).catch(() => {});
+  }, frame ? 0 : 200);
+}
+function submitData() {
+  if (!addState) { closePanels(); return; }
+  const def = buildLayerDef(addState, "csv" + Date.now().toString(36) + (++dataLayerSeq));
+  const n = addState.features.length;
+  removePreview(false); prePreviewCam = null;
+  let fl;
+  try { fl = addDataLayer(def); } catch (e) { console.error(e); toast(S.layerFailed.replace("{title}", def.title)); return; }
+  addState = null;
+  closePanels();
+  fl.when().then(() => fl.queryExtent()).then((r) => { if (r && r.extent) goToSafe(r.extent.expand(1.2), { animate: false }); }).catch(() => {});
+  toast(t("addedPoints", { n }));
+}
+$("dataSubmit").addEventListener("click", submitData);
+$("dataCancel").addEventListener("click", () => closePanels());
+$("dataClose").addEventListener("click", () => closePanels());
+$("dataSize").addEventListener("input", () => {
+  const v = parseInt($("dataSize").value, 10) || 12;
+  $("dataSizeVal").textContent = v + " px";
+  if (addState) { addState.symbolChoices.size = v; updateConfigSummary(); updatePreview(false); }
+});
+function pickCsv() {
+  const input = document.createElement("input"); input.type = "file"; input.accept = ".csv,text/csv,.txt";
+  input.addEventListener("change", () => { const f = input.files && input.files[0]; if (f) handleDroppedFile(f); });
+  input.click();
+}
+$("csvPick").addEventListener("click", pickCsv);
+
+// ============================================================ Drag and drop
+const dtHasFiles = (e) => !!(e.dataTransfer && e.dataTransfer.types && [...e.dataTransfer.types].includes("Files"));
+let dropDepth = 0;
+window.addEventListener("dragover", (e) => { if (dtHasFiles(e)) e.preventDefault(); });
+window.addEventListener("dragenter", (e) => { if (!dtHasFiles(e)) return; dropDepth++; $("dropOverlay").hidden = false; });
+window.addEventListener("dragleave", (e) => { if (!dtHasFiles(e)) return; dropDepth = Math.max(0, dropDepth - 1); if (!dropDepth) $("dropOverlay").hidden = true; });
+window.addEventListener("drop", (e) => {
+  if (!dtHasFiles(e)) return;
+  e.preventDefault(); dropDepth = 0; $("dropOverlay").hidden = true;
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) handleDroppedFile(f);
+});
+function readText(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsText(file); }); }
+async function handleDroppedFile(f) {
+  const name = f.name || "";
+  if (/\.(mmap|json)$/i.test(name)) {
+    if (F.localSave === false) return;
+    if (!confirmDiscard()) return;
+    try { const txt = await readText(f); if (await openDocText(txt)) { currentFileHandle = null; openedHandleUnsaved = false; } } catch (e) { toast(S.cantRead); }
+    return;
+  }
+  if ((/\.(csv|txt)$/i.test(name) || f.type === "text/csv") && F.csv !== false) {
+    try { handleCsvText(name, await readText(f)); } catch (e) { toast(S.cantRead); }
+    return;
+  }
+  toast(S.dropWhat, 5000);
+}
+
+// ============================================================ Local save and open (.mmap)
+function currentViewpoint() { return { center: [view.center.longitude, view.center.latitude], zoom: view.zoom }; }
+function buildDocument() {
+  const doc = {
+    type: DOC_TYPE, version: DOC_VERSION, app: cfg.appName, appVersion: APP_VERSION, title: currentTitle(), savedAt: new Date().toISOString(),
+    basemap: basemapRef(), mode, viewpoint: currentViewpoint(),
+    camera: mode === "3d" && sceneView ? sceneView.camera.toJSON() : null,
+    webmap: currentSource ? { itemId: currentSource.itemId, title: currentSource.title } : null,
+    layerStates: currentSource ? sourceLayers().map((l) => ({ id: l.id, title: l.title, visible: l.visible !== false, opacity: l.opacity })) : [],
+    portalLayers: [...portalLayers.values()].map((l) => ({ ...l.__item, visible: l.visible !== false, opacity: l.opacity })),
+    sketchVisible: graphicsLayer.visible !== false,
+    graphics: graphicsLayer.graphics.toArray().map((g) => ({ geometry: g.geometry.toJSON(), attributes: { ...g.attributes } })),
+    layers: dataLayers.map((fl) => ({ ...fl._srcDef, visible: fl.visible !== false, opacity: fl.opacity }))
+  };
+  if (bookmarks.length) doc.bookmarks = bookmarks.map((b) => ({ title: b.title, viewpoint: b.viewpoint, layers: b.layers || [], thumb: b.thumb || null }));
+  return doc;
+}
+async function loadDocument(doc) {
+  closePanels(false);
+  resetWorkspace();
+  let sourceOk = false;
+  if (doc.webmap) {
+    sourceOk = await openWebMapItem(doc.webmap.itemId, { keepWorkspace: true, quiet: true });
+    if (!sourceOk) toast(S.sourceMissing, 5000);
+  }
+  if (!sourceOk) { setActiveMap(localMap); localMap.basemap = defaultBasemap(); }
+  if (doc.basemap) { try { activeMap().basemap = basemapFrom(doc.basemap); } catch (e) { /* keep current */ } }
+  if (sourceOk) for (const st of doc.layerStates || []) { const l = activeMap().layers.find((x) => x.id === st.id); if (l) { l.visible = st.visible; l.opacity = st.opacity; } }
+  for (const p of doc.portalLayers || []) await addPortalLayer(p, { silent: true, visible: p.visible, opacity: p.opacity });
+  for (const ld of doc.layers || []) { try { addDataLayer(ld, { silent: true }); } catch (e) { console.warn("Skipped a data layer", e); } }
+  for (const gj of doc.graphics || []) { try { addSketchGraphic(gj); } catch (e) { console.warn("Skipped a sketch", e); } }
+  graphicsLayer.visible = doc.sketchVisible !== false;
+  keepSketchOnTop();
+  bookmarks = doc.bookmarks || [];
+  setTitle(doc.title);
+  if (doc.mode === "3d" && F.threeD !== false) {
+    await setMode("3d");
+    if (doc.camera) goToSafe(doc.camera, { animate: false }); else if (doc.viewpoint && doc.viewpoint.center) goToSafe(doc.viewpoint, { animate: false });
+  } else {
+    await setMode("2d");
+    if (doc.viewpoint && doc.viewpoint.center) goToSafe({ center: doc.viewpoint.center, zoom: doc.viewpoint.zoom }, { animate: false });
+    else if (doc.viewpoint && doc.viewpoint.extent) goToSafe(Extent.fromJSON(doc.viewpoint.extent), { animate: false });
+  }
+  if (!$("bookmarksPanel").hidden) showBmList();
+  if (catalogLoaded) refreshCatalogButtons();
+  markClean();
+  const n = graphicsLayer.graphics.length + (doc.layers || []).reduce((a, l) => a + l.features.length, 0);
+  toast(t("openedFile", { title: currentTitle(), n }));
+}
+async function openDocText(text) {
+  let raw;
+  try { raw = JSON.parse(text); } catch (e) { toast(S.cantRead); return false; }
+  const res = sanitizeDoc(raw);
+  if (!res.ok) { toast(S[res.code] || S.cantRead, 5000); return false; }
+  closeModal("openModal");
+  await loadDocument(res.doc);
+  if (res.skipped) setTimeout(() => toast(t("skippedOnOpen", { n: res.skipped }), 5000), 3500);
+  return true;
+}
+function openFromDevice() {
+  if (!confirmDiscard()) return;
+  if (window.showOpenFilePicker) {
+    window.showOpenFilePicker({ multiple: false, types: [{ description: S.mapFile, accept: { "application/json": [".mmap", ".json"] } }] })
+      .then(async ([h]) => { const f = await h.getFile(); if (await openDocText(await f.text())) { currentFileHandle = h; openedHandleUnsaved = true; } })
+      .catch((err) => { if (err && err.name === "AbortError") return; pickViaInput(); });
+  } else pickViaInput();
+}
+function pickViaInput() {
+  const input = document.createElement("input"); input.type = "file"; input.accept = ".mmap,.json,application/json";
+  input.addEventListener("change", async () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    try { if (await openDocText(await readText(f))) { currentFileHandle = null; openedHandleUnsaved = false; } } catch (e) { toast(S.cantRead); }
+  });
+  input.click();
+}
+function downloadBlob(blob, filename) { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); }
+function docBlob() { return new Blob([JSON.stringify(buildDocument())], { type: "application/json" }); }
+function saveToDevice(forceNew) {
+  if (!window.showSaveFilePicker) { openNameDialog(); return; }
+  if (!forceNew && currentFileHandle && openedHandleUnsaved) {
+    $("firstSaveText").textContent = t("firstSaveText", { name: currentFileHandle.name || "" });
+    openModal("firstSaveModal", $("fsCopy"));
+    return;
+  }
+  writeToHandle(forceNew);
+}
+async function writeToHandle(forceNew) {
+  const blob = docBlob();
+  try {
+    if (forceNew || !currentFileHandle) {
+      currentFileHandle = await window.showSaveFilePicker({ suggestedName: titleSlug() + ".mmap", types: [{ description: S.mapFile, accept: { "application/json": [".mmap"] } }] });
+    }
+    const w = await currentFileHandle.createWritable();
+    await w.write(blob); await w.close();
+    openedHandleUnsaved = false; markClean();
+    toast(t("savedFile", { name: currentFileHandle.name || titleSlug() + ".mmap" }));
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+    if (err && (err.name === "NotAllowedError" || err.name === "NoModificationAllowedError") && !forceNew) { toast(S.readOnlyFile, 5000); currentFileHandle = null; return writeToHandle(true); }
+    console.error(err);
+    currentFileHandle = null;
+    openNameDialog();
+  }
+}
+$("fsCopy").addEventListener("click", () => { closeModal("firstSaveModal"); writeToHandle(true); });
+$("fsUpdate").addEventListener("click", () => { closeModal("firstSaveModal"); openedHandleUnsaved = false; writeToHandle(false); });
+function openNameDialog() { $("fileNameInput").value = titleSlug(); openModal("nameModal", $("fileNameInput")); setTimeout(() => $("fileNameInput").select(), 0); }
+function confirmNameDialog() {
+  const name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
+  closeModal("nameModal");
+  try { downloadBlob(docBlob(), name + ".mmap"); markClean(); toast(t("savedDownload", { name: name + ".mmap" })); } catch (e) { toast(S.saveFailed); }
+}
+$("nameConfirm").addEventListener("click", confirmNameDialog);
+$("fileNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") confirmNameDialog(); });
+$("saveTile").addEventListener("click", () => saveToDevice(false));
+$("saveAsTile").addEventListener("click", () => saveToDevice(true));
+$("openSavedLink").addEventListener("click", () => { closePanels(false); openOpenModal("tabDevice"); });
+$("shotTile").addEventListener("click", () => {
+  view.takeScreenshot({ format: "png" }).then((s) => { fetch(s.dataUrl).then((r) => r.blob()).then((b) => { downloadBlob(b, titleSlug() + ".png"); toast(S.shotSaved); }); })
+    .catch(() => toast(S.shotFailed));
+});
+
+// ============================================================ Print (in the browser; nothing is sent to a print service)
+$("printTile").addEventListener("click", async () => {
+  try {
+    const w = 1600, h = Math.round(1600 * Math.max(0.4, Math.min(1.2, view.height / Math.max(1, view.width))));
+    const shot = await view.takeScreenshot({ width: w, height: h, format: "png" });
+    const sheet = $("printSheet"); sheet.innerHTML = "";
+    const h1 = document.createElement("h1"); h1.textContent = currentTitle();
+    const img = document.createElement("img"); img.src = shot.dataUrl; img.alt = currentTitle();
+    const meta = document.createElement("div"); meta.className = "meta";
+    const shown = []; eachToggleableLayer((l, id, title) => { if (l.visible !== false && (l !== graphicsLayer || graphicsLayer.graphics.length)) shown.push(title); });
+    const credits = [...document.querySelectorAll(".esri-attribution__sources")].map((e) => e.textContent.trim()).filter(Boolean)[0] || "";
+    const lines = [S.printLayers + ": " + (shown.join(", ") || "—"), credits ? S.printCredits + ": " + credits : "",
+      cfg.disclaimer || "", cfg.appName + " · " + new Date().toLocaleDateString(cfg.locale || undefined) + " · Created by Jason Sawle"];
+    for (const line of lines.filter(Boolean)) { const p = document.createElement("p"); p.style.margin = "0 0 3pt"; p.textContent = line; meta.appendChild(p); }
+    sheet.append(h1, img, meta);
+    await new Promise((res) => { if (img.complete) res(); else { img.onload = res; img.onerror = res; } });
+    window.print();
+  } catch (e) { console.error(e); toast(S.shotFailed); }
+});
+
+// ============================================================ ArcGIS Online: sign in, save, update
+const SIGN = cfg.signIn || {};
+const signInConfigured = F.signIn !== false && /^[A-Za-z0-9_-]{8,}$/.test(SIGN.clientId || "");
+let oauthInfo = null;
+if (signInConfigured) {
+  oauthInfo = new OAuthInfo({ appId: SIGN.clientId, portalUrl: PORTAL, popup: SIGN.popup !== false });
+  IdentityManager.registerOAuthInfos([oauthInfo]);
+  IdentityManager.checkSignInStatus(PORTAL + "/sharing").then(onSignedIn).catch(() => { /* not signed in */ });
+}
+async function onSignedIn() {
+  try {
+    const portal = new Portal({ url: PORTAL, authMode: "immediate" });
+    await portal.load();
+    portalUser = portal.user;
+  } catch (e) { console.error("Portal load failed", e); portalUser = null; }
+  if (portalUser && currentSource && currentSource.item && currentSource.item.owner === portalUser.username) currentAgolItem = { id: currentSource.itemId, owner: portalUser.username, title: currentSource.title };
+  renderUser();
+  return portalUser;
+}
+function renderUser() {
+  const on = !!portalUser;
+  $("signInBtn").hidden = on || F.signIn === false;
+  $("userWrap").hidden = !on;
+  $("tabArcgis").hidden = !on;
+  if (on) {
+    const name = portalUser.fullName || portalUser.username;
+    $("userName").textContent = name;
+    $("userBtn").setAttribute("aria-label", S.account + ": " + name);
+    const av = $("avatar");
+    const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+    av.textContent = initials;
+    try { if (portalUser.thumbnailUrl) { av.style.backgroundImage = "url('" + portalUser.thumbnailUrl + "')"; av.textContent = ""; } } catch (e) { /* initials */ }
+  }
+  renderAgol();
+}
+function renderAgol() {
+  const on = !!portalUser;
+  $("agolSignedOut").hidden = on; $("agolSignedIn").hidden = !on;
+  const canUpdate = on && currentAgolItem && currentAgolItem.owner === portalUser.username;
+  $("agolUpdate").hidden = !canUpdate;
+  if (canUpdate) $("agolUpdate").textContent = t("updateArcgis", { title: currentAgolItem.title });
+}
+function startSignIn() {
+  if (!signInConfigured) {
+    $("signInH").textContent = S.signIn;
+    const b = $("signInBody"); b.innerHTML = "";
+    for (const k of ["signInNotSet", "signInNotSetAdmin"]) { const p = document.createElement("p"); p.textContent = S[k]; b.appendChild(p); }
+    $("signInGo").hidden = true;
+    openModal("signInModal");
+    return;
+  }
+  $("signInGo").hidden = false;
+  if (SIGN.onboardingTitle || SIGN.onboardingHtml) {
+    $("signInH").textContent = SIGN.onboardingTitle || S.signIn;
+    const b = $("signInBody"); b.innerHTML = ""; b.appendChild(safeFragment(SIGN.onboardingHtml || ""));
+    openModal("signInModal", $("signInGo"));
+  } else doSignIn();
+}
+function stashBeforeRedirect() {
+  const rec = { config: cfgName, t: Date.now() };
+  if (dirty) { try { rec.doc = buildDocument(); } catch (e) { /* skip */ } }
+  try { sessionStorage.setItem(AUTH_STASH, JSON.stringify(rec)); }
+  catch (e) { try { delete rec.doc; sessionStorage.setItem(AUTH_STASH, JSON.stringify(rec)); } catch (e2) { /* no storage */ } }
+  history.replaceState(history.state, "", location.pathname);   // a fixed redirect address (the config is restored after sign-in)
+  dirty = false;                                                  // the work is stashed; don't block the redirect
+}
+function doSignIn() {
+  closeModal("signInModal");
+  if (oauthInfo.popup === false) stashBeforeRedirect();
+  IdentityManager.getCredential(PORTAL + "/sharing", { oAuthPopupConfirmation: false })
+    .then(onSignedIn)
+    .then((u) => { if (u) toast(t("signedInAs", { name: u.fullName || u.username })); })
+    .catch((err) => {
+      if (!err) return;
+      if (err.name === "identity-manager:popup-blocked") toast(S.popupBlocked, 7000);
+      else if (err.name !== "identity-manager:user-aborted") toast(t("signInFailed", { msg: err.message || err.name }), 7000);
+    });
+}
+$("signInBtn").addEventListener("click", startSignIn);
+$("agolSignIn").addEventListener("click", startSignIn);
+$("signInGo").addEventListener("click", doSignIn);
+function closeUserMenu(focusBtn) { $("userMenu").hidden = true; $("userBtn").setAttribute("aria-expanded", "false"); if (focusBtn) $("userBtn").focus(); }
+$("userBtn").addEventListener("click", () => {
+  const open = $("userMenu").hidden;
+  $("userMenu").hidden = !open; $("userBtn").setAttribute("aria-expanded", String(open));
+  if (open) $("myMapsBtn").focus();
+});
+$("userMenu").addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  e.preventDefault();
+  const items = [...$("userMenu").querySelectorAll("button")], i = items.indexOf(document.activeElement);
+  items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus();
+});
+document.addEventListener("click", (e) => { if (!$("userMenu").hidden && !$("userWrap").contains(e.target)) closeUserMenu(false); });
+$("myMapsBtn").addEventListener("click", () => { closeUserMenu(false); openOpenModal("tabArcgis"); });
+$("signOutBtn").addEventListener("click", () => {
+  closeUserMenu(false);
+  IdentityManager.destroyCredentials();
+  portalUser = null; currentAgolItem = null;
+  renderUser();
+  if (!$("tabArcgis").hidden) switchTab("tabGroup");
+  $("signInBtn").focus();
+  toast(S.signedOut);
+});
+
+function layerToJson(l) {
+  const base = { id: l.id, title: l.title, visibility: l.visible !== false, opacity: typeof l.opacity === "number" ? l.opacity : 1 };
+  if (l.portalItem && l.portalItem.id) base.itemId = l.portalItem.id;
+  switch (l.type) {
+    case "feature": return { ...base, layerType: "ArcGISFeatureLayer", url: l.url != null && l.layerId != null ? l.url + "/" + l.layerId : l.url };
+    case "map-image": return { ...base, layerType: "ArcGISMapServiceLayer", url: l.url };
+    case "tile": return { ...base, layerType: "ArcGISTiledMapServiceLayer", url: l.url };
+    case "vector-tile": return { ...base, layerType: "VectorTileLayer", styleUrl: l.url };
+    case "imagery": return { ...base, layerType: "ArcGISImageServiceLayer", url: l.url };
+    case "imagery-tile": return { ...base, layerType: "ArcGISTiledImageServiceLayer", url: l.url };
+    case "group": return { id: l.id, title: l.title, visibility: base.visibility, opacity: base.opacity, layerType: "GroupLayer", layers: l.layers.toArray().map(layerToJson).filter(Boolean) };
+    default: return null;
+  }
+}
+async function currentBaseMapJson() {
+  const b = activeMap().basemap;
+  const id = b && b.portalItem && b.portalItem.id;
+  if (id) { try { const d = await restGet(`/sharing/rest/content/items/${id}/data`); if (d && d.baseMap) return d.baseMap; } catch (e) { /* fall through */ } }
+  if (currentSource && currentSource.data && currentSource.data.baseMap && !id) return currentSource.data.baseMap;
+  try { const j = b.toJSON(); if (j && j.baseMapLayers && j.baseMapLayers.length) return j; } catch (e) { /* fall through */ }
+  const d = await restGet(`/sharing/rest/content/items/${cfg.defaultBasemap}/data`);
+  return d.baseMap;
+}
+function sourceLayersJson() {
+  if (!currentSource || !currentSource.data) return [];
+  const live = activeMap().layers;
+  return (currentSource.data.operationalLayers || []).filter((op) => !isOwnLayerJson(op)).map((op) => {
+    const l = live.find((x) => x.id === op.id);
+    return l ? { ...op, visibility: l.visible !== false, opacity: l.opacity } : op;
+  });
+}
+async function screenshotBlob(w, h) {
+  try { const s = await view.takeScreenshot({ width: w, height: h, format: "png" }); return await (await fetch(s.dataUrl)).blob(); } catch (e) { return null; }
+}
+function agolStatus(html) { $("agolStatus").innerHTML = ""; if (html) $("agolStatus").appendChild(html); }
+async function saveToArcGIS(update) {
+  if (!portalUser) { startSignIn(); return; }
+  const user = portalUser.username;
+  const p = document.createElement("span"); p.textContent = S.arcgisSaving; agolStatus(p);
+  try {
+    const doc = buildDocument();
+    const ext = view.extent.clone();
+    const wmJson = docToWebMap(doc, { baseMap: await currentBaseMapJson(), sourceLayers: sourceLayersJson(), portalLayers: [...portalLayers.values()].map(layerToJson).filter(Boolean),
+      extent: ext.toJSON(), appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false });
+    const sw = xyToLonLat(ext.xmin, ext.ymin), ne = xyToLonLat(ext.xmax, ext.ymax);
+    const form = new FormData();
+    form.append("f", "json");
+    form.append("title", update ? currentAgolItem.title : ($("agolTitle").value.trim() || currentTitle()));
+    if (!update) {
+      form.append("type", "Web Map");
+      form.append("typeKeywords", "ArcGIS Online,Explorer Web Map,Map,Online Map,Web Map," + AUTHORING_APP);
+      form.append("tags", [...(cfg.agolTags || []), cfg.appName].filter(Boolean).join(","));
+      if ($("agolSummary").value.trim()) form.append("snippet", $("agolSummary").value.trim().slice(0, 2048));
+    }
+    form.append("text", JSON.stringify(wmJson));
+    form.append("extent", [sw[0], sw[1], ne[0], ne[1]].map((n) => n.toFixed(6)).join(","));
+    const thumb = await screenshotBlob(600, 400);
+    if (thumb) form.append("thumbnail", thumb, "thumbnail.png");
+    const url = update ? `${PORTAL}/sharing/rest/content/users/${encodeURIComponent(currentAgolItem.owner)}/items/${currentAgolItem.id}/update`
+      : `${PORTAL}/sharing/rest/content/users/${encodeURIComponent(user)}/addItem`;
+    const r = await esriRequest(url, { method: "post", body: form, responseType: "json" });
+    const d = r.data || {};
+    if (d.error || d.success === false) throw new Error((d.error && d.error.message) || "error");
+    const id = d.id || (currentAgolItem && currentAgolItem.id);
+    currentAgolItem = { id, owner: user, title: update ? currentAgolItem.title : form.get("title") };
+    renderAgol();
+    const box = document.createElement("span");
+    box.appendChild(document.createTextNode(S.arcgisSaved + " "));
+    const a1 = document.createElement("a"); a1.href = `${PORTAL}/apps/mapviewer/index.html?webmap=${id}`; a1.target = "_blank"; a1.rel = "noopener"; a1.textContent = S.openMapViewer;
+    const a2 = document.createElement("a"); a2.href = `${PORTAL}/home/item.html?id=${id}`; a2.target = "_blank"; a2.rel = "noopener"; a2.textContent = S.openItemPage;
+    box.append(a1, document.createTextNode(" · "), a2);
+    agolStatus(box);
+    toast(S.arcgisSaved);
+  } catch (e) {
+    console.error("Save to ArcGIS Online failed", e);
+    const s = document.createElement("span"); s.textContent = t("arcgisFailed", { msg: e.message || e.name || "" }); agolStatus(s);
+  }
+}
+$("agolSaveNew").addEventListener("click", () => { $("agolTitle").value = currentTitle(); $("agolSummary").value = ""; openModal("agolModal", $("agolTitle")); });
+$("agolConfirm").addEventListener("click", () => { closeModal("agolModal"); saveToArcGIS(false); });
+$("agolUpdate").addEventListener("click", () => saveToArcGIS(true));
+
+// ============================================================ Versions
+function renderVersions() {
+  const rows = [
+    [cfg.appName + " (app)", APP_VERSION, "White-label build of the MapMaker app: every MapMaker tool, local save, CSV data, ArcGIS Online sign-in. Created by Jason Sawle."],
+    ["Saved map file (.mmap)", String(DOC_VERSION), "MapMakerLocalDocument. Opens files from the Atlas local-save concept and Map Studio."],
+    ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview."],
+    ["Sketch", SKETCH_VERSION, "Points, lines, areas, circles and text, with pop-ups, images, colour, size and rotation; move, reshape and delete."],
+    ["ArcGIS Online web map writer", WEBMAP_WRITER_VERSION, "Saves the map, your sketches, data and bookmarks as a private web map; reopens them for editing."],
+    [S.configLabel, String(cfg.configVersion || 1), cfgName + ".json (schema " + CONFIG_SCHEMA + ")"],
+    ["ArcGIS Maps SDK for JavaScript", SDK_VERSION, "Esri mapping library"]
+  ];
+  const tbl = $("versTable"); tbl.innerHTML = "";
+  const head = document.createElement("tr");
+  for (const h of [S.part, S.version, S.whatItIs]) { const th = document.createElement("th"); th.scope = "col"; th.textContent = h; head.appendChild(th); }
+  tbl.appendChild(head);
+  for (const r of rows) { const tr = document.createElement("tr"); for (const c of r) { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); } tbl.appendChild(tr); }
+}
+
+// ============================================================ Start-up
+view.when(() => {
+  updatePopupEnabled();
+  if (configMissing) toast("Config “" + configMissing + "” wasn't found, so the default is shown.", 6000);
+});
+if (authStash) {
+  if (cfgName !== "default") { const u = new URL(location.href); u.searchParams.set("config", cfgName); history.replaceState(history.state, "", u.pathname + u.search); }
+  if (authStash.doc) { const res = sanitizeDoc(authStash.doc); if (res.ok) { await loadDocument(res.doc); markDirty(); } }
+}
+const deepLink = params.get("webmap");
+if (deepLink && HEX32.test(deepLink) && !authStash) openWebMapItem(deepLink, { skipConfirm: true });
+console.info(cfg.appName, "v" + APP_VERSION, "config", cfgName);
