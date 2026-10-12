@@ -8,6 +8,8 @@ A configurable version of the National Geographic MapMaker app (an Atlas Instant
 
 Version **1.3.0**. Created by Jason Sawle.
 
+**For developers:** the local save and add data logic is packaged on its own, with a minimal example, in [`kit/`](kit/README.md).
+
 ## Try it
 
 | Link | What you get |

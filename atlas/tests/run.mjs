@@ -4,10 +4,16 @@ import { readFileSync } from "node:fs";
 import * as csv from "../lib/csv.js";
 import * as doc from "../lib/doc.js";
 import * as catalog from "../lib/catalog.js";
+import * as addData from "../kit/add-data.js";
+import * as localSave from "../kit/local-save.js";
 import { DEFAULT_STRINGS } from "../lib/strings.js";
 
 let passed = 0;
-const test = (name, fn) => { try { fn(); passed++; } catch (e) { console.error("FAIL:", name); throw e; } };
+const pending = [];
+const test = (name, fn) => {
+  try { const r = fn(); if (r && typeof r.then === "function") pending.push(r.then(() => { passed++; }, (e) => { console.error("FAIL:", name); throw e; })); else passed++; }
+  catch (e) { console.error("FAIL:", name); throw e; }
+};
 
 // ---------- CSV ----------
 test("sniff comma / semicolon / tab", () => {
@@ -304,6 +310,72 @@ test("page numbers", () => {
   assert.deepEqual(catalog.pageList(12, 12), [1, "…", 8, 9, 10, 11, 12]);
   assert.deepEqual(catalog.pageList(99, 3), [1, 2, 3]);
 });
+// ---------- Developer kit (kit/add-data.js, kit/local-save.js) with stand-in SDK classes
+class FakeCollection { constructor(a) { this.a = a || []; } toArray() { return this.a.slice(); } find(f) { return this.a.find(f); } get length() { return this.a.length; } }
+const fakeSdk = {
+  FeatureLayer: class { constructor(p) { Object.assign(this, p); this.visible = true; this.opacity = 1; } },
+  Graphic: class { constructor(p) { Object.assign(this, p); } static fromJSON(j) { return new this(j); } },
+  Field: { fromJSON: (j) => j }, LabelClass: { fromJSON: (j) => j }, rendererJsonUtils: { fromJSON: (j) => ({ ...j, autocast: true }) }
+};
+const TREES = "Site;Latitud;Longitud;Especie;Altura\nA;8,98;-79,52;Roble;12,5\nB;9,01;-79,50;Ceiba;7\nC;9,02;-79,49;Roble;9\n";
+test("kit: CSV to a client-side layer", () => {
+  const d = addData.readCsvData(TREES, "arboles.csv");
+  assert.ok(d.ok); assert.equal(d.features.length, 3); assert.deepEqual(d.categorical, ["Site", "Especie"]); assert.deepEqual(d.numeric, ["Altura"]);
+  assert.equal(addData.readCsvData("Name,North,East\nA,1,2\n", "x.csv").needsColumns, true);
+  const forced = addData.readCsvData("Name,North,East\nA,1,2\n", "x.csv", { latIdx: 1, lonIdx: 2 });
+  assert.ok(forced.ok);
+  assert.equal(addData.readCsvData("", "e.csv").code, "csvEmpty");
+  assert.deepEqual(addData.availableStyles(d).map((x) => x.id), ["simple", "categorical", "graduated", "categorical_size"]);
+  const auto = addData.layerDefFromData(d, { id: "t1" });
+  assert.equal(auto.renderer.type, "uniqueValue"); assert.equal(auto.renderer.visualVariables[0].field, "Altura");   // type and size
+  assert.equal(auto.title, "arboles");
+  const lab = addData.layerDefFromData(d, { id: "t2", style: "simple", label: "Site", colorRgb: [10, 20, 30] });
+  assert.equal(lab.renderer.symbol.color.slice(0, 3).join(), "10,20,30"); assert.equal(lab.labelingInfo[0].labelExpressionInfo.expression, "$feature.Site");
+  assert.throws(() => addData.layerDefFromData(d, { style: "pie_chart" }));
+  const layer = addData.createDataLayer(auto, fakeSdk);
+  assert.equal(layer.id, "__data_t1"); assert.equal(layer.source.length, 3); assert.equal(layer.objectIdField, "ObjectId"); assert.ok(layer.renderer.autocast);
+  layer.visible = false; layer.opacity = 0.5;
+  const back = addData.dataLayerDef(layer);
+  assert.equal(back.visible, false); assert.equal(back.opacity, 0.5); assert.equal(back.features.length, 3);
+});
+test("kit: sketches from symbols, and back to graphics", () => {
+  const pt = { type: "point", x: 1, y: 2, spatialReference: { wkid: 102100 } };
+  const a = localSave.sketchAttributes({ geometry: pt, attributes: { title: "Camp" }, symbol: { type: "simple-marker", color: { toHex: () => "#d4572a" }, size: 14, angle: 30 } });
+  assert.deepEqual([a.kind, a.color, a.size, a.rotation, a.title], ["point", "#d4572a", 14, 30, "Camp"]);
+  const tx = localSave.sketchAttributes({ geometry: pt, attributes: {}, symbol: { type: "text", text: "River", color: [0, 0, 255, 1], font: { size: 18 } } });
+  assert.deepEqual([tx.kind, tx.title, tx.color, tx.size], ["text", "River", "#0000ff", 18]);
+  const ln = localSave.sketchAttributes({ geometry: { type: "polyline", paths: [[[0, 0], [1, 1]]] }, attributes: {}, symbol: { type: "simple-line", color: [255, 0, 0], width: 2 } });
+  assert.deepEqual([ln.kind, ln.size], ["polyline", 8]);
+  const g = localSave.sketchGraphic({ geometry: { paths: [[[0, 0], [1, 1]]], spatialReference: { wkid: 102100 } }, attributes: { kind: "polyline", color: "#1a7f37", size: 8, title: "Route" } }, fakeSdk.Graphic);
+  assert.equal(g.symbol.type, "simple-line"); assert.equal(g.symbol.width, 2); assert.equal(g.popupTemplate.title, "{title}");
+});
+test("kit: layers from the collection as operational layers", () => {
+  const f = localSave.layerToOperationalJson({ id: "__item_" + "a".repeat(32), title: "Rivers", type: "feature", url: "https://s/FeatureServer", layerId: 3, portalItem: { id: "a".repeat(32) }, visible: false, opacity: 0.4 });
+  assert.deepEqual(f, { id: "__item_" + "a".repeat(32), title: "Rivers", visibility: false, opacity: 0.4, layerType: "ArcGISFeatureLayer", itemId: "a".repeat(32), url: "https://s/FeatureServer/3" });
+  assert.equal(localSave.layerToOperationalJson({ id: "v", type: "vector-tile", url: "https://s/VectorTileServer", visible: true }).styleUrl, "https://s/VectorTileServer/resources/styles/root.json");
+  assert.equal(localSave.layerToOperationalJson({ id: "k", type: "kml", url: "https://s/a.kml", visible: true }).layerType, "KML");
+  assert.equal(localSave.layerToOperationalJson({ id: "x", type: "graphics", visible: true }), null);
+  const map = { layers: new FakeCollection([{ id: "rivers", visible: false, opacity: 0.7 }]) };
+  const src = { operationalLayers: [{ id: "rivers", layerType: "ArcGISFeatureLayer", url: "https://r/0", visibility: true }, { id: "__sketch_points" }, { id: "__item_x" }] };
+  assert.deepEqual(localSave.sourceLayersJson(map, src), [{ id: "rivers", layerType: "ArcGISFeatureLayer", url: "https://r/0", visibility: false, opacity: 0.7 }]);
+});
+test("kit: the whole map to a web map and back", async () => {
+  const pt = { type: "point", x: 1, y: 2, spatialReference: { wkid: 102100 } };
+  const g = { geometry: { ...pt, toJSON: () => ({ x: 1, y: 2, spatialReference: { wkid: 102100 } }) }, attributes: { title: "Camp" }, symbol: { type: "simple-marker", color: [212, 87, 42, 1], size: 12 } };
+  const data = addData.createDataLayer(addData.layerDefFromData(addData.readCsvData(TREES, "trees.csv"), { id: "t9" }), fakeSdk);
+  const extent = { xmin: 0, ymin: 0, xmax: 10, ymax: 10, spatialReference: { wkid: 102100 } };
+  const view = { type: "2d", scale: 50000, rotation: 0, extent: { clone: () => ({ toJSON: () => extent }) },
+    map: { basemap: { portalItem: { id: "b".repeat(32) } }, layers: new FakeCollection([]) } };
+  const { json, skippedLayers } = await localSave.mapToWebMapJson({ view, sourceJson: null, sketchLayer: { visible: true, graphics: new FakeCollection([g]) },
+    dataLayers: [data], addedLayers: [{ id: "odd", type: "graphics" }], fetchItemData: async () => ({ baseMap: { baseMapLayers: [{ id: "t", layerType: "ArcGISTiledMapServiceLayer", url: "https://b/MapServer" }], title: "Topo" } }),
+    appName: "Atlas", appVersion: "9.9" });
+  assert.equal(skippedLayers, 1);
+  assert.deepEqual([json.authoringApp, json.authoringAppVersion, json.baseMap.title, json.initialState.viewpoint.scale], ["Atlas", "9.9", "Topo", 50000]);
+  assert.deepEqual(json.operationalLayers.map((o) => o.id), ["__data_t9", "__sketch_points"]);
+  const r = localSave.readWebMap(JSON.parse(JSON.stringify(json)));
+  assert.ok(r.ok); assert.equal(r.layers[0].features.length, 3); assert.equal(r.graphics[0].attributes.color, "#d4572a");
+  assert.equal(localSave.titleFromFileName("Field_trip-2.mmap"), "Field trip 2");
+});
 test("every config translates only known strings", () => {
   for (const f of ["default", "mapmaker", "example-es"]) {
     const c = JSON.parse(readFileSync(new URL("../config/" + f + ".json", import.meta.url)));
@@ -311,4 +383,5 @@ test("every config translates only known strings", () => {
     for (const k of ["contentGroup", "basemapGroup", "defaultBasemap"]) assert.match(c[k], /^[0-9a-f]{32}$/);
   }
 });
+await Promise.all(pending);
 console.log("All " + passed + " tests passed.");
