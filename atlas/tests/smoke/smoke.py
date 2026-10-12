@@ -209,7 +209,7 @@ def main():
             check(page.is_hidden("#hdrTitle > input"), "no title until a map is open")
             signin_visible = page.is_visible("#signInBtn")
             check(signin_visible == (cfg != "mapmaker"), f"header sign-in visible={signin_visible}")
-            check(page.inner_text("#verBtn") == "v1.3.0" and page.inner_text(".credit") == "Created by Jason Sawle", "version and credit corner")
+            check(page.inner_text("#verBtn") == "v1.3.1" and page.inner_text(".credit") == "Created by Jason Sawle", "version and credit corner")
             check(page.evaluate(OVERLAP_JS) == {"stack": False, "attribution": False, "corner": False}, "nothing under the toolbar (desktop)")
             page.screenshot(path=str(shots / f"{cfg}-desktop.png"))
             page.set_viewport_size({"width": 1280, "height": 800}); page.wait_for_timeout(500)
@@ -338,6 +338,12 @@ def main():
             page.click("#tg3d"); page.wait_for_timeout(400)
             check(page.get_attribute("#tg3d", "aria-pressed") == "true", "3D on")
             check(len(page.query_selector_all(".esri-ui-bottom-left .rose")) == 2, "3D view has its compass")
+            check(page.evaluate("window.__stub.goTo.some(g => g.tilt === 60)"), "switching to 3D tilts the camera")
+            check(page.evaluate("JSON.stringify(window.__stub.views[1].ui.components)") == '["attribution","zoom","navigation-toggle"]' and not page.query_selector_all("#sceneDiv .esri-navigation-toggle"),
+                  "3D controls: one pan/rotate toggle, no second compass")
+            page.click("#tg2d"); page.wait_for_timeout(300); n_goto = page.evaluate("window.__stub.goTo.filter(g => g.tilt).length")
+            page.click("#tg3d"); page.wait_for_timeout(300)
+            check(page.evaluate("window.__stub.goTo.filter(g => g.tilt).length") == n_goto + 1, "tilts again on each switch to 3D")
             res = page.evaluate("axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))")
             check(not res, f"axe (map) {res}")
             # tool panel opens with the active colour
