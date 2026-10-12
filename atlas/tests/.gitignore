@@ -1,0 +1,4 @@
+.deps/
+.shots/
+.build/
+__pycache__/

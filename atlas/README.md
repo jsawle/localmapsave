@@ -6,7 +6,7 @@ A configurable version of the National Geographic MapMaker app (an Atlas Instant
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.3.1**. Created by Jason Sawle.
+Version **1.3.2**. Created by Jason Sawle.
 
 **For developers:** the local save and add data logic is packaged on its own, with a minimal example, in [`kit/`](kit/README.md).
 
@@ -36,7 +36,7 @@ The toolbar is in MapMaker's order: Basemaps, Open map, Map layers, Add layer, L
 | Measure | Opens a small menu above the tool, as in MapMaker: **Measure** (distance, area and coordinates; direct-line distance in 3D) and **Elevation profile**, which docks across the bottom of the screen with the map above it, as in MapMaker: the ground's height along a line you draw or a line you've sketched. While it's open the toolbar is tucked away; the button under the scale bar brings it back |
 | Sketch | Point, line, area, circle and text. Each has a pop-up with title, description and image, plus colour, size and rotation. Select to move or reshape; delete |
 | Bookmarks | Saves the location and which layers are on. A map's own bookmarks appear when you open it |
-| 2D / 3D | One map shown in either view. Switching to 3D tilts the camera towards the horizon (60° by default) so it's obvious the view has changed. The 3D view has one pan/rotate toggle; the compass rose turns with it |
+| 2D / 3D | One map shown in either view. Switching to 3D tilts the camera towards the horizon (60° by default) so it's obvious the view has changed. From the whole-world start view the SDK allows almost no tilt (0.5°), so there the globe itself is the change; the tilt shows from about country scale in. The 3D view has zoom and one pan/rotate toggle; the compass rose turns with it |
 | Save | Save, Save as, Screenshot, Print. With sign-in: Save to ArcGIS Online and Update. Save and Save to ArcGIS Online write the same web map |
 | On the map | Search, Home and zoom (top left); MapMaker's compass rose above the scale bar (bottom left), which turns with the map and faces north again when selected; the disclaimer in the attribution bar; version and credit (bottom right) |
 
@@ -55,7 +55,7 @@ Copy `config/default.json` to `config/<name>.json`, edit it, and open `…/atlas
 | `contentGroup` | Group whose web maps appear in Open map and whose layers appear in Add layer. Its categories become the Categories tree in both. Up to 1,000 items are counted and filtered in the browser; a bigger group is searched in ArcGIS Online, without counts |
 | `basemapGroup`, `defaultBasemap` | Basemap gallery group, and the basemap (web map item ID) that new maps start on |
 | `startView` | `center` [longitude, latitude] and `zoom` |
-| `threeDTilt` | How far the camera tilts when switching to 3D, in degrees (default 60; 0 keeps it looking straight down). Near a whole-world view the SDK allows less tilt |
+| `threeDTilt` | How far the camera tilts when switching to 3D, in degrees (default 60; 0 keeps it looking straight down). The SDK limits tilt by height: 0.5° at the whole-world start view, about 34° at zoom 4, the full 60° from zoom 6 |
 | `units`, `scalebar` | `metric` or `imperial` for Measure; `dual`, `metric`, `imperial` or `none` for the scale bar |
 | `disclaimer` | Text shown in the attribution bar, before "Powered by Esri" |
 | `signIn` | `clientId` (see below), `popup`, `headerButton` (`false` hides Sign in from the header; people sign in from Save), and the sign-in screen's `onboardingTitle` and `onboardingHtml` |
@@ -127,7 +127,7 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.3.1 |
+| App | 1.3.2 |
 | Collection browser (Open map, Add layer) | 2.0 |
 | Compass | 1.0 |
 | Elevation profile | 1.0 |
@@ -149,4 +149,5 @@ The app version, plus a version for each part, is shown under the version button
 
 - `node atlas/tests/run.mjs` runs the unit tests for CSV import, saved maps (web map writing, reading and file checks), categories and page numbers.
 - `python3 atlas/tests/smoke/smoke.py` runs a browser test of all three configs (Python Playwright with Chromium). It uses a stand-in for the ArcGIS library, Esri's real Calcite icons, fixture data shaped like the MapMaker group, and an axe-core scan.
+- `python3 atlas/tests/real-sdk/real.py` runs the app on the real ArcGIS library (5.1.0 from npm, about 400 MB on first run) in Chromium, offline: ArcGIS Online is answered with the smoke test's fixtures and plain tiles. It checks what the stand-in can't: the basemap draws in 2D and 3D, the 3D controls, the tilt, and no uncaught errors. It takes a few minutes, because 3D runs on software WebGL. Version 1.3.1 failed it (no basemap in 3D); the stand-in now copies that SDK behaviour too.
 - Toolbar icons are Esri's Calcite icons, loaded by the ArcGIS library; built-in outline icons show until they load.

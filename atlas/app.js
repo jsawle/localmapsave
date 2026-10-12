@@ -9,7 +9,7 @@ import { DEFAULT_STRINGS } from "./lib/strings.js";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
   filterEntries, pageList } from "./lib/catalog.js";
 
-const APP_VERSION = "1.3.1";
+const APP_VERSION = "1.3.2";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "1.0";
 const SKETCH_VERSION = "1.0";
@@ -248,7 +248,9 @@ function activeMap() { return view.map; }
 function addViewUI(v, is3d) {
   if (F.search !== false) v.ui.add(new Expand({ view: v, content: new Search({ view: v }), expandIcon: "search", expandTooltip: S.search, group: "top-left" }), { position: "top-left", index: 0 });
   v.ui.add(new Home({ view: v }), { position: "top-left", index: 1 });
-  if (is3d) v.ui.components = ["attribution", "zoom", "navigation-toggle"];   // the SDK's 3D default also adds a small compass; the rose replaces it
+  // The SDK's 3D default also has a small compass; the rose replaces it. Only "compass", "navigation-toggle" and "zoom"
+  // are allowed here: any other id makes the SDK throw while drawing, and the 3D view then shows no basemap (1.3.1).
+  if (is3d) v.ui.components = ["zoom", "navigation-toggle"];
   const stack = document.createElement("div"); stack.className = "ll-stack";
   if (F.compass !== false) stack.appendChild(makeCompass(v, is3d));
   if (!is3d && cfg.scalebar !== "none") {
