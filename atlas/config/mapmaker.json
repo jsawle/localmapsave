@@ -1,6 +1,7 @@
 {
-  "configVersion": 4,
+  "configVersion": 5,
   "appName": "National Geographic MapMaker",
+  "showAppName": false,
   "locale": "en",
   "dir": "ltr",
   "logo": {

@@ -1,5 +1,5 @@
 {
-  "configVersion": 4,
+  "configVersion": 5,
   "appName": "Mapas Escolares",
   "locale": "es",
   "dir": "ltr",
@@ -300,6 +300,8 @@
     "matchOfIn": "{n} de {count} en {topic} coinciden",
     "layersCount": "{n} capas",
     "layersCountOne": "1 capa",
+    "bookmarksCount": "{n} marcadores",
+    "bookmarksCountOne": "1 marcador",
     "layersUnit": "capas",
     "layersUnitOne": "capa",
     "noLayersHere": "No se encontraron capas.",

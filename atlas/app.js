@@ -9,7 +9,7 @@ import { DEFAULT_STRINGS } from "./lib/strings.js";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
   filterEntries, pageList } from "./lib/catalog.js";
 
-const APP_VERSION = "1.3.2";
+const APP_VERSION = "1.4.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "1.0";
 const SKETCH_VERSION = "1.0";
@@ -28,6 +28,7 @@ const DEFAULT_CONFIG = {
   appName: "School Atlas",
   locale: "en", dir: "ltr",
   logo: { url: "", compactUrl: "", alt: "", link: "", showName: false },
+  showAppName: true,       // false: no name in the header (the browser tab still uses appName)
   headerLinks: [],
   partnerLogos: [],
   theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", toolActive: "", toolActiveInk: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
@@ -131,8 +132,10 @@ function applyHeader() {
     $("logoImg").src = wide; $("logoImg").alt = logo.alt || cfg.appName; $("logoImg").hidden = false;
     $("logoCompact").src = compact; $("logoCompact").alt = logo.alt || cfg.appName; $("logoCompact").hidden = false;
   }
-  $("logoText").textContent = !wide || logo.showName ? cfg.appName : "";
-  $("logoText").hidden = !!wide && !logo.showName;
+  const showName = cfg.showAppName !== false && (!wide || logo.showName);
+  $("logoText").textContent = showName ? cfg.appName : "";
+  $("logoText").hidden = !showName;
+  link.hidden = !wide && !showName;   // nothing to show: no empty link
   const links = $("hdrLinks"); links.innerHTML = "";
   for (const l of cfg.headerLinks || []) {
     if (!l || !/^https:\/\//i.test(l.url || "") || !l.label) continue;
@@ -789,6 +792,23 @@ function setActiveMap(m) {
   mapView.map = m;
   if (sceneView) sceneView.map = m;
 }
+// Toolbar badges, as MapMaker shows them: the number of layers on Map layers, and a dot on Bookmarks when the map has
+// bookmarks. The count is the map's top-level layers as Map layers lists them (a group counts once, as in MapMaker:
+// 6 for "1777-1778 Revolutionary Battles", which has 4 layers and 2 groups); the sketch layer and a CSV preview don't count.
+function listedLayerCount() {
+  const m = mapView && mapView.map;
+  let n = 0;
+  if (m) m.layers.forEach((l) => { if (l.listMode !== "hide" && l !== previewLayer) n++; });
+  return n;
+}
+function updateToolBadges() {
+  const n = listedLayerCount(), b = $("layersBadge");
+  b.textContent = n > 99 ? "99+" : String(n); b.hidden = !n;
+  $("layersBadgeSr").textContent = n ? ", " + (n === 1 ? S.layersCountOne : t("layersCount", { n })) : "";
+  const k = bookmarks.length;
+  $("bookmarksDot").hidden = !k;
+  $("bookmarksDotSr").textContent = k ? ", " + (k === 1 ? S.bookmarksCountOne : t("bookmarksCount", { n: k })) : "";
+}
 function keepSketchOnTop() { const m = activeMap(); try { m.reorder(graphicsLayer, m.layers.length - 1); } catch (e) { /* ok */ } }
 function removeFromMaps(l) { for (const m of new Set([localMap, mapView.map, sceneView && sceneView.map])) { if (m) { try { m.remove(l); } catch (e) { /* not there */ } } } }
 function resetWorkspace() {
@@ -796,7 +816,7 @@ function resetWorkspace() {
   dataLayers.splice(0).forEach(removeFromMaps);
   [...portalLayers.values()].forEach(removeFromMaps); portalLayers.clear();
   endSketchOps(); graphicsLayer.removeAll(); graphicsLayer.visible = true; selectedFeature = null;
-  bookmarks = [];
+  bookmarks = []; updateToolBadges();
   currentSource = null; currentAgolItem = null;
   if (!$("bookmarksPanel").hidden) showBmList();
   if (!$("layersPanel").hidden) renderLayers();
@@ -825,7 +845,7 @@ function applyParsedWebMap(parsed) {
     portalLayers.set(itemId, l);
   });
   if (currentSource && currentSource.data) currentSource.data = { ...currentSource.data, operationalLayers: ops.filter((o) => !String(o.id || "").startsWith(ITEM_LAYER_PREFIX)) };
-  bookmarks = parsed.bookmarks;
+  bookmarks = parsed.bookmarks; updateToolBadges();
   keepSketchOnTop();
 }
 async function openWebMapItem(itemId, opts) {
@@ -1073,11 +1093,11 @@ $("bmSave").addEventListener("click", () => {
     const bm = { title: title || t("bookmarkDefault", { n: bookmarks.length + 1 }), viewpoint: { center: [view.center.longitude, view.center.latitude], zoom: view.zoom }, layers: layerSnapshot(), thumb: null };
     bookmarks.push(bm); captureThumb(bm);
   }
-  markDirty(); showBmList();
+  markDirty(); showBmList(); updateToolBadges();
   $("bmAddBtn").focus();
 });
 $("bmTitleInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("bmSave").click(); });
-$("bmDelete").addEventListener("click", () => { if (bmEditIndex >= 0) { bookmarks.splice(bmEditIndex, 1); markDirty(); } showBmList(); $("bmAddBtn").focus(); });
+$("bmDelete").addEventListener("click", () => { if (bmEditIndex >= 0) { bookmarks.splice(bmEditIndex, 1); markDirty(); } showBmList(); updateToolBadges(); $("bmAddBtn").focus(); });
 
 // ============================================================ Topics (the content group's categories; shared by Open map and Add layer)
 let topicTreePromise = null;
@@ -1661,7 +1681,7 @@ async function loadDocument(doc) {
   for (const gj of doc.graphics || []) { try { addSketchGraphic(gj); } catch (e) { console.warn("Skipped a sketch", e); } }
   graphicsLayer.visible = doc.sketchVisible !== false;
   keepSketchOnTop();
-  bookmarks = doc.bookmarks || [];
+  bookmarks = doc.bookmarks || []; updateToolBadges();
   setTitle(doc.title);
   if (doc.mode === "3d" && F.threeD !== false) {
     await setMode("3d", { keepCamera: true });
@@ -2001,6 +2021,8 @@ function renderVersions() {
 }
 
 // ============================================================ Start-up
+// The Map layers count follows the map on screen: layers added or removed, another map opened.
+reactiveUtils.watch(listedLayerCount, updateToolBadges, { initial: true });
 view.when(() => {
   updatePopupEnabled();
   watchBottom(0);

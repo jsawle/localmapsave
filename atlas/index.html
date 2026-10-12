@@ -81,6 +81,13 @@
     .toolbar > *:not([hidden]) ~ *{ border-left:1px solid var(--tool-line); }
     .tool{ flex:0 0 auto; width:85px; height:var(--tb-h); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:6px 2px; border:none; background:#fff; color:#323232; cursor:pointer; font-size:15px; white-space:nowrap; }
     .tool:hover{ background:#f3f3f3; }
+    /* MapMaker's toolbar badges: layer count on Map layers, a dot on Bookmarks (sizes from MapMaker at 100% zoom) */
+    .tool{ position:relative; }
+    .tool-badge{ position:absolute; top:4px; left:calc(50% + 20px); min-width:18px; height:18px; padding:0 5px; box-sizing:border-box; border-radius:9px;
+      background:#c7ebff; color:#151515; font-size:12px; line-height:18px; text-align:center; pointer-events:none; }
+    .tool-dot{ position:absolute; top:8px; left:calc(50% + 14px); width:8px; height:8px; border-radius:50%; background:#0079c1; pointer-events:none; }
+    .tool-badge[hidden], .tool-dot[hidden]{ display:none; }
+    @media (forced-colors: active){ .tool-badge{ border:1px solid CanvasText; } .tool-dot{ forced-color-adjust:none; background:CanvasText; } }
     .tool[aria-expanded="true"]:not([aria-haspopup]), .tool.active{ background:var(--tool-active); color:var(--tool-active-ink); }
     .tool-menu{ position:absolute; z-index:22; display:flex; background:#fff; border-radius:6px; box-shadow:0 1px 8px rgba(0,0,0,.25); overflow:hidden; }
     .tool-menu .tool{ width:100px; height:auto; min-height:var(--tb-h); padding:10px 6px; gap:6px; white-space:normal; text-align:center; line-height:1.3; }
@@ -326,6 +333,8 @@
     @media (max-width:1024px){
       .tool{ width:58px; padding:6px 4px; }
       .tool .tl{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+      .tool-badge{ left:calc(50% + 6px); }
+      .tool-dot{ left:calc(50% + 10px); }
       .seg{ width:64px; }
       .seg button{ font-size:13px; gap:5px; }
       :root{ --tb-h:58px; }
@@ -409,7 +418,7 @@
       <nav class="toolbar" id="toolbar" tabindex="-1" data-i18n-aria="tools">
         <button class="tool" type="button" id="tool-basemaps" data-panel="basemaps" aria-expanded="false" aria-controls="basemapsPanel" data-feature="basemaps" data-i18n-title="basemaps"><span class="ti" data-icon="basemap" aria-hidden="true"></span><span class="tl" data-i18n="basemaps">Basemaps</span></button>
         <button class="tool" type="button" id="tool-open" data-feature="openMap" data-i18n-title="openMap"><span class="ti" data-icon="map" aria-hidden="true"></span><span class="tl" data-i18n="openMap">Open map</span></button>
-        <button class="tool" type="button" id="tool-layers" data-panel="layers" aria-expanded="false" aria-controls="layersPanel" data-feature="layers" data-i18n-title="mapLayers"><span class="ti" data-icon="layer-map" aria-hidden="true"></span><span class="tl" data-i18n="mapLayers">Map layers</span></button>
+        <button class="tool" type="button" id="tool-layers" data-panel="layers" aria-expanded="false" aria-controls="layersPanel" data-feature="layers" data-i18n-title="mapLayers"><span class="ti" data-icon="layer-map" aria-hidden="true"></span><span class="tl" data-i18n="mapLayers">Map layers</span><span class="tool-badge" id="layersBadge" aria-hidden="true" hidden></span><span class="sr-only" id="layersBadgeSr"></span></button>
         <button class="tool" type="button" id="tool-add" aria-haspopup="dialog" data-feature="addLayer" data-i18n-title="addLayer"><span class="ti" data-icon="plus-circle" aria-hidden="true"></span><span class="tl" data-i18n="addLayer">Add layer</span></button>
         <button class="tool" type="button" id="tool-legend" data-panel="legend" aria-expanded="false" aria-controls="legendPanel" data-feature="legend" data-i18n-title="legend"><span class="ti" data-icon="legend" aria-hidden="true"></span><span class="tl" data-i18n="legend">Legend</span></button>
         <button class="tool" type="button" id="tool-measure" aria-haspopup="menu" aria-expanded="false" aria-controls="measureMenu" data-feature="measure" data-i18n-title="measure"><span class="ti" data-icon="measure" aria-hidden="true"></span><span class="tl" data-i18n="measure">Measure</span></button>
@@ -418,7 +427,7 @@
           <button type="button" id="tg2d" aria-pressed="true"><span class="ti sm" data-icon="map" aria-hidden="true"></span><span data-i18n="view2d">2D</span></button>
           <button type="button" id="tg3d" aria-pressed="false"><span class="ti sm" data-icon="cube" aria-hidden="true"></span><span data-i18n="view3d">3D</span></button>
         </div>
-        <button class="tool" type="button" id="tool-bookmarks" data-panel="bookmarks" aria-expanded="false" aria-controls="bookmarksPanel" data-feature="bookmarks" data-i18n-title="bookmarks"><span class="ti" data-icon="bookmark" aria-hidden="true"></span><span class="tl" data-i18n="bookmarks">Bookmarks</span></button>
+        <button class="tool" type="button" id="tool-bookmarks" data-panel="bookmarks" aria-expanded="false" aria-controls="bookmarksPanel" data-feature="bookmarks" data-i18n-title="bookmarks"><span class="ti" data-icon="bookmark" aria-hidden="true"></span><span class="tl" data-i18n="bookmarks">Bookmarks</span><span class="tool-dot" id="bookmarksDot" aria-hidden="true" hidden></span><span class="sr-only" id="bookmarksDotSr"></span></button>
         <button class="tool" type="button" id="tool-save" data-panel="save" aria-expanded="false" aria-controls="savePanel" data-feature="save" data-i18n-title="save"><span class="ti" data-icon="save" aria-hidden="true"></span><span class="tl" data-i18n="save">Save</span></button>
       </nav>
 

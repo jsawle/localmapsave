@@ -10,6 +10,8 @@ and plain tiles, and checks the things the stand-in can't:
   - switching to 3D draws the basemap, zoom and one pan/rotate toggle (no second compass);
   - from a closer view, the camera tilts (at the whole-world start view the SDK allows almost none);
   - switching back to 2D works;
+  - opening a map shaped like MapMaker's Revolutionary Battles shows 6 on Map layers and a dot on Bookmarks, and the count
+    follows layers being removed and added;
   - no uncaught errors.
 Atlas 1.3.1 broke the first 3D check (an id the SDK doesn't know in view.ui.components) and the stand-in didn't notice.
 """
@@ -67,6 +69,15 @@ MAPSERVER = {"currentVersion": 11.1, "serviceDescription": "", "mapName": "Layer
              "initialExtent": {"xmin": -2e7, "ymin": -2e7, "xmax": 2e7, "ymax": 2e7, "spatialReference": {"wkid": 102100}},
              "fullExtent": {"xmin": -20037508.342787, "ymin": -20037508.342787, "xmax": 20037508.342787, "ymax": 20037508.342787, "spatialReference": {"wkid": 102100}},
              "layers": [{"id": 0, "name": "Base", "parentLayerId": -1, "defaultVisibility": True, "subLayerIds": None, "minScale": 0, "maxScale": 0}], "tables": []}
+# Shaped like MapMaker's "1777-1778 Revolutionary Battles" (item 1f6a2a11c56d4042ac9fc3d2f8f5f7f9): four layers and two groups of
+# two at the top level, and one bookmark. MapMaker shows 6 on Map layers for it, and a dot on Bookmarks.
+FL = lambda i, t: {"id": f"fl{i}", "title": t, "layerType": "ArcGISFeatureLayer", "url": f"https://services.arcgis.com/x/arcgis/rest/services/L{i}/FeatureServer/0", "visibility": True}
+BATTLES_MAP = {"operationalLayers": [FL(1, "1763 Proclamation Line"),
+    {"id": "g1", "title": "Thirteen British Colonies", "layerType": "GroupLayer", "layers": [FL(2, "Colonies"), FL(3, "Colony labels")]},
+    {"id": "g2", "title": "Revolutionary War Battlefields", "layerType": "GroupLayer", "layers": [FL(4, "Battlefields"), FL(5, "Battlefield points")]},
+    FL(6, "Revolutionary War Battles"), FL(7, "Key Port Cities"), FL(8, "Turning Points")],
+  "baseMap": smoke.BASEMAP_DATA["baseMap"], "spatialReference": {"wkid": 102100}, "version": "2.31", "authoringApp": "ArcGIS Online", "authoringAppVersion": "2026.3",
+  "bookmarks": [{"name": "Pennsylvania/New Jersey", "extent": {"xmin": -8.5e6, "ymin": 4.7e6, "xmax": -8.1e6, "ymax": 5.1e6, "spatialReference": {"wkid": 102100}}}]}
 PORTAL_SELF = {"id": "0123456789ABCDEF", "name": "ArcGIS Online", "isPortal": False, "portalHostname": "www.arcgis.com", "urlKey": None,
                "customBaseUrl": "maps.arcgis.com", "units": "metric", "helperServices": {}, "supportsHostedServices": True}
 
@@ -120,7 +131,7 @@ def main():
             elif p.endswith(f"/groups/{smoke.GROUP}/search"): body = smoke.search_response(params)
             elif p.endswith("/content/items/a82ff7ce1c3a493f9d82aa89f5a1ddcf/data"): body = smoke.BASEMAP_DATA
             elif p.endswith("/content/items/a82ff7ce1c3a493f9d82aa89f5a1ddcf"): body = {"id": "a82ff7ce1c3a493f9d82aa89f5a1ddcf", "type": "Web Map", "title": "National Geographic Style", "owner": "mm", "access": "public"}
-            elif re.search(r"/content/items/\w+/data$", p): body = smoke.MAP_DATA
+            elif re.search(r"/content/items/\w+/data$", p): body = BATTLES_MAP
             elif re.search(r"/content/items/\w+$", p): body = {"id": p.rsplit("/", 1)[1], "type": "Web Map", "title": "Map", "owner": "mpmkr", "access": "public"}
             else: unanswered.add(p); body = {"error": {"code": 400, "message": "not in fixture"}}
             return r.fulfill(status=200, content_type="application/json", headers=cors, body=json.dumps(body))
@@ -181,6 +192,18 @@ def main():
         page.screenshot(path=str(shots / "real-3d-tilted.png"))
         page.click("#tg2d"); page.wait_for_timeout(1500)
         check(page.get_attribute("#tg2d", "aria-pressed") == "true", "back to 2D again")
+        # Open a map: Map layers shows its top-level layer count (groups count once), Bookmarks a dot
+        check(page.is_hidden("#logoLink") and page.is_hidden("#layersBadge") and page.is_hidden("#bookmarksDot"), "header has no app name; no badge or dot on the new map")
+        page.click("#tool-open"); page.wait_for_selector("#omList .cat-act", timeout=30000)
+        page.click("#omList > li:first-child .cat-act")
+        check(wait("document.querySelector('#layersBadge').textContent === '6' && !document.querySelector('#layersBadge').hidden", label="layer count after opening"),
+              f"Map layers shows 6 for a map like Revolutionary Battles ({page.inner_text('#layersBadge')!r})")
+        check(page.is_visible("#bookmarksDot"), "Bookmarks shows a dot")
+        page.evaluate("window.__removed = window.__views[0].map.layers.getItemAt(0); window.__views[0].map.remove(window.__removed)")
+        check(wait("document.querySelector('#layersBadge').textContent === '5'", label="count after removing a layer"), "the count follows the map: 5 after removing a layer")
+        page.evaluate("window.__views[0].map.add(window.__removed, 0)")
+        check(wait("document.querySelector('#layersBadge').textContent === '6'", label="count after adding it back"), "6 again after adding it back")
+        page.wait_for_timeout(1500); page.screenshot(path=str(shots / "real-open-map.png"))
         check(not errors, f"no uncaught errors {errors[:3]}")
         browser.close()
     if console: print("  (console errors, for information:", len(console), ";", "; ".join(sorted(set(console))[:4]) + ")")
