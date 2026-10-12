@@ -9,7 +9,7 @@ import { DEFAULT_STRINGS } from "./lib/strings.js";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
   filterEntries, pageList } from "./lib/catalog.js";
 
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.3.1";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "1.0";
 const SKETCH_VERSION = "1.0";
@@ -36,6 +36,7 @@ const DEFAULT_CONFIG = {
   basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
   defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   startView: { center: [0, 20], zoom: 2 },
+  threeDTilt: 60,          // degrees the camera tilts when switching to 3D, so the change is obvious (0 = stay looking straight down)
   units: "metric",
   scalebar: "dual",
   disclaimer: "",
@@ -212,7 +213,7 @@ paintIcons();
 
 // ============================================================ ArcGIS SDK
 const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel, Basemap, BasemapGallery,
-  PortalBasemapsSource, Measurement, ElevationProfile, CoordinateConversion, ScaleBar, Search, Expand, Home, NavigationToggle, Legend, Layer,
+  PortalBasemapsSource, Measurement, ElevationProfile, CoordinateConversion, ScaleBar, Search, Expand, Home, Legend, Layer,
   Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils] = await $arcgis.import([
   "@arcgis/core/Map.js", "@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js", "@arcgis/core/views/SceneView.js",
   "@arcgis/core/layers/GraphicsLayer.js", "@arcgis/core/layers/FeatureLayer.js", "@arcgis/core/Graphic.js",
@@ -220,7 +221,7 @@ const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic
   "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js",
   "@arcgis/core/widgets/CoordinateConversion.js", "@arcgis/core/widgets/ScaleBar.js", "@arcgis/core/widgets/Search.js",
   "@arcgis/core/widgets/Expand.js", "@arcgis/core/widgets/Home.js",
-  "@arcgis/core/widgets/NavigationToggle.js", "@arcgis/core/widgets/Legend.js", "@arcgis/core/layers/Layer.js",
+  "@arcgis/core/widgets/Legend.js", "@arcgis/core/layers/Layer.js",
   "@arcgis/core/layers/support/Field.js", "@arcgis/core/layers/support/LabelClass.js", "@arcgis/core/renderers/support/jsonUtils.js",
   "@arcgis/core/geometry/Extent.js", "@arcgis/core/config.js", "@arcgis/core/intl.js", "@arcgis/core/identity/IdentityManager.js",
   "@arcgis/core/identity/OAuthInfo.js", "@arcgis/core/portal/Portal.js", "@arcgis/core/request.js", "@arcgis/core/core/reactiveUtils.js"
@@ -247,7 +248,7 @@ function activeMap() { return view.map; }
 function addViewUI(v, is3d) {
   if (F.search !== false) v.ui.add(new Expand({ view: v, content: new Search({ view: v }), expandIcon: "search", expandTooltip: S.search, group: "top-left" }), { position: "top-left", index: 0 });
   v.ui.add(new Home({ view: v }), { position: "top-left", index: 1 });
-  if (is3d) v.ui.add(new NavigationToggle({ view: v }), "top-left");
+  if (is3d) v.ui.components = ["attribution", "zoom", "navigation-toggle"];   // the SDK's 3D default also adds a small compass; the rose replaces it
   const stack = document.createElement("div"); stack.className = "ll-stack";
   if (F.compass !== false) stack.appendChild(makeCompass(v, is3d));
   if (!is3d && cfg.scalebar !== "none") {
@@ -731,7 +732,8 @@ window.addEventListener("resize", () => { if (!$("measureMenu").hidden) placeToo
 
 // ============================================================ 2D / 3D
 let switching = false;
-async function setMode(m) {
+const TILT_3D = Math.max(0, Math.min(80, Number(cfg.threeDTilt) || 0));
+async function setMode(m, opts) {
   if (m === mode || switching) return;
   if (m === "3d" && F.threeD === false) return;
   switching = true;
@@ -747,6 +749,9 @@ async function setMode(m) {
       await sceneView.when();
       if (vp) sceneView.viewpoint = vp;
       $("viewDiv").hidden = true; view = sceneView;
+      // Same place, then tilt the camera towards the horizon so it's obvious the view is now 3D.
+      // (At a whole-world scale the SDK allows little tilt, but the globe itself shows the change.)
+      if (TILT_3D && !(opts && opts.keepCamera)) sceneView.goTo({ tilt: TILT_3D }, { animate: !reduceMotion, duration: 1400 }).catch(() => {});
     } else {
       $("viewDiv").hidden = false;
       if (mapView.map !== curMap) mapView.map = curMap;
@@ -1657,7 +1662,7 @@ async function loadDocument(doc) {
   bookmarks = doc.bookmarks || [];
   setTitle(doc.title);
   if (doc.mode === "3d" && F.threeD !== false) {
-    await setMode("3d");
+    await setMode("3d", { keepCamera: true });
     if (doc.camera) goToSafe(doc.camera, { animate: false }); else if (doc.viewpoint && doc.viewpoint.center) goToSafe(doc.viewpoint, { animate: false });
   } else {
     await setMode("2d");
