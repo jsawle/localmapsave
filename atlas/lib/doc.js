@@ -1,9 +1,14 @@
-// Saved map documents (.mmap) and their conversion to and from ArcGIS web map JSON.
+// Saved maps are ArcGIS web maps: the same JSON (Web Map Specification) whether saved to a .mmap file on the
+// device or to ArcGIS Online. This file writes and reads that JSON, and still reads the older .mmap documents.
 // Pure functions only (no ArcGIS SDK), so they can be unit-tested in Node.
 
-export const DOC_TYPE = "MapMakerLocalDocument";
-export const DOC_VERSION = 4;          // 4 = adds source web map, layer states, portal layers, 2D/3D mode; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "1.0";
+export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
+export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
+export const WEBMAP_WRITER_VERSION = "2.0";        // 2.0 = the .mmap file is a web map; spec-only properties
+export const WEBMAP_SPEC_VERSION = "2.31";
+export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
+export const DATA_LAYER_PREFIX = "__data_";        // spreadsheet (CSV) layers
+export const SKETCH_GRAPHICS_ID = "__sketch";      // the sketch layer while editing (saved as __sketch_points, …)
 export const AUTHORING_APP = "AtlasWhiteLabel";
 export const MAX_FEATURES = 5000;      // per file: protects school devices from huge or hostile files
 
@@ -194,6 +199,14 @@ function sketchSymbol(kind, a) {
   return { type: "esriSMS", style: "esriSMSCircle", color: hexToRgba(a.color, 255), size: a.size, angle: a.rotation || 0,
     outline: { type: "esriSLS", style: "esriSLSSolid", color: [255, 255, 255, 255], width: 1.1 } };
 }
+// Pop-up for sketches in other ArcGIS apps (this app rebuilds its own): title, description and, when used, the picture.
+function sketchPopupInfo(withImage) {
+  const image = { type: "image", title: "", caption: "", value: { sourceURL: "{imageUrl}" } };
+  const info = { title: "{title}", description: "{description}", fieldInfos: [{ fieldName: "title", label: "Title", visible: true }, { fieldName: "description", label: "Description", visible: true }],
+    popupElements: [{ type: "text", text: "{description}" }], showAttachments: false };
+  if (withImage) { info.mediaInfos = [image]; info.popupElements.push({ type: "media", mediaInfos: [image] }); }
+  return info;
+}
 function styleKey(kind, a) { return kind === "polygon" ? a.color : kind === "polyline" ? a.color + "|" + a.size : a.color + "|" + a.size + "|" + (a.rotation || 0); }
 
 /** Sketch graphics -> up to four feature-collection layers (points, lines, areas, text). */
@@ -231,27 +244,28 @@ export function sketchToOperationalLayers(graphics, title, visible) {
     out.push({
       id: SKETCH_LAYER_PREFIX + names[k], title: (title || "Sketches") + (k === "point" ? "" : " (" + names[k] + ")"),
       layerType: "ArcGISFeatureLayer", visibility: visible !== false, opacity: 1, showLegend: false, showLabels: k === "text",
-      featureCollection: { layers: [{ layerDefinition, featureSet: { geometryType: ESRI_GEOM[gkind], features: feats },
-        popupInfo: { title: "{title}", description: "{description}", fieldInfos: [{ fieldName: "title", visible: true }, { fieldName: "description", visible: true }], showAttachments: false } }] }
+      featureCollection: { showLegend: false, layers: [{ layerDefinition, featureSet: { geometryType: ESRI_GEOM[gkind], features: feats }, nextObjectId: feats.length + 1,
+        popupInfo: sketchPopupInfo(list.some((g) => g.attributes.imageUrl)) }] }
     });
   }
   return out;
 }
 /** Feature-collection layers written by sketchToOperationalLayers -> editable sketch graphics again. */
-export function operationalLayersToSketch(opLayers) {
+export function operationalLayersToSketch(opLayers, budget) {
+  budget = budget || { left: MAX_FEATURES };
   const graphics = [];
   for (const op of opLayers) {
     if (!op || typeof op.id !== "string" || !op.id.startsWith(SKETCH_LAYER_PREFIX)) continue;
     for (const lyr of (op.featureCollection && op.featureCollection.layers) || []) {
       for (const f of (lyr.featureSet && lyr.featureSet.features) || []) {
-        const geometry = cleanGeometry(f.geometry);
-        if (geometry) graphics.push({ geometry, attributes: cleanSketchAttributes(f.attributes, geometry) });
+        if (budget.left <= 0) break;
+        const geometry = cleanGeometry(f && f.geometry);
+        if (geometry) { graphics.push({ geometry, attributes: cleanSketchAttributes(f.attributes, geometry) }); budget.left--; }
       }
     }
   }
   return graphics;
 }
-export const DATA_LAYER_ROLE = "atlasData";
 /** Saved data layer definition -> feature-collection operational layer. */
 export function dataDefToOperationalLayer(def, visible, opacity) {
   const gtype = def.geometryType || "point";
@@ -261,17 +275,18 @@ export function dataDefToOperationalLayer(def, visible, opacity) {
   if (def.renderer) drawingInfo.renderer = def.renderer;
   if (def.labelingInfo) drawingInfo.labelingInfo = def.labelingInfo;
   return {
-    id: "__data_" + def.id, title: def.title, layerType: "ArcGISFeatureLayer", visibility: visible !== false, opacity: finite(opacity) ? opacity : 1,
-    showLabels: !!def.labelingInfo, atlasRole: DATA_LAYER_ROLE,
+    id: DATA_LAYER_PREFIX + def.id, title: def.title, layerType: "ArcGISFeatureLayer", visibility: visible !== false, opacity: finite(opacity) ? opacity : 1,
+    showLabels: !!def.labelingInfo,
     featureCollection: { layers: [{
       layerDefinition: { name: def.title, type: "Feature Layer", geometryType: ESRI_GEOM[gtype] || gtype, objectIdField: def.objectIdField || "ObjectId",
-        fields: def.fields, drawingInfo, showLabels: !!def.labelingInfo },
+        fields: def.fields, drawingInfo },
       featureSet: { geometryType: ESRI_GEOM[gtype] || gtype, features: def.features },
+      nextObjectId: (def.features || []).length + 1,
       popupInfo: { title: popup.title || "", fieldInfos, popupElements: [{ type: "fields" }], showAttachments: false }
     }] }
   };
 }
-export function operationalLayerToDataDef(op) {
+export function operationalLayerToDataDef(op, budget) {
   const lyr = op && op.featureCollection && op.featureCollection.layers && op.featureCollection.layers[0];
   if (!lyr) return null;
   const ld = lyr.layerDefinition || {};
@@ -279,9 +294,9 @@ export function operationalLayerToDataDef(op) {
     id: String(op.id || "").replace(/^__data_/, ""), title: op.title || ld.name, geometryType: ld.geometryType, objectIdField: ld.objectIdField,
     fields: ld.fields, renderer: ld.drawingInfo && ld.drawingInfo.renderer, labelingInfo: ld.drawingInfo && ld.drawingInfo.labelingInfo,
     popupInfo: lyr.popupInfo, features: lyr.featureSet && lyr.featureSet.features, visible: op.visibility !== false, opacity: op.opacity
-  }, { left: MAX_FEATURES });
+  }, budget || { left: MAX_FEATURES });
 }
-export function isOwnLayerJson(op) { return !!op && typeof op.id === "string" && (op.id.startsWith(SKETCH_LAYER_PREFIX) || op.id.startsWith("__data_")); }
+export function isOwnLayerJson(op) { return !!op && typeof op.id === "string" && (op.id.startsWith(SKETCH_LAYER_PREFIX) || op.id.startsWith(DATA_LAYER_PREFIX)); }
 
 // Web Mercator helpers for bookmarks stored as centre + zoom.
 const R = 6378137, ORIGIN = 20037508.342788905;
@@ -299,6 +314,7 @@ export function bookmarksToSpec(bookmarks) {
     const vp = bm.viewpoint;
     const extent = vp.extent || extentFor(vp.center, vp.zoom, 1280, 720);
     const out = { name: bm.title, extent };
+    if (typeof bm.thumb === "string" && DATA_IMAGE.test(bm.thumb)) out.thumbnail = { url: bm.thumb };
     if (vp.center) { const [x, y] = lonLatToXY(vp.center[0], vp.center[1]); out.viewpoint = { targetGeometry: { x, y, spatialReference: SR }, scale: zoomToScale(vp.zoom) }; }
     else out.viewpoint = { targetGeometry: vp.extent };
     return out;
@@ -312,28 +328,203 @@ export function specToBookmarks(list) {
     if (tg && finite(tg.x) && finite(tg.y) && b.viewpoint.scale && (!tg.spatialReference || [102100, 3857].includes(tg.spatialReference.wkid))) {
       const ll = xyToLonLat(tg.x, tg.y); viewpoint = { center: ll, zoom: scaleToZoom(b.viewpoint.scale) };
     } else viewpoint = cleanViewpoint({ extent: (tg && tg.xmin !== undefined ? tg : b.extent) });
-    return viewpoint ? { title: str(b.name, 200) || "Bookmark", viewpoint, layers: [], thumb: null } : null;
+    const th = b.thumbnail && b.thumbnail.url;
+    return viewpoint ? { title: str(b.name, 200) || "Bookmark", viewpoint, layers: [],
+      thumb: typeof th === "string" && DATA_IMAGE.test(th) && th.length < 400000 ? th : null } : null;
   }).filter(Boolean);
 }
 
 /**
- * Build a web map from the current document.
- * ctx: { baseMap, sourceLayers (operational layer JSON from the opened web map), portalLayers (JSON), extent, appVersion, sketchTitle }
+ * Build a web map (Web Map Specification) from the current document. Used for both the .mmap file and ArcGIS Online.
+ * ctx: { baseMap, sourceLayers (operational layers of the opened map, with current visibility), portalLayers (JSON),
+ *        extent, rotation, scale, appVersion, sketchTitle, sketchVisible }
+ * Each bookmark's layers on/off are kept as a presentation slide with the same index (the spec's bookmark has no layer list).
  */
 export function docToWebMap(doc, ctx) {
+  const dataOps = (doc.layers || []).map((ld) => dataDefToOperationalLayer(ld, ld.visible, ld.opacity));
+  const sketchOps = sketchToOperationalLayers(doc.graphics || [], ctx.sketchTitle, ctx.sketchVisible);
   const operationalLayers = []
     .concat((ctx.sourceLayers || []).filter((op) => !isOwnLayerJson(op)))
     .concat(ctx.portalLayers || [])
-    .concat((doc.layers || []).map((ld) => dataDefToOperationalLayer(ld, ld.visible, ld.opacity)))
-    .concat(sketchToOperationalLayers(doc.graphics || [], ctx.sketchTitle, ctx.sketchVisible));
+    .concat(dataOps, sketchOps);
   const wm = {
-    operationalLayers, baseMap: ctx.baseMap, spatialReference: SR, version: "2.31",
-    authoringApp: AUTHORING_APP, authoringAppVersion: ctx.appVersion || WEBMAP_WRITER_VERSION,
-    initialState: { viewpoint: { targetGeometry: ctx.extent } }
+    operationalLayers,
+    baseMap: ctx.baseMap && Array.isArray(ctx.baseMap.baseMapLayers) ? ctx.baseMap : { baseMapLayers: [], title: "Basemap" },
+    spatialReference: SR, version: WEBMAP_SPEC_VERSION,
+    authoringApp: AUTHORING_APP, authoringAppVersion: String(ctx.appVersion || WEBMAP_WRITER_VERSION)
   };
-  if (doc.bookmarks && doc.bookmarks.length) {
-    wm.bookmarks = bookmarksToSpec(doc.bookmarks);
-    wm.atlasBookmarks = doc.bookmarks.map((b) => ({ title: b.title, viewpoint: b.viewpoint, layers: b.layers || [] }));   // keeps layer on/off per bookmark
+  if (ctx.extent) {
+    const viewpoint = { targetGeometry: ctx.extent };
+    if (finite(ctx.scale) && ctx.scale > 0) viewpoint.scale = ctx.scale;
+    if (finite(ctx.rotation) && ctx.rotation) viewpoint.rotation = ctx.rotation;
+    wm.initialState = { viewpoint };
+  }
+  const bms = doc.bookmarks || [];
+  if (bms.length) {
+    wm.bookmarks = bookmarksToSpec(bms);
+    if (bms.some((b) => b.layers && b.layers.length)) {
+      const ids = new Set(operationalLayers.map((o) => o.id)), sketchIds = sketchOps.map((o) => o.id);
+      wm.presentation = { slides: bms.map((b, i) => {
+        const slide = { title: { text: b.title }, extent: wm.bookmarks[i].extent };
+        if (b.layers && b.layers.length) {
+          const vis = [];
+          for (const r of b.layers) {
+            if (!r.visible) continue;
+            if (r.id === SKETCH_GRAPHICS_ID) vis.push(...sketchIds);
+            else if (ids.has(r.id)) vis.push(r.id);
+          }
+          slide.visibleLayers = [...new Set(vis)].map((id) => ({ id }));
+        }
+        return slide;
+      }) };
+    }
   }
   return wm;
+}
+
+// ---------------------------------------------------------------- opening a web map (file or ArcGIS Online)
+
+export function looksLikeWebMap(raw) {
+  return !!raw && typeof raw === "object" && !Array.isArray(raw) && raw.type !== DOC_TYPE &&
+    (Array.isArray(raw.operationalLayers) || (!!raw.baseMap && typeof raw.baseMap === "object"));
+}
+const HTTPS = /^https:\/\//i;
+const TEMPLATE = /^\{[^{}]{1,200}\}$/;
+const okUrl = (u) => typeof u === "string" && u.length < 4000 && HTTPS.test(u);
+const okImage = (u) => typeof u === "string" && (okUrl(u) || TEMPLATE.test(u) || (DATA_IMAGE.test(u) && u.length < 3e6));
+const SERVICE_KEYS = new Set(["url", "styleUrl", "templateUrl", "mapUrl", "itemUrl"]);
+const LINK_KEYS = new Set(["sourceURL", "linkURL", "href", "imageUrl", "thumbnailUrl"]);
+const LAYER_TYPES = new Set(["ArcGISAnnotationLayer", "CatalogLayer", "CSV", "ArcGISDimensionLayer", "ArcGISFeatureLayer", "GeoJSON", "GeoRSS", "GroupLayer",
+  "ArcGISImageServiceLayer", "ArcGISImageServiceVectorLayer", "KML", "KnowledgeGraphLayer", "LinkChartLayer", "ArcGISMapServiceLayer", "Media", "OGCFeatureLayer",
+  "OrientedImageryLayer", "ParquetLayer", "ArcGISStreamLayer", "SubtypeGroupLayer", "ArcGISTiledImageServiceLayer", "ArcGISTiledMapServiceLayer", "VectorTileLayer",
+  "ArcGISVideoLayer", "WCS", "WebTiledLayer", "WFS", "WMS", "BingMapsAerial", "BingMapsRoad", "BingMapsHybrid", "OpenStreetMap"]);
+
+// Copy JSON from a file, keeping only https web addresses (pictures may also be embedded or a {field}), replacing picture
+// symbols that would load from elsewhere, and capping features. Returns undefined for a value that has to go.
+function cleanJson(v, key, depth, budget, flags) {
+  if (depth > 40) return undefined;
+  if (typeof v === "string") {
+    if (SERVICE_KEYS.has(key)) { if (okUrl(v)) return v; flags.badService = true; return undefined; }
+    if (LINK_KEYS.has(key)) return okImage(v) ? v : undefined;
+    return v.length > 200000 ? v.slice(0, 200000) : v;
+  }
+  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
+  if (typeof v === "boolean" || v === null) return v;
+  if (Array.isArray(v)) {
+    const isFeatures = key === "features";
+    const out = [];
+    for (const x of v) {
+      if (isFeatures) { if (budget.left <= 0) { flags.capped = true; break; } budget.left--; }
+      const c = cleanJson(x, null, depth + 1, budget, flags);
+      if (c !== undefined) out.push(c);
+    }
+    return out;
+  }
+  if (typeof v !== "object") return undefined;
+  if ((v.type === "esriPMS" || v.type === "esriPFS" || v.type === "picture-marker" || v.type === "picture-fill") && !(okUrl(v.url) || (typeof v.imageData === "string" && v.imageData.length < 2e6)))
+    return scrubSymbols(v, 0);
+  const out = {};
+  for (const k of Object.keys(v)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    const sub = { badService: false };
+    const c = cleanJson(v[k], k, depth + 1, budget, sub);
+    if (sub.badService) flags.badService = true;
+    if (sub.capped) flags.capped = true;
+    if (c !== undefined) out[k] = c;
+  }
+  return out;
+}
+// One operational layer from a file: known layer type, and every web address it loads from is https.
+function cleanForeignLayer(op, budget, depth) {
+  if (!op || typeof op !== "object" || depth > 6) return null;
+  if (op.layers && op.layerType === "GroupLayer") {
+    const layers = (Array.isArray(op.layers) ? op.layers : []).map((l) => cleanForeignLayer(l, budget, depth + 1)).filter(Boolean);
+    if (!layers.length) return null;
+    const { layers: _drop, ...rest } = op;
+    const flags = {}; const g = cleanJson(rest, null, 0, budget, flags);
+    return flags.badService ? null : { ...g, layers };
+  }
+  if (!LAYER_TYPES.has(op.layerType)) return null;
+  if (op.itemId !== undefined && !HEX32.test(op.itemId || "")) return null;
+  const flags = {};
+  const c = cleanJson(op, null, 0, budget, flags);
+  if (flags.badService) return null;
+  if (!c.url && !c.styleUrl && !c.templateUrl && !c.itemId && !c.featureCollection) return null;
+  if (typeof c.id !== "string" || !c.id) c.id = "layer" + Math.random().toString(36).slice(2, 9);
+  else c.id = c.id.slice(0, 120);
+  return c;
+}
+function cleanTargetGeometry(g) {
+  if (!g || typeof g !== "object") return null;
+  const sr = g.spatialReference && finite(g.spatialReference.wkid) ? { wkid: g.spatialReference.wkid } : SR;
+  if (["xmin", "ymin", "xmax", "ymax"].every((k) => finite(g[k]))) return { xmin: g.xmin, ymin: g.ymin, xmax: g.xmax, ymax: g.ymax, spatialReference: sr };
+  if (finite(g.x) && finite(g.y)) return { x: g.x, y: g.y, spatialReference: sr };
+  return null;
+}
+
+/**
+ * Read a web map (a .mmap file, any web map JSON, or an ArcGIS Online item's data).
+ * Returns { ok:false, code } or { ok:true, webmap, graphics, layers, bookmarks, sketchVisible, skipped }:
+ *  - webmap: JSON for the ArcGIS SDK without this app's own layers (and, from files, with every web address checked)
+ *  - graphics / layers: this app's sketches and spreadsheet layers, rebuilt so they stay editable
+ *  - bookmarks: with each one's layers on/off (from its presentation slide)
+ */
+export function readWebMap(raw, opts) {
+  if (!looksLikeWebMap(raw)) return { ok: false, code: "notMapFile" };
+  const trusted = !!(opts && opts.trusted);      // an ArcGIS Online item opened by id: its layers load from the item
+  const budget = { left: MAX_FEATURES };
+  let skipped = 0;
+  const ops = Array.isArray(raw.operationalLayers) ? raw.operationalLayers : [];
+  const own = ops.filter(isOwnLayerJson), foreignIn = ops.filter((o) => !isOwnLayerJson(o));
+  const graphics = operationalLayersToSketch(own, budget);
+  const layers = [];
+  for (const op of own.filter((o) => o.id.startsWith(DATA_LAYER_PREFIX))) {
+    const d = operationalLayerToDataDef(op, budget);
+    if (d && d.features.length) layers.push(d); else skipped++;
+  }
+  const sketchOps = own.filter((o) => o.id.startsWith(SKETCH_LAYER_PREFIX));
+  const sketchVisible = !sketchOps.length || sketchOps.some((o) => o.visibility !== false);
+  const foreign = [];
+  for (const op of foreignIn) {
+    const c = trusted ? op : cleanForeignLayer(op, budget, 0);
+    if (c) foreign.push(c); else skipped++;
+  }
+  let baseMap = null;
+  if (raw.baseMap && typeof raw.baseMap === "object") {
+    if (trusted) baseMap = raw.baseMap;
+    else {
+      const bl = (Array.isArray(raw.baseMap.baseMapLayers) ? raw.baseMap.baseMapLayers : []).map((l) => cleanForeignLayer(l, budget, 0)).filter(Boolean);
+      if (bl.length) baseMap = { baseMapLayers: bl, title: str(raw.baseMap.title, 200) || "Basemap" };
+    }
+  }
+  const webmap = { operationalLayers: foreign, version: str(raw.version, 10) || WEBMAP_SPEC_VERSION,
+    spatialReference: raw.spatialReference && finite(raw.spatialReference.wkid) ? { wkid: raw.spatialReference.wkid, latestWkid: raw.spatialReference.latestWkid } : SR,
+    authoringApp: str(raw.authoringApp, 100) || "unknown", authoringAppVersion: str(raw.authoringAppVersion, 40) || "" };
+  if (baseMap) webmap.baseMap = baseMap;
+  const vp = raw.initialState && raw.initialState.viewpoint;
+  const tg = cleanTargetGeometry(vp && vp.targetGeometry);
+  if (tg) {
+    const viewpoint = { targetGeometry: tg };
+    if (finite(vp.scale) && vp.scale > 0) viewpoint.scale = vp.scale;
+    if (finite(vp.rotation)) viewpoint.rotation = clamp(vp.rotation, -360, 360, 0);
+    webmap.initialState = { viewpoint };
+  }
+  // Bookmarks; maps saved by this app before 2.0 kept layers on/off in "atlasBookmarks".
+  let bookmarks = Array.isArray(raw.atlasBookmarks) && raw.atlasBookmarks.length ? cleanBookmarks(raw.atlasBookmarks) : specToBookmarks(raw.bookmarks);
+  const slides = raw.presentation && Array.isArray(raw.presentation.slides) ? raw.presentation.slides : [];
+  if (!(Array.isArray(raw.atlasBookmarks) && raw.atlasBookmarks.length) && slides.length === (Array.isArray(raw.bookmarks) ? raw.bookmarks.length : -1)) {
+    const opIds = foreign.map((o) => o.id).concat(layers.map((l) => DATA_LAYER_PREFIX + l.id));
+    bookmarks = bookmarks.map((bm, i) => {
+      const s = slides[i];
+      if (!s || !Array.isArray(s.visibleLayers)) return bm;
+      const on = new Set(s.visibleLayers.filter((v) => v && typeof v.id === "string").map((v) => v.id));
+      const recs = opIds.map((id) => ({ id, title: "", visible: on.has(id) }));
+      if (sketchOps.length) recs.push({ id: SKETCH_GRAPHICS_ID, title: "", visible: sketchOps.some((o) => on.has(o.id)) });
+      return { ...bm, layers: recs };
+    });
+  }
+  const totalIn = own.filter((o) => o.id.startsWith(DATA_LAYER_PREFIX)).reduce((n, o) => n + (((o.featureCollection || {}).layers || [])[0]?.featureSet?.features?.length || 0), 0);
+  const totalOut = layers.reduce((n, l) => n + l.features.length, 0);
+  if (totalIn > totalOut) skipped += totalIn - totalOut;
+  return { ok: true, webmap, graphics, layers, bookmarks, sketchVisible, skipped };
 }

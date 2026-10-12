@@ -1,5 +1,5 @@
 {
-  "configVersion": 2,
+  "configVersion": 3,
   "appName": "Mapas Escolares",
   "locale": "es",
   "dir": "ltr",
@@ -66,7 +66,9 @@
     "screenshot": true,
     "print": true,
     "search": true,
-    "signIn": true
+    "signIn": true,
+    "compass": true,
+    "elevationProfile": true
   },
   "strings": {
     "skipToTools": "Ir a las herramientas del mapa",
@@ -269,7 +271,7 @@
     "printCredits": "Créditos",
     "openedFile": "Se abrió «{title}»: {n} elemento(s).",
     "skippedOnOpen": "{n} elemento(s) del archivo no se pudieron usar y se omitieron.",
-    "notMapFile": "Ese no es un mapa guardado (.mmap) de esta aplicación.",
+    "notMapFile": "Ese archivo no es un mapa guardado (.mmap) ni un mapa web.",
     "cantRead": "No se pudo leer ese archivo.",
     "mapFile": "Mapa",
     "signInNotSet": "El inicio de sesión aún no está configurado en esta aplicación.",
@@ -287,6 +289,9 @@
     "version": "Versión",
     "whatItIs": "Qué es",
     "configLabel": "Configuración",
+    "elevationProfile": "Perfil de elevación",
+    "layersNotSaved": "{n} capa(s) agregada(s) no se pudieron escribir en el mapa guardado y se omitieron.",
+    "profileHint": "Dibuja una línea en el mapa, o selecciona una línea que hayas dibujado, para ver cómo cambia la altura del terreno a lo largo de ella.",
     "topics": "Temas",
     "topicPath": "Ruta del tema",
     "subtopics": "Subtemas",

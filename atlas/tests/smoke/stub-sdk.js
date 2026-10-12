@@ -26,9 +26,28 @@ class EsriMap extends Accessor {
   constructor(p) { super(); this.basemap = p && p.basemap; this.ground = p && p.ground; this.layers = new Collection(p && p.layers); }
   add(l) { this.layers.add(l); } remove(l) { this.layers.remove(l); } reorder(l, i) { this.layers.reorder(l, i); }
 }
+// Operational layer JSON -> a layer object with the same id (as the SDK does).
+const layerFromJson = (op) => new FeatureLayer({ id: op.id, title: op.title || op.id, visible: op.visibility !== false, opacity: op.opacity ?? 1, url: op.url,
+  type: op.layerType === "GroupLayer" ? "group" : "feature", portalItem: op.itemId ? { id: op.itemId } : null });
 class WebMap extends EsriMap {
   constructor(p) { super(); this.portalItem = p && p.portalItem; this.initialViewProperties = { viewpoint: null }; this.bookmarks = new Collection(); }
-  async load() { window.__stub.openedWebMap = this.portalItem && this.portalItem.id; return this; }
+  static fromJSON(j) {
+    window.__stub.fromJSON = JSON.parse(JSON.stringify(j));
+    const wm = new WebMap();
+    wm.layers = new Collection((j.operationalLayers || []).map(layerFromJson));
+    if (j.baseMap) wm.basemap = new Basemap({ title: j.baseMap.title });
+    wm.initialViewProperties = { viewpoint: j.initialState ? j.initialState.viewpoint : null };
+    return wm;
+  }
+  async load() {
+    if (!this.portalItem) return this;
+    window.__stub.openedWebMap = this.portalItem.id;
+    const r = await fetch("https://www.arcgis.com/sharing/rest/content/items/" + this.portalItem.id + "/data?f=json");
+    const j = await r.json();
+    this.layers = new Collection((j.operationalLayers || []).map(layerFromJson));
+    this.basemap = new Basemap({ title: (j.baseMap || {}).title });
+    return this;
+  }
 }
 class Widget extends Accessor {
   constructor(p, cls, html) {
@@ -52,6 +71,9 @@ class ScaleBar extends Widget {
 class Legend extends Widget { constructor(p) { super(p, "esri-legend", "<p>Legend</p>"); } }
 class BasemapGallery extends Widget { constructor(p) { super(p, "esri-basemap-gallery", "<p>Basemaps</p>"); this.activeBasemap = null; } }
 class Measurement extends Widget { constructor(p) { super(p, "esri-measurement", ""); } clear() {} }
+class ElevationProfile extends Widget {
+  constructor(p) { super(p, "esri-elevation-profile", "<p>Elevation profile chart</p>"); window.__stub.profile = { unit: p.unit, profiles: p.profiles }; this.viewModel = { cancel() {}, clear() { window.__stub.profileCleared = (window.__stub.profileCleared || 0) + 1; } }; }
+}
 class CoordinateConversion extends Widget { constructor(p) { super(p, "esri-coordinate-conversion", ""); } }
 class PortalBasemapsSource extends Accessor {}
 
@@ -101,8 +123,9 @@ class MapView extends Accessor {
     att.innerHTML = '<div class="esri-attribution__sources">Esri | TomTom | FAO | NOAA | USGS | Sources: Esri, USGS</div><div class="esri-attribution__powered-by">Powered by <a href="https://www.esri.com/">Esri</a></div>';
     this.root.appendChild(att);
     this.viewpoint = { clone() { return this; } };
-    this.extent = { clone() { return { toJSON() { return {}; }, expand() { return this; } }; }, xmin: 0, ymin: 0, xmax: 1, ymax: 1 };
-    this.width = 1000; this.height = 600;
+    const ext = { xmin: -2e6, ymin: -1e6, xmax: 2e6, ymax: 1e6, spatialReference: { wkid: 102100 } };
+    this.extent = { ...ext, clone() { return { ...ext, toJSON() { return { ...ext }; }, expand() { return this; } }; } };
+    this.width = 1000; this.height = 600; this.scale = 18489297.737236;
     window.__stub.views.push(this);
   }
   goTo(target) { window.__stub.goTo.push(JSON.parse(JSON.stringify(target || {}))); if (target && target.rotation === 0) this.rotation = 0; if (target && target.heading === 0 && this.camera) this.camera = { ...this.camera, heading: 0 }; return Promise.resolve(); }
@@ -112,11 +135,14 @@ class MapView extends Accessor {
 }
 class SceneView extends MapView { constructor(p) { super(p); this.type = "3d"; this.camera = { heading: 0, tilt: 0, toJSON() { return {}; } }; } }
 class GraphicsLayer extends Accessor { constructor(p) { super(p); this.graphics = new Collection(); this.visible = true; } add(g) { this.graphics.add(g); } remove(g) { this.graphics.remove(g); } removeAll() { this.graphics.removeAll(); } }
-class FeatureLayer extends Accessor { constructor(p) { super(p); this.visible = true; this.id = "fl" + Math.random().toString(36).slice(2, 7); } }
-class Graphic extends Accessor { static fromJSON(j) { return new Graphic(j); } }
+class FeatureLayer extends Accessor { constructor(p) { super(p); if (this.visible === undefined) this.visible = true; if (!this.id) this.id = "fl" + Math.random().toString(36).slice(2, 7); if (!this.type) this.type = "feature"; if (this.opacity === undefined) this.opacity = 1; } queryExtent() { return Promise.resolve({ extent: null }); } }
+class Graphic extends Accessor {
+  constructor(p) { super(p); const g = p && p.geometry; if (g) { const plain = JSON.parse(JSON.stringify(g)); this.geometry = { ...plain, type: g.type || (g.paths ? "polyline" : g.rings ? "polygon" : "point"), toJSON() { return plain; } }; } }
+  static fromJSON(j) { return new Graphic(j); }
+}
 class SketchViewModel extends Evented { constructor(p) { super(); Object.assign(this, p); } create() {} cancel() {} complete() {} update() { return Promise.resolve(); } }
 class Basemap extends Accessor {}
-class Layer extends Accessor { static async fromPortalItem(p) { return new FeatureLayer({ title: "Layer", portalItem: p.portalItem }); } }
+class Layer extends Accessor { static async fromPortalItem(p) { return new FeatureLayer({ title: "Collection layer", portalItem: p.portalItem, url: "https://services.arcgis.com/x/arcgis/rest/services/L/FeatureServer", layerId: 0 }); } }
 class Field extends Accessor { static fromJSON(j) { return j; } }
 class LabelClass extends Accessor { static fromJSON(j) { return j; } }
 class Extent extends Accessor { static fromJSON(j) { return j; } }
@@ -147,6 +173,7 @@ const MODULES = {
   "@arcgis/core/layers/GraphicsLayer.js": GraphicsLayer, "@arcgis/core/layers/FeatureLayer.js": FeatureLayer, "@arcgis/core/Graphic.js": Graphic,
   "@arcgis/core/widgets/Sketch/SketchViewModel.js": SketchViewModel, "@arcgis/core/Basemap.js": Basemap, "@arcgis/core/widgets/BasemapGallery.js": BasemapGallery,
   "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js": PortalBasemapsSource, "@arcgis/core/widgets/Measurement.js": Measurement,
+  "@arcgis/core/widgets/ElevationProfile.js": ElevationProfile,
   "@arcgis/core/widgets/CoordinateConversion.js": CoordinateConversion, "@arcgis/core/widgets/ScaleBar.js": ScaleBar, "@arcgis/core/widgets/Search.js": Search,
   "@arcgis/core/widgets/Expand.js": Expand, "@arcgis/core/widgets/Home.js": Home, "@arcgis/core/widgets/NavigationToggle.js": NavigationToggle,
   "@arcgis/core/widgets/Legend.js": Legend, "@arcgis/core/layers/Layer.js": Layer, "@arcgis/core/layers/support/Field.js": Field,

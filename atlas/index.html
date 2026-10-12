@@ -81,7 +81,12 @@
     .toolbar > *:not([hidden]) ~ *{ border-left:1px solid var(--tool-line); }
     .tool{ flex:0 0 auto; width:85px; height:var(--tb-h); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:6px 2px; border:none; background:#fff; color:#323232; cursor:pointer; font-size:15px; white-space:nowrap; }
     .tool:hover{ background:#f3f3f3; }
-    .tool[aria-expanded="true"]{ background:var(--tool-active); color:var(--tool-active-ink); }
+    .tool[aria-expanded="true"]:not([aria-haspopup]), .tool.active{ background:var(--tool-active); color:var(--tool-active-ink); }
+    .tool-menu{ position:absolute; z-index:22; display:flex; background:#fff; border-radius:6px; box-shadow:0 1px 8px rgba(0,0,0,.25); overflow:hidden; }
+    .tool-menu .tool{ width:100px; height:auto; min-height:var(--tb-h); padding:10px 6px; gap:6px; white-space:normal; text-align:center; line-height:1.3; }
+    .tool-menu .tool:not([hidden]) ~ .tool{ border-left:1px solid var(--tool-line); }
+    .ti.md{ width:24px; height:24px; }
+    #profileBody{ min-height:260px; }
     .ti{ position:relative; width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; }
     .ti.sm{ width:16px; height:16px; }
     .ti > svg{ width:100%; height:100%; display:block; }
@@ -284,6 +289,7 @@
       .seg button{ font-size:13px; gap:5px; }
       :root{ --tb-h:58px; }
       .rose{ width:80px; height:80px; }
+      .tool-menu .tool{ min-height:72px; font-size:14px; }
       .hdr-logo .wide{ display:none; }
       .hdr-logo .compact{ display:block; height:44px; }
       .hdr-links .pill.outline{ display:none; }
@@ -365,7 +371,7 @@
         <button class="tool" type="button" id="tool-layers" data-panel="layers" aria-expanded="false" aria-controls="layersPanel" data-feature="layers" data-i18n-title="mapLayers"><span class="ti" data-icon="layer-map" aria-hidden="true"></span><span class="tl" data-i18n="mapLayers">Map layers</span></button>
         <button class="tool" type="button" id="tool-add" data-panel="add" aria-expanded="false" aria-controls="addPanel" data-feature="addLayer" data-i18n-title="addLayer"><span class="ti" data-icon="plus-circle" aria-hidden="true"></span><span class="tl" data-i18n="addLayer">Add layer</span></button>
         <button class="tool" type="button" id="tool-legend" data-panel="legend" aria-expanded="false" aria-controls="legendPanel" data-feature="legend" data-i18n-title="legend"><span class="ti" data-icon="legend" aria-hidden="true"></span><span class="tl" data-i18n="legend">Legend</span></button>
-        <button class="tool" type="button" id="tool-measure" data-panel="measure" aria-expanded="false" aria-controls="measurePanel" data-feature="measure" data-i18n-title="measure"><span class="ti" data-icon="measure" aria-hidden="true"></span><span class="tl" data-i18n="measure">Measure</span></button>
+        <button class="tool" type="button" id="tool-measure" aria-haspopup="menu" aria-expanded="false" aria-controls="measureMenu" data-feature="measure" data-i18n-title="measure"><span class="ti" data-icon="measure" aria-hidden="true"></span><span class="tl" data-i18n="measure">Measure</span></button>
         <button class="tool" type="button" id="tool-sketch" data-panel="sketch" aria-expanded="false" aria-controls="sketchPanel" data-feature="sketch" data-i18n-title="sketch"><span class="ti" data-icon="pencil-mark" aria-hidden="true"></span><span class="tl" data-i18n="sketch">Sketch</span></button>
         <div class="seg" role="group" id="viewSeg" data-feature="threeD" data-i18n-aria="viewMode">
           <button type="button" id="tg2d" aria-pressed="true"><span class="ti sm" data-icon="map" aria-hidden="true"></span><span data-i18n="view2d">2D</span></button>
@@ -374,6 +380,11 @@
         <button class="tool" type="button" id="tool-bookmarks" data-panel="bookmarks" aria-expanded="false" aria-controls="bookmarksPanel" data-feature="bookmarks" data-i18n-title="bookmarks"><span class="ti" data-icon="bookmark" aria-hidden="true"></span><span class="tl" data-i18n="bookmarks">Bookmarks</span></button>
         <button class="tool" type="button" id="tool-save" data-panel="save" aria-expanded="false" aria-controls="savePanel" data-feature="save" data-i18n-title="save"><span class="ti" data-icon="save" aria-hidden="true"></span><span class="tl" data-i18n="save">Save</span></button>
       </nav>
+
+      <div class="tool-menu" id="measureMenu" role="menu" aria-labelledby="tool-measure" hidden>
+        <button class="tool" type="button" role="menuitem" id="menuMeasure" tabindex="-1"><span class="ti md" data-icon="measure" aria-hidden="true"></span><span data-i18n="measure">Measure</span></button>
+        <button class="tool" type="button" role="menuitem" id="menuProfile" tabindex="-1" data-feature="elevationProfile"><span class="ti md" data-icon="altitude" aria-hidden="true"></span><span data-i18n="elevationProfile">Elevation profile</span></button>
+      </div>
 
       <!-- ===== Panels ===== -->
       <section class="panel" id="addPanel" hidden aria-labelledby="addH">
@@ -455,6 +466,11 @@
           <p class="hint" data-i18n="measureHint">Choose a tool, then click on the map. Double-click to finish.</p>
           <div id="measureBody"></div><div id="coordBody" hidden></div>
         </div>
+      </section>
+
+      <section class="panel wide" id="profilePanel" hidden aria-labelledby="profileH">
+        <div class="panel-head"><h2 id="profileH" tabindex="-1" data-i18n="elevationProfile">Elevation profile</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-body"><p class="hint" data-i18n="profileHint">Draw a line on the map, or select a line you've sketched, to see how the height of the land changes along it.</p><div id="profileBody"></div></div>
       </section>
 
       <section class="panel" id="sketchPanel" hidden aria-labelledby="sketchH">

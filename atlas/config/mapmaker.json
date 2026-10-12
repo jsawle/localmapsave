@@ -1,12 +1,12 @@
 {
-  "configVersion": 2,
+  "configVersion": 3,
   "appName": "National Geographic MapMaker",
   "locale": "en",
   "dir": "ltr",
   "logo": {
-    "url": "https://mpmkr.maps.arcgis.com/sharing/rest/content/items/f722ac634a114f2b811475651594ddb7/data",
-    "compactUrl": "https://mpmkr.maps.arcgis.com/sharing/rest/content/items/1061178f9b3746709a7a21fa55610577/data",
-    "alt": "National Geographic MapMaker",
+    "url": "",
+    "compactUrl": "",
+    "alt": "",
     "link": "",
     "showName": false
   },
@@ -14,9 +14,7 @@
     { "label": "How to", "url": "https://mapmaker-how-to-mpmkr.hub.arcgis.com/", "style": "dark" },
     { "label": "For Educators", "url": "https://mapmaker-support-hub-mpmkr.hub.arcgis.com/", "style": "outline" }
   ],
-  "partnerLogos": [
-    { "url": "https://mpmkr.maps.arcgis.com/sharing/rest/content/items/d48f21f5bc3f431fa1daef95fa22ac47/data", "alt": "Esri", "link": "" }
-  ],
+  "partnerLogos": [],
   "theme": { "brand": "#0079c1", "toolActive": "#a0dcff", "header": "#ffffff", "headerInk": "#000000", "pill": "#000000" },
   "portalUrl": "https://www.arcgis.com",
   "contentGroup": "36443e9570294a1f883b5d2c5abfe6b5",
@@ -35,6 +33,6 @@
   },
   "agolTags": ["MapMaker", "student map"],
   "csvMaxRows": 1000,
-  "features": { "openMap": true, "addLayer": true, "csv": true, "layers": true, "legend": true, "basemaps": true, "measure": true, "sketch": true, "bookmarks": true, "threeD": true, "save": true, "localSave": true, "screenshot": true, "print": true, "search": true, "signIn": true, "compass": true },
+  "features": { "openMap": true, "addLayer": true, "csv": true, "layers": true, "legend": true, "basemaps": true, "measure": true, "sketch": true, "bookmarks": true, "threeD": true, "save": true, "localSave": true, "screenshot": true, "print": true, "search": true, "signIn": true, "compass": true, "elevationProfile": true },
   "strings": { "tabGroup": "MapMaker maps", "layersFrom": "Layers from MapMaker" }
 }
