@@ -1,5 +1,5 @@
 {
-  "configVersion": 1,
+  "configVersion": 2,
   "appName": "Mapas Escolares",
   "locale": "es",
   "dir": "ltr",
@@ -286,6 +286,28 @@
     "part": "Parte",
     "version": "Versión",
     "whatItIs": "Qué es",
-    "configLabel": "Configuración"
+    "configLabel": "Configuración",
+    "topics": "Temas",
+    "topicPath": "Ruta del tema",
+    "subtopics": "Subtemas",
+    "allMaps": "Todos los mapas",
+    "otherMaps": "Otros mapas",
+    "allInTopic": "Todo en {topic}",
+    "mapsCount": "{n} mapas",
+    "mapsCountOne": "1 mapa",
+    "mapsUnit": "mapas",
+    "mapsUnitOne": "mapa",
+    "mapsMatch": "{n} de {total} mapas coinciden",
+    "searchIn": "Buscar en {topic}",
+    "searchAllMaps": "Buscar en todos los mapas",
+    "searchEverywhere": "Buscar en todos los mapas",
+    "noMatchIn": "Nada en {topic} coincide con esa búsqueda.",
+    "compassN": "N",
+    "compassE": "E",
+    "compassS": "S",
+    "compassW": "O",
+    "compassNorth": "Brújula: el mapa mira al norte",
+    "compassTurned": "Brújula: el mapa está girado {deg}°. Selecciona para mirar al norte.",
+    "compassReset": "Mirar al norte"
   }
 }

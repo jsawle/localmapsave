@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as csv from "../lib/csv.js";
 import * as doc from "../lib/doc.js";
+import * as catalog from "../lib/catalog.js";
 import { DEFAULT_STRINGS } from "../lib/strings.js";
 
 let passed = 0;
@@ -151,6 +152,64 @@ test("web map round trip keeps sketches, data and bookmarks", () => {
   assert.ok(Math.abs(bms[0].viewpoint.center[0] + 0.12) < 1e-6 && Math.abs(bms[0].viewpoint.zoom - 10) < 1e-6);
   assert.equal(doc.cleanBookmarks(wm.atlasBookmarks)[0].layers[0].visible, false);
   JSON.stringify(wm);
+});
+// ---------- Open map topics ----------
+const SCHEMA = { categorySchema: [{ title: "Categories", categories: [
+  { title: "Lessons", categories: [{ title: "America 250" }, { title: "Earth Science" }] },
+  { title: "Earth Science" },
+  { title: "Human Geography", categories: [{ title: "Migration" }, { title: "Populated Places" }, { title: "Public Health" }] },
+  { title: "Real-Time Data" }, { title: "" }, null
+] }] };
+const ITEMS = [
+  { id: "a", title: "Light Pollution", snippet: "Night lights", tags: ["cities"], groupCategories: ["/Categories/Human Geography/Populated Places"] },
+  { id: "b", title: "Trans-Atlantic Slave Trade", groupCategories: ["/Categories/Human Geography/Migration and Refugees", "/Categories/World History"] },
+  { id: "c", title: "Volcanoes", description: "<p>Where <b>lava</b> flows</p>", groupCategories: ["/categories/earth science/"] },
+  { id: "d", title: "Geografía de Panamá", groupCategories: [] },
+  { id: "e", title: "America 250: Thirteen Colonies", groupCategories: ["/Categories/Lessons/America 250"] },
+  { id: "f", title: "Earthquakes", groupCategories: ["/Categories/Earth Science", "/Categories/Human Geography/Public Health"] }
+];
+test("topic tree from the group's category schema", () => {
+  const tree = catalog.buildTopicTree(SCHEMA);
+  assert.deepEqual(tree.map((n) => n.title), ["Lessons", "Earth Science", "Human Geography", "Real-Time Data"]);
+  const mig = catalog.findTopic(tree, "/categories/human geography/migration");
+  assert.equal(mig.depth, 1); assert.equal(mig.parent.title, "Human Geography");
+  assert.deepEqual(catalog.topicTrail(mig).map((n) => n.title), ["Human Geography", "Migration"]);
+  assert.equal(catalog.flattenTopics(tree).length, 9);
+  assert.deepEqual(catalog.buildTopicTree(null), []); assert.deepEqual(catalog.buildTopicTree({ categorySchema: [] }), []);
+});
+test("topic counts include sub-topics and ignore lookalike names", () => {
+  const tree = catalog.buildTopicTree(SCHEMA), idx = catalog.indexItems(ITEMS);
+  const { counts, other, total } = catalog.countTopics(tree, idx);
+  assert.equal(total, 6);
+  assert.equal(counts.get("/categories/human geography"), 3);           // a, b (assigned to a retired sub-topic), f
+  assert.equal(counts.get("/categories/human geography/migration"), 0);  // "Migration and Refugees" is not "Migration"
+  assert.equal(counts.get("/categories/earth science"), 2);               // c (trailing slash, lower case) and f
+  assert.equal(counts.get("/categories/lessons/earth science"), 0);
+  assert.equal(counts.get("/categories/lessons"), 1);
+  assert.equal(other, 1);                                                 // d has no topic
+});
+test("filter by topic and accent-insensitive search", () => {
+  const tree = catalog.buildTopicTree(SCHEMA), idx = catalog.indexItems(ITEMS);
+  const ids = (key, text) => catalog.filterEntries(idx, tree, key, text, "en").map((e) => e.item.id);
+  assert.deepEqual(ids(catalog.ALL, ""), ["e", "f", "d", "a", "b", "c"]);
+  assert.deepEqual(ids("/categories/human geography", ""), ["f", "a", "b"]);
+  assert.deepEqual(ids("/categories/human geography/populated places", ""), ["a"]);
+  assert.deepEqual(ids(catalog.OTHER, ""), ["d"]);
+  assert.deepEqual(ids(catalog.ALL, "geografia panama"), ["d"]);
+  assert.deepEqual(ids(catalog.ALL, "lava"), ["c"]);                   // description text, tags stripped
+  assert.deepEqual(ids(catalog.ALL, "cities"), ["a"]);                 // tags
+  assert.deepEqual(ids("/categories/earth science", "light"), []);
+  const ranked = catalog.filterEntries(catalog.indexItems([{ id: "x", title: "Rivers", snippet: "earth" }, { id: "y", title: "Earth layers" }]), tree, "", "earth").map((e) => e.item.id);
+  assert.deepEqual(ranked, ["y", "x"]);                                 // title matches first
+});
+test("sub-topic chips", () => {
+  const tree = catalog.buildTopicTree(SCHEMA), { counts } = catalog.countTopics(tree, catalog.indexItems(ITEMS));
+  const hg = catalog.findTopic(tree, "/categories/human geography");
+  assert.deepEqual(catalog.chipSet(hg, counts).chips.map((n) => n.title), ["Populated Places", "Public Health"]);
+  const pp = catalog.findTopic(tree, "/categories/human geography/populated places");
+  assert.equal(catalog.chipSet(pp, counts).parent, hg);
+  assert.equal(catalog.chipSet(catalog.findTopic(tree, "/categories/real-time data"), counts), null);
+  assert.equal(catalog.chipSet(hg, null).chips.length, 3);             // without counts (large groups) every sub-topic shows
 });
 test("every config translates only known strings", () => {
   for (const f of ["default", "mapmaker", "example-es"]) {

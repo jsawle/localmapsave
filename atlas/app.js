@@ -6,8 +6,11 @@ import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, AUTHORING_APP, sanitizeDoc, cleanBookmarks, docToWebMap,
   operationalLayersToSketch, operationalLayerToDataDef, isOwnLayerJson, specToBookmarks, xyToLonLat } from "./lib/doc.js";
 import { DEFAULT_STRINGS } from "./lib/strings.js";
+import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, flattenTopics, findTopic, topicTrail, indexItems, countTopics,
+  filterEntries, chipSet } from "./lib/catalog.js";
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
+const COMPASS_VERSION = "1.0";
 const SKETCH_VERSION = "1.0";
 const CONFIG_SCHEMA = 1;
 const SDK_VERSION = "5.1";
@@ -26,7 +29,7 @@ const DEFAULT_CONFIG = {
   logo: { url: "", compactUrl: "", alt: "", link: "", showName: false },
   headerLinks: [],
   partnerLogos: [],
-  theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
+  theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", toolActive: "", toolActiveInk: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
   portalUrl: "https://www.arcgis.com",
   contentGroup: "36443e9570294a1f883b5d2c5abfe6b5",
   basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
@@ -35,11 +38,11 @@ const DEFAULT_CONFIG = {
   units: "metric",
   scalebar: "dual",
   disclaimer: "",
-  signIn: { clientId: "", popup: true, onboardingTitle: "", onboardingHtml: "" },
+  signIn: { clientId: "", popup: true, headerButton: true, onboardingTitle: "", onboardingHtml: "" },
   agolTags: ["school map"],
   csvMaxRows: 1000,
   features: { openMap: true, addLayer: true, csv: true, layers: true, legend: true, basemaps: true, measure: true, sketch: true,
-    bookmarks: true, threeD: true, save: true, localSave: true, screenshot: true, print: true, search: true, signIn: true },
+    bookmarks: true, threeD: true, save: true, localSave: true, screenshot: true, print: true, search: true, signIn: true, compass: true },
   strings: {}
 };
 function mergeConfig(base, over) {
@@ -89,6 +92,7 @@ function luminance(hex) { return hexToRgb(hex).map((v) => { v /= 255; return v <
 function contrast(a, b) { const la = luminance(a), lb = luminance(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); }
 const bestInk = (bg) => (contrast(bg, "#ffffff") >= contrast(bg, "#000000") ? "#ffffff" : "#000000");
 function mix(hex, withHex, w) { const a = hexToRgb(hex), b = hexToRgb(withHex); return "#" + a.map((v, i) => Math.round(v * (1 - w) + b[i] * w).toString(16).padStart(2, "0")).join(""); }
+const cssString = (v) => '"' + String(v).replace(/[\\"]/g, "\\$&").replace(/[\n\r\f]/g, " ") + '"';
 const safeUrl = (u) => (typeof u === "string" && /^(https:\/\/|\.\/|\/|[\w-]+\.(png|svg|jpe?g|webp))/i.test(u) ? u : "");
 
 function applyTheme() {
@@ -100,6 +104,8 @@ function applyTheme() {
   set("--brand", th.brand); set("--brand-ink", th.brandInk || bestInk(th.brand)); set("--brand-soft", soft); set("--brand-strong", strong);
   set("--header-bg", th.header); set("--header-ink", th.headerInk || bestInk(th.header)); set("--header-line", th.headerLine);
   set("--pill-dark", th.pill); set("--pill-dark-ink", th.pillInk || bestInk(th.pill));
+  const active = th.toolActive || soft;
+  set("--tool-active", active); set("--tool-active-ink", th.toolActiveInk || bestInk(active));
   if (th.font) set("--font", th.font);
   if (contrast(th.brand, th.brandInk || bestInk(th.brand)) < 4.5) console.warn("Theme: brand colour and its text colour are below WCAG 4.5:1 contrast.");
 }
@@ -142,7 +148,8 @@ function applyHeader() {
     if (p.link && /^https:\/\//i.test(p.link)) { const a = document.createElement("a"); a.href = p.link; a.target = "_blank"; a.rel = "noopener"; a.appendChild(img); partners.appendChild(a); }
     else partners.appendChild(img);
   }
-  if (cfg.disclaimer) { $("disclaimer").textContent = cfg.disclaimer; $("disclaimer").hidden = false; }
+  // The disclaimer sits in the attribution bar, before "Powered by Esri", as in MapMaker.
+  if (cfg.disclaimer) $("mapWrap").style.setProperty("--atlas-disclaimer", cssString(String(cfg.disclaimer).replace(/\s+/g, " ").trim() + " | "));
   $("docTitle").placeholder = S.untitled;
   $("docTitle").setAttribute("aria-label", S.mapTitle);
   $("verBtn").textContent = "v" + APP_VERSION;
@@ -151,23 +158,67 @@ function applyHeader() {
   $("addIntro").textContent = t("addLayerIntro");
   $("catalogLabel").textContent = t("layersFrom");
   document.querySelectorAll("[data-feature]").forEach((el) => { if (F[el.dataset.feature] === false) el.hidden = true; });
-  $("signInBtn").hidden = F.signIn === false;
+  $("signInBtn").hidden = F.signIn === false || (cfg.signIn || {}).headerButton === false;
   $("agolSection").hidden = F.signIn === false;
+}
+// Toolbar icons. The page starts with these built-in outline icons; once the ArcGIS SDK has loaded Esri's
+// Calcite icons (the set MapMaker uses), each one is swapped in as soon as it has drawn.
+const ICON_SVG = {
+  "basemap": '<path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/><path d="M3 8.5 6.5 5 11 9M15 3v4h6M3 18l3-2 5 2.5M17 13v8M13 17h8"/>',
+  "map": '<path d="M3 3h18v18H3z"/><path d="M8.5 21c.5-2.5 2.5-3.5 1.5-6s-3-2.5-1.5-5S13 8 13.5 3M14 21c.5-2 2-3 4-3s2.5-1.5 3-2"/>',
+  "layer-map": '<path d="M2.5 6.5 9 4l6 2.5L21.5 4v13.5L15 20l-6-2.5-6.5 2.5z"/><path d="M9 4v13.5M15 6.5V20"/>',
+  "plus-circle": '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v9M7.5 12h9"/>',
+  "legend": '<path d="M4 4.5h3v3H4zM4 10.5h3v3H4zM5.5 16.5 7 19H4zM10 6h10M10 12h10M10 18h10"/>',
+  "measure": '<path d="M3 15h18v5H3z"/><path d="M6 15v2M9 15v3M12 15v2M15 15v3M18 15v2M3 8h7M5 6 3 8l2 2M14 8h7M19 6l2 2-2 2"/>',
+  "pencil-mark": '<path d="M15 4.5 19.5 9 10 18.5H5.5V14z"/><path d="m13 6.5 4.5 4.5"/><path d="M3.5 21c2-1 3-1 5-1M3 10c1.5-4 4-5 5.5-3.5"/>',
+  "cube": '<path d="M12 2.5 20.5 7v10L12 21.5 3.5 17V7z"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5v10"/>',
+  "bookmark": '<path d="M6 3h12v18l-6-5.5L6 21z"/>',
+  "save": '<path d="M4 3h13l3 3v15H4z"/><path d="M8 3v5h8V3M7 21v-7h10v7"/>'
+};
+function paintIcons() {
+  document.querySelectorAll(".ti[data-icon]").forEach((el) => {
+    if (el.querySelector("svg, calcite-icon")) return;
+    el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">' + (ICON_SVG[el.dataset.icon] || "") + "</svg>";
+  });
+}
+async function upgradeIcons() {
+  if (!window.customElements) return;
+  const ready = await Promise.race([customElements.whenDefined("calcite-icon").then(() => true), new Promise((r) => setTimeout(() => r(false), 15000))]);
+  if (!ready) return;
+  const pending = [...document.querySelectorAll(".ti[data-icon]")].map((span) => {
+    const ic = document.createElement("calcite-icon");
+    ic.setAttribute("icon", span.dataset.icon); ic.setAttribute("scale", span.classList.contains("sm") ? "s" : "l");
+    ic.setAttribute("aria-hidden", "true"); ic.className = "pending";
+    span.appendChild(ic);
+    return { span, ic };
+  });
+  const drawn = (ic) => { const root = ic.shadowRoot; const path = root && root.querySelector("path"); return !!(path && (path.getAttribute("d") || "").length > 4); };
+  const started = Date.now();
+  const timer = setInterval(() => {
+    for (let i = pending.length - 1; i >= 0; i--) {
+      const { span, ic } = pending[i];
+      if (!drawn(ic)) continue;
+      [...span.childNodes].forEach((n) => { if (n !== ic) n.remove(); });
+      ic.classList.remove("pending"); pending.splice(i, 1);
+    }
+    if (!pending.length || Date.now() - started > 120000) { clearInterval(timer); pending.forEach(({ ic }) => ic.remove()); }
+  }, 400);
 }
 applyTheme();
 applyStrings();
 applyHeader();
+paintIcons();
 
 // ============================================================ ArcGIS SDK
 const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel, Basemap, BasemapGallery,
-  PortalBasemapsSource, Measurement, CoordinateConversion, ScaleBar, Search, Expand, Home, Compass, NavigationToggle, Legend, Layer,
+  PortalBasemapsSource, Measurement, CoordinateConversion, ScaleBar, Search, Expand, Home, NavigationToggle, Legend, Layer,
   Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils] = await $arcgis.import([
   "@arcgis/core/Map.js", "@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js", "@arcgis/core/views/SceneView.js",
   "@arcgis/core/layers/GraphicsLayer.js", "@arcgis/core/layers/FeatureLayer.js", "@arcgis/core/Graphic.js",
   "@arcgis/core/widgets/Sketch/SketchViewModel.js", "@arcgis/core/Basemap.js", "@arcgis/core/widgets/BasemapGallery.js",
   "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js", "@arcgis/core/widgets/Measurement.js",
   "@arcgis/core/widgets/CoordinateConversion.js", "@arcgis/core/widgets/ScaleBar.js", "@arcgis/core/widgets/Search.js",
-  "@arcgis/core/widgets/Expand.js", "@arcgis/core/widgets/Home.js", "@arcgis/core/widgets/Compass.js",
+  "@arcgis/core/widgets/Expand.js", "@arcgis/core/widgets/Home.js",
   "@arcgis/core/widgets/NavigationToggle.js", "@arcgis/core/widgets/Legend.js", "@arcgis/core/layers/Layer.js",
   "@arcgis/core/layers/support/Field.js", "@arcgis/core/layers/support/LabelClass.js", "@arcgis/core/renderers/support/jsonUtils.js",
   "@arcgis/core/geometry/Extent.js", "@arcgis/core/config.js", "@arcgis/core/intl.js", "@arcgis/core/identity/IdentityManager.js",
@@ -196,10 +247,43 @@ function addViewUI(v, is3d) {
   if (F.search !== false) v.ui.add(new Expand({ view: v, content: new Search({ view: v }), expandIcon: "search", expandTooltip: S.search, group: "top-left" }), { position: "top-left", index: 0 });
   v.ui.add(new Home({ view: v }), { position: "top-left", index: 1 });
   if (is3d) v.ui.add(new NavigationToggle({ view: v }), "top-left");
-  v.ui.add(new Compass({ view: v }), "bottom-left");
-  if (!is3d) v.ui.add(new ScaleBar({ view: v, unit: ["dual", "metric", "imperial"].includes(cfg.scalebar) ? cfg.scalebar : "dual" }), "bottom-left");
+  const stack = document.createElement("div"); stack.className = "ll-stack";
+  if (F.compass !== false) stack.appendChild(makeCompass(v, is3d));
+  if (!is3d && cfg.scalebar !== "none") {
+    const sb = document.createElement("div"); stack.appendChild(sb);
+    new ScaleBar({ view: v, container: sb, unit: ["dual", "metric", "imperial"].includes(cfg.scalebar) ? cfg.scalebar : "dual" });
+  }
+  if (stack.children.length) v.ui.add(stack, "bottom-left");
+}
+// MapMaker's large compass rose: turns with the map; select it to face north again.
+function makeCompass(v, is3d) {
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "rose"; b.title = S.compassReset;
+  const svg = el("svg", { viewBox: "0 0 100 100", "aria-hidden": "true", focusable: "false" });
+  el("circle", { class: "rose-face", cx: 50, cy: 50, r: 49 }, svg);
+  const dial = el("g", { class: "rose-dial" }, svg);
+  for (const [k, x, y] of [["compassN", 50, 15], ["compassE", 85, 50], ["compassS", 50, 85], ["compassW", 15, 50]]) el("text", { x, y }, dial).textContent = S[k];
+  el("path", { class: "needle-n", d: "M50 31 56.5 50h-13z" }, dial);
+  el("path", { class: "needle-s", d: "M43.5 50h13L50 69z" }, dial);
+  b.appendChild(svg);
+  let last = null;
+  const angle = () => (is3d ? -((v.camera && v.camera.heading) || 0) : (v.rotation || 0));
+  const update = () => {
+    const a = Math.round(angle() * 10) / 10;
+    if (a === last) return;
+    last = a;
+    dial.setAttribute("transform", "rotate(" + a + " 50 50)");
+    const deg = ((Math.round(-a) % 360) + 360) % 360;
+    b.setAttribute("aria-label", deg === 0 ? S.compassNorth : t("compassTurned", { deg }));
+  };
+  reactiveUtils.watch(() => (is3d ? v.camera && v.camera.heading : v.rotation), update, { initial: true });
+  b.addEventListener("click", () => { v.goTo(is3d ? { heading: 0 } : { rotation: 0 }, { animate: !reduceMotion }).catch(() => {}); });
+  return b;
 }
 addViewUI(mapView, false);
+upgradeIcons();
 function goToSafe(target, opts) {
   const o = { animate: !reduceMotion, ...(opts || {}) };
   let tries = 0;
@@ -226,8 +310,11 @@ window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault()
 function sizeTitle() { const el = $("docTitle"); el.size = Math.max(8, Math.min(60, (el.value || el.placeholder || "").length + 2)); }
 $("docTitle").addEventListener("input", () => { markDirty(); sizeTitle(); });
 function currentTitle() { return ($("docTitle").value || "").trim() || S.untitled; }
-function setTitle(v) { $("docTitle").value = (v && String(v).trim()) || ""; sizeTitle(); }
-sizeTitle();
+function updateTitleShown() { $("hdrTitle").classList.toggle("empty", !($("docTitle").value || "").trim() && document.activeElement !== $("docTitle")); }
+function setTitle(v) { $("docTitle").value = (v && String(v).trim()) || ""; sizeTitle(); updateTitleShown(); }
+$("docTitle").addEventListener("blur", updateTitleShown);
+const titleFromFileName = (name) => String(name || "").replace(/\.(mmap|json)$/i, "").replace(/[_-]+/g, " ").trim();
+sizeTitle(); updateTitleShown();
 // Keep the disclaimer and credit clear of the toolbar: lift them above it when they would overlap.
 function layoutCorner() {
   const c = document.querySelector(".corner"), tb = $("toolbar");
@@ -236,8 +323,33 @@ function layoutCorner() {
   const a = c.getBoundingClientRect(), b = tb.getBoundingClientRect();
   if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) c.classList.add("raised");
 }
-window.addEventListener("resize", layoutCorner);
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutCorner);
+// Keep the toolbar clear of the attribution bar (it grows when the disclaimer wraps on phones), and lift the
+// compass and scale bar above the toolbar when the toolbar would cover them (phones, narrower laptops).
+const uiBottom = new WeakMap(), uiBase = new WeakMap();
+function layoutBottom() {
+  const v = view, root = v && v.container;
+  const attr = root && root.querySelector(".esri-attribution");
+  if (attr) $("mapWrap").style.setProperty("--attr-h", Math.ceil(attr.getBoundingClientRect().height || 16) + "px");
+  layoutCorner();
+  const tb = $("toolbar").getBoundingClientRect(), stack = root && root.querySelector(".ll-stack");
+  if (!v || !v.ui || !stack) return;
+  if (!uiBase.has(v)) { const p = v.ui.padding || {}; uiBase.set(v, { top: p.top ?? 15, left: p.left ?? 15, right: p.right ?? 15, bottom: p.bottom ?? 30 }); }
+  const base = uiBase.get(v), s = stack.getBoundingClientRect(), wrap = $("mapWrap").getBoundingClientRect();
+  const covered = tb.width > 0 && s.width > 0 && s.left < tb.right && s.right > tb.left;
+  const bottom = covered ? Math.round(wrap.bottom - tb.top) + 8 : base.bottom;   // the SDK's own padding already allows for the attribution
+  if (uiBottom.get(v) === bottom) return;
+  uiBottom.set(v, bottom);
+  try { v.ui.padding = { ...base, bottom }; } catch (e) { /* keep the SDK default */ }
+}
+const bottomObserver = window.ResizeObserver ? new ResizeObserver(() => layoutBottom()) : null;
+function watchBottom(tries) {
+  const root = view && view.container, attr = root && root.querySelector(".esri-attribution"), stack = root && root.querySelector(".ll-stack");
+  if (bottomObserver) { bottomObserver.disconnect(); bottomObserver.observe($("toolbar")); if (attr) bottomObserver.observe(attr); if (stack) bottomObserver.observe(stack); }
+  layoutBottom();
+  if ((!attr || !stack) && (tries || 0) < 20) setTimeout(() => watchBottom((tries || 0) + 1), 500);
+}
+window.addEventListener("resize", layoutBottom);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutBottom);
 layoutCorner();
 function titleSlug() { return currentTitle().replace(/[^\w\-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "map"; }
 
@@ -590,6 +702,7 @@ async function setMode(m) {
   if (coordWidget) coordWidget.view = view;
   if (legend) legend.view = view;
   updatePopupEnabled();
+  watchBottom(0);
   if (m === "3d" && dataLayers.some((l) => l.renderer && l.renderer.type === "pie-chart")) toast(S.pieIn3d);
 }
 $("tg2d").addEventListener("click", () => setMode("2d"));
@@ -843,24 +956,19 @@ $("bmSave").addEventListener("click", () => {
 $("bmTitleInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("bmSave").click(); });
 $("bmDelete").addEventListener("click", () => { if (bmEditIndex >= 0) { bookmarks.splice(bmEditIndex, 1); markDirty(); } showBmList(); $("bmAddBtn").focus(); });
 
-// ============================================================ Categories (shared by Open map and Add layer)
-let categoryOptions = null;
-async function loadCategories() {
-  if (categoryOptions) return categoryOptions;
-  categoryOptions = [];
-  try {
-    const schema = await restGet(`/sharing/rest/community/groups/${cfg.contentGroup}/categorySchema`);
-    const walk = (nodes, path, depth) => (nodes || []).forEach((n) => { const p = path + "/" + n.title; categoryOptions.push({ value: p, label: " ".repeat(depth) + n.title }); walk(n.categories, p, depth + 1); });
-    for (const root of schema.categorySchema || []) walk(root.categories, "/" + root.title, 0);
-  } catch (e) { console.warn("No category schema", e); }
-  return categoryOptions;
+// ============================================================ Topics (the content group's categories; shared by Open map and Add layer)
+let topicTreePromise = null;
+function getTopicTree() {
+  if (!topicTreePromise) topicTreePromise = restGet(`/sharing/rest/community/groups/${cfg.contentGroup}/categorySchema`)
+    .then(buildTopicTree).catch((e) => { console.warn("No category schema", e); return []; });
+  return topicTreePromise;
 }
 async function fillCategorySelect(sel) {
-  const opts = await loadCategories();
+  const tree = await getTopicTree();
   sel.innerHTML = "";
   const all = document.createElement("option"); all.value = ""; all.textContent = S.allCategories; sel.appendChild(all);
-  for (const o of opts) { const op = document.createElement("option"); op.value = o.value; op.textContent = o.label; sel.appendChild(op); }
-  sel.hidden = !opts.length;
+  for (const n of flattenTopics(tree)) { const op = document.createElement("option"); op.value = n.path; op.textContent = "   ".repeat(n.depth) + n.title; sel.appendChild(op); }
+  sel.hidden = !tree.length;
 }
 const cleanQuery = (s) => String(s || "").replace(/["':()\\[\]{}^~*?]/g, " ").replace(/\s+/g, " ").trim();
 function thumbUrl(item) {
@@ -871,13 +979,19 @@ function thumbUrl(item) {
 }
 
 // ============================================================ Open map dialog
-const groupState = { start: 1, loading: false }, agolState = { start: 1, loading: false };
+// The collection's maps are browsed by topic: a list of topics with how many maps each holds, sub-topic chips,
+// and a search that looks inside the chosen topic. Up to MAX_INDEX maps are loaded once and filtered here in the
+// browser; a bigger collection is filtered by ArcGIS Online instead (topics still work, without counts).
+const PAGE = 24;
+const browse = { ready: null, tree: [], entries: null, counts: null, other: 0, mode: "index", topic: ALL, list: [], shown: 0, server: { start: 1, token: 0 } };
+const agolState = { start: 1, loading: false };
 function mapCard(item, onOpen) {
   const li = document.createElement("li"); li.className = "map-card";
   const th = document.createElement("div"); th.className = "card-thumb"; th.setAttribute("aria-hidden", "true");
   const tu = thumbUrl(item); if (tu) th.style.backgroundImage = "url('" + tu.replace(/'/g, "%27") + "')";
+  th.addEventListener("click", () => onOpen(item));
   const body = document.createElement("div"); body.className = "card-body";
-  const h = document.createElement("h3"); h.className = "card-title"; h.textContent = item.title || S.untitled;
+  const h = document.createElement("h4"); h.className = "card-title"; h.textContent = item.title || S.untitled;
   const sn = document.createElement("p"); sn.className = "card-snippet"; sn.textContent = item.snippet || "";
   const acts = document.createElement("div"); acts.className = "card-actions";
   const open = document.createElement("button"); open.type = "button"; open.className = "btn primary"; open.textContent = S.openThisMap;
@@ -890,25 +1004,168 @@ function mapCard(item, onOpen) {
   body.append(h, sn, acts); li.append(th, body);
   return li;
 }
-async function loadGroupMaps(reset) {
-  if (groupState.loading) return;
-  groupState.loading = true;
-  if (reset) { groupState.start = 1; $("groupGrid").innerHTML = ""; }
-  $("groupStatus").textContent = S.loadingMaps; $("groupGrid").setAttribute("aria-busy", "true");
+const openCollectionMap = (it) => openWebMapItem(it.id, { title: it.title });
+function loadBrowse() {
+  if (browse.ready) return browse.ready;
+  browse.ready = (async () => {
+    const q = { num: 100, start: 1, q: 'type:"Web Map"', sortField: "title", sortOrder: "asc" };
+    const path = `/sharing/rest/content/groups/${cfg.contentGroup}/search`;
+    const [tree, first] = await Promise.all([getTopicTree(), restGet(path, q)]);
+    browse.tree = tree;
+    if ((first.total || 0) > MAX_INDEX) { browse.mode = "server"; browse.entries = null; browse.counts = null; browse.other = 0; return; }
+    const items = (first.results || []).slice();
+    for (let next = first.nextStart; next > 0 && items.length < MAX_INDEX;) { const d = await restGet(path, { ...q, start: next }); items.push(...(d.results || [])); next = d.nextStart; }
+    browse.mode = "index";
+    browse.entries = indexItems(items);
+    const c = countTopics(tree, browse.entries); browse.counts = c.counts; browse.other = c.other;
+  })();
+  browse.ready.catch(() => { browse.ready = null; });
+  return browse.ready;
+}
+const currentTopicNode = () => (browse.topic && browse.topic !== OTHER ? findTopic(browse.tree, browse.topic) : null);
+function topicName(key) { if (!key) return S.allMaps; if (key === OTHER) return S.otherMaps; const n = findTopic(browse.tree, key); return n ? n.title : S.allMaps; }
+const countText = (n) => (n === 1 ? S.mapsCountOne : t("mapsCount", { n }));
+// A visible number with the word "maps" for screen readers, so the button's name starts with what it shows (WCAG 2.5.3).
+function countBadge(n, cls) {
+  const c = document.createElement("span"); c.className = cls; c.textContent = n.toLocaleString(cfg.locale || undefined);
+  const u = document.createElement("span"); u.className = "sr-only"; u.textContent = " " + (n === 1 ? S.mapsUnitOne : S.mapsUnit);
+  c.appendChild(u);
+  return c;
+}
+function countFor(key) {
+  if (!browse.counts) return null;
+  if (!key) return browse.entries.length;
+  return key === OTHER ? browse.other : browse.counts.get(key) || 0;
+}
+function renderTopicNav() {
+  const list = $("topicList"); list.innerHTML = "";
+  const rows = [{ key: ALL, title: S.allMaps }];
+  for (const n of browse.tree) if (countFor(n.key) !== 0) rows.push({ key: n.key, title: n.title });
+  if (browse.counts && browse.other > 0) rows.push({ key: OTHER, title: S.otherMaps });
+  const node = currentTopicNode();
+  const currentTop = node ? topicTrail(node)[0].key : browse.topic;   // a sub-topic highlights its top-level topic
+  for (const r of rows) {
+    const li = document.createElement("li");
+    const b = document.createElement("button"); b.type = "button"; b.className = "topic"; b.dataset.key = r.key;
+    const on = r.key === currentTop;
+    if (on) b.setAttribute("aria-current", "true");
+    b.tabIndex = on ? 0 : -1;
+    const nm = document.createElement("span"); nm.textContent = r.title; b.appendChild(nm);
+    const n = countFor(r.key);
+    if (n != null) b.appendChild(countBadge(n, "count"));
+    b.addEventListener("click", () => selectTopic(r.key, "nav"));
+    li.appendChild(b); list.appendChild(li);
+  }
+  const has = browse.tree.length > 0;
+  $("topicNav").hidden = !has; $("browse").classList.toggle("no-topics", !has);
+}
+function topicChip(key, label, pressed) {
+  const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.dataset.key = key;
+  b.setAttribute("aria-pressed", String(pressed));
+  b.appendChild(document.createTextNode(label + " "));
+  const n = countFor(key);
+  if (n != null) b.appendChild(countBadge(n, "n"));
+  b.addEventListener("click", () => selectTopic(key, "chip"));
+  return b;
+}
+function renderTopicHead() {
+  const node = currentTopicNode();
+  $("topicTitle").textContent = topicName(browse.topic);
+  const cr = $("topicCrumbs"); cr.innerHTML = "";
+  if (node && node.depth > 0) {
+    const parts = [{ key: ALL, title: S.allMaps }, ...topicTrail(node).slice(0, -1).map((n) => ({ key: n.key, title: n.title }))];
+    parts.forEach((p, i) => {
+      if (i) { const sep = document.createElement("span"); sep.setAttribute("aria-hidden", "true"); sep.textContent = "›"; cr.appendChild(sep); }
+      const b = document.createElement("button"); b.type = "button"; b.className = "link-btn"; b.textContent = p.title;
+      b.addEventListener("click", () => selectTopic(p.key, "crumb"));
+      cr.appendChild(b);
+    });
+  }
+  cr.hidden = !cr.children.length;
+  const chips = $("subTopics"); chips.innerHTML = "";
+  const set = node ? chipSet(node, browse.counts) : null;
+  if (set && set.chips.length) {
+    chips.appendChild(topicChip(set.parent.key, t("allInTopic", { topic: set.parent.title }), browse.topic === set.parent.key));
+    for (const c of set.chips) chips.appendChild(topicChip(c.key, c.title, browse.topic === c.key));
+  }
+  chips.hidden = !chips.children.length;
+  const ph = browse.topic ? t("searchIn", { topic: topicName(browse.topic) }) : S.searchAllMaps;
+  $("groupSearch").placeholder = ph; $("groupSearchLabel").textContent = ph;
+}
+function renderGroupGrid() {
+  if (browse.mode === "server") { loadGroupMapsServer(true); return; }
+  const text = $("groupSearch").value.trim();
+  browse.list = filterEntries(browse.entries, browse.tree, browse.topic, text, cfg.locale);
+  $("groupGrid").innerHTML = ""; browse.shown = 0;
+  showMoreCards(false);
+  const n = browse.list.length;
+  $("topicCount").textContent = text ? t("mapsMatch", { n, total: countFor(browse.topic) }) : countText(n);
+  $("groupStatus").textContent = n ? "" : text ? (browse.topic ? t("noMatchIn", { topic: topicName(browse.topic) }) : S.noMatch) : S.noMaps;
+  $("searchAllRow").hidden = !(n === 0 && text && browse.topic);
+}
+function showMoreCards(focusFirst) {
+  const next = browse.list.slice(browse.shown, browse.shown + PAGE);
+  const first = browse.shown;
+  for (const e of next) $("groupGrid").appendChild(mapCard(e.item, openCollectionMap));
+  browse.shown += next.length;
+  $("groupMoreRow").hidden = browse.shown >= browse.list.length;
+  if (focusFirst && next.length) { const btn = $("groupGrid").children[first].querySelector(".btn.primary"); if (btn) btn.focus(); }
+}
+async function loadGroupMapsServer(reset) {
+  const token = ++browse.server.token;
+  if (reset) browse.server.start = 1;
   const text = cleanQuery($("groupSearch").value);
-  const q = { num: 24, start: groupState.start, q: 'type:"Web Map"' + (text ? " AND (" + text + ")" : "") };
+  const q = { num: PAGE, start: browse.server.start, q: 'type:"Web Map"' + (text ? " AND (" + text + ")" : "") };
   if (!text) { q.sortField = "title"; q.sortOrder = "asc"; }
-  if ($("groupCat").value) q.categories = $("groupCat").value;
+  const node = currentTopicNode(); if (node) q.categories = node.path;
+  $("groupStatus").textContent = S.loadingMaps; $("groupGrid").setAttribute("aria-busy", "true");
   try {
     const d = await restGet(`/sharing/rest/content/groups/${cfg.contentGroup}/search`, q);
-    for (const item of d.results || []) $("groupGrid").appendChild(mapCard(item, (it) => openWebMapItem(it.id, { title: it.title })));
-    groupState.start = d.nextStart;
+    if (token !== browse.server.token) return;
+    if (reset) $("groupGrid").innerHTML = "";
+    const first = $("groupGrid").children.length;
+    for (const item of d.results || []) $("groupGrid").appendChild(mapCard(item, openCollectionMap));
+    if (!reset && $("groupGrid").children[first]) { const btn = $("groupGrid").children[first].querySelector(".btn.primary"); if (btn) btn.focus(); }
+    browse.server.start = d.nextStart;
     $("groupMoreRow").hidden = !(d.nextStart > 0);
-    $("groupStatus").textContent = $("groupGrid").children.length ? "" : (text || q.categories ? S.noMatch : S.noMaps);
-  } catch (e) { console.error(e); $("groupStatus").textContent = S.groupError; }
-  $("groupGrid").removeAttribute("aria-busy");
-  groupState.loading = false;
+    $("topicCount").textContent = countText(d.total || 0);
+    $("groupStatus").textContent = $("groupGrid").children.length ? "" : (text ? S.noMatch : S.noMaps);
+    $("searchAllRow").hidden = !(!$("groupGrid").children.length && text && browse.topic);
+  } catch (e) { if (token === browse.server.token) { console.error(e); $("groupStatus").textContent = S.groupError; } }
+  if (token === browse.server.token) $("groupGrid").removeAttribute("aria-busy");
 }
+function selectTopic(key, from) {
+  browse.topic = key || ALL;
+  renderTopicNav(); renderTopicHead(); renderGroupGrid();
+  // Keep keyboard focus on the control the person used (the list and chips are redrawn).
+  const sel = (root) => [...$(root).querySelectorAll("button[data-key]")].find((b) => b.dataset.key === browse.topic);
+  let f = null;
+  if (from === "nav") f = [...$("topicList").querySelectorAll("button")].find((b) => b.getAttribute("aria-current") === "true");
+  else if (from === "chip") f = sel("subTopics");
+  if (from && !f) f = $("topicTitle");
+  if (f) f.focus();
+}
+async function startBrowse() {
+  $("groupGrid").innerHTML = ""; $("topicCount").textContent = ""; $("groupMoreRow").hidden = true; $("searchAllRow").hidden = true;
+  $("groupStatus").textContent = S.loadingMaps; $("groupGrid").setAttribute("aria-busy", "true");
+  try { await loadBrowse(); }
+  catch (e) { console.error(e); $("groupStatus").textContent = S.groupError; $("groupGrid").removeAttribute("aria-busy"); groupLoaded = false; return; }
+  $("groupGrid").removeAttribute("aria-busy");
+  if (browse.topic && browse.topic !== OTHER && !findTopic(browse.tree, browse.topic)) browse.topic = ALL;
+  renderTopicNav(); renderTopicHead(); renderGroupGrid();
+}
+function forgetBrowse() { browse.ready = null; groupLoaded = false; }
+// Arrow keys move along the topic list (only the chosen topic is a tab stop).
+$("topicList").addEventListener("keydown", (e) => {
+  const keys = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, Home: "first", End: "last" };
+  if (!(e.key in keys)) return;
+  const btns = [...$("topicList").querySelectorAll("button")], i = btns.indexOf(document.activeElement);
+  if (i < 0) return;
+  e.preventDefault();
+  const k = keys[e.key], j = k === "first" ? 0 : k === "last" ? btns.length - 1 : (i + k + btns.length) % btns.length;
+  btns.forEach((b, x) => { b.tabIndex = x === j ? 0 : -1; });
+  btns[j].focus();
+});
 async function loadAgolMaps(reset) {
   if (!portalUser || agolState.loading) return;
   agolState.loading = true;
@@ -925,16 +1182,15 @@ async function loadAgolMaps(reset) {
   } catch (e) { console.error(e); $("agolStatus2").textContent = S.groupError; }
   agolState.loading = false;
 }
-let groupLoaded = false, catsFilled = false;
+let groupLoaded = false;
 const TABS = [["tabGroup", "paneGroup"], ["tabDevice", "paneDevice"], ["tabArcgis", "paneArcgis"]];
 function switchTab(tabId) {
   for (const [tb, pane] of TABS) { const on = tb === tabId; $(tb).setAttribute("aria-selected", String(on)); $(tb).tabIndex = on ? 0 : -1; $(pane).hidden = !on; }
-  if (tabId === "tabGroup" && !groupLoaded) { groupLoaded = true; loadGroupMaps(true); }
+  if (tabId === "tabGroup" && !groupLoaded) { groupLoaded = true; startBrowse(); }
   if (tabId === "tabArcgis") loadAgolMaps(true);
 }
-async function openOpenModal(tabId) {
+function openOpenModal(tabId) {
   openModal("openModal");
-  if (!catsFilled) { catsFilled = true; fillCategorySelect($("groupCat")); }
   switchTab(tabId || "tabGroup");
 }
 $("tool-open").addEventListener("click", () => openOpenModal("tabGroup"));
@@ -948,9 +1204,9 @@ $("tabGroup").parentElement.addEventListener("keydown", (e) => {
   $(next).focus(); switchTab(next);
 });
 let searchTimer = 0;
-$("groupSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadGroupMaps(true), 350); });
-$("groupCat").addEventListener("change", () => loadGroupMaps(true));
-$("groupMore").addEventListener("click", () => loadGroupMaps(false));
+$("groupSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { if (browse.ready) renderGroupGrid(); }, browse.mode === "server" ? 350 : 150); });
+$("searchAllBtn").addEventListener("click", () => { selectTopic(ALL); $("groupSearch").focus(); });
+$("groupMore").addEventListener("click", () => { if (browse.mode === "server") loadGroupMapsServer(false); else showMoreCards(true); });
 $("agolSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadAgolMaps(true), 350); });
 $("agolMore").addEventListener("click", () => loadAgolMaps(false));
 $("browseDevice").addEventListener("click", openFromDevice);
@@ -1353,11 +1609,12 @@ function saveToDevice(forceNew) {
   writeToHandle(forceNew);
 }
 async function writeToHandle(forceNew) {
-  const blob = docBlob();
   try {
     if (forceNew || !currentFileHandle) {
       currentFileHandle = await window.showSaveFilePicker({ suggestedName: titleSlug() + ".mmap", types: [{ description: S.mapFile, accept: { "application/json": [".mmap"] } }] });
     }
+    if (!($("docTitle").value || "").trim()) setTitle(titleFromFileName(currentFileHandle.name));
+    const blob = docBlob();
     const w = await currentFileHandle.createWritable();
     await w.write(blob); await w.close();
     openedHandleUnsaved = false; markClean();
@@ -1376,6 +1633,7 @@ function openNameDialog() { $("fileNameInput").value = titleSlug(); openModal("n
 function confirmNameDialog() {
   const name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
   closeModal("nameModal");
+  if (!($("docTitle").value || "").trim()) setTitle(titleFromFileName(name));
   try { downloadBlob(docBlob(), name + ".mmap"); markClean(); toast(t("savedDownload", { name: name + ".mmap" })); } catch (e) { toast(S.saveFailed); }
 }
 $("nameConfirm").addEventListener("click", confirmNameDialog);
@@ -1429,8 +1687,9 @@ async function onSignedIn() {
 }
 function renderUser() {
   const on = !!portalUser;
-  $("signInBtn").hidden = on || F.signIn === false;
+  $("signInBtn").hidden = on || F.signIn === false || SIGN.headerButton === false;
   $("userWrap").hidden = !on;
+  forgetBrowse();
   $("tabArcgis").hidden = !on;
   if (on) {
     const name = portalUser.fullName || portalUser.username;
@@ -1509,7 +1768,7 @@ $("signOutBtn").addEventListener("click", () => {
   portalUser = null; currentAgolItem = null;
   renderUser();
   if (!$("tabArcgis").hidden) switchTab("tabGroup");
-  $("signInBtn").focus();
+  ($("signInBtn").hidden ? $("tool-save") : $("signInBtn")).focus();
   toast(S.signedOut);
 });
 
@@ -1599,6 +1858,8 @@ $("agolUpdate").addEventListener("click", () => saveToArcGIS(true));
 function renderVersions() {
   const rows = [
     [cfg.appName + " (app)", APP_VERSION, "White-label build of the MapMaker app: every MapMaker tool, local save, CSV data, ArcGIS Online sign-in. Created by Jason Sawle."],
+    ["Open map topics", CATALOG_VERSION, "Browse the collection's maps by its group categories, with map counts, sub-topics and search within a topic."],
+    ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map file (.mmap)", String(DOC_VERSION), "MapMakerLocalDocument. Opens files from the Atlas local-save concept and Map Studio."],
     ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview."],
     ["Sketch", SKETCH_VERSION, "Points, lines, areas, circles and text, with pop-ups, images, colour, size and rotation; move, reshape and delete."],
@@ -1616,6 +1877,7 @@ function renderVersions() {
 // ============================================================ Start-up
 view.when(() => {
   updatePopupEnabled();
+  watchBottom(0);
   if (configMissing) toast("Config “" + configMissing + "” wasn't found, so the default is shown.", 6000);
 });
 if (authStash) {
