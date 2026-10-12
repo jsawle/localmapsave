@@ -15,7 +15,8 @@
       --header-bg:#ffffff; --header-ink:#000000; --header-line:#e1e1e1;
       --pill-dark:#000000; --pill-dark-ink:#ffffff;
       --focus:#1a73e8; --danger:#a13c2c;
-      --tb-h:74px;
+      --tool-active:#e6f2fa; --tool-active-ink:#000000; --tool-line:#e4e4e4;
+      --tb-h:88px;
     }
     *{ box-sizing:border-box; }
     html,body{ height:100%; margin:0; overflow:hidden; }
@@ -54,26 +55,41 @@
     .menu{ position:absolute; right:0; top:calc(100% + 6px); background:#fff; border:1px solid var(--line2); border-radius:6px; box-shadow:0 6px 24px rgba(0,0,0,.18); min-width:190px; padding:6px; z-index:50; }
     .menu button{ display:block; width:100%; text-align:left; border:none; background:none; padding:9px 10px; border-radius:4px; font-size:14px; color:var(--ink); cursor:pointer; }
     .menu button:hover, .menu button:focus-visible{ background:var(--soft); }
-    .ver-btn{ font:600 11px/1 ui-monospace,Menlo,Consolas,monospace; color:var(--muted); background:var(--soft); border:1px solid var(--line); border-radius:4px; padding:4px 6px; cursor:pointer; flex:0 0 auto; }
+    .hdr-title.empty > *{ display:none; }
+    .ver-btn{ font:600 11px/1 ui-monospace,Menlo,Consolas,monospace; color:#333; background:rgba(255,255,255,.94); border:1px solid var(--line2); border-radius:4px; padding:4px 6px; cursor:pointer; pointer-events:auto; }
 
     /* ---------- Map area ---------- */
     .map-wrap{ position:relative; flex:1 1 auto; min-height:0; }
     #viewDiv, #sceneDiv{ position:absolute; inset:0; }
-    .corner{ position:absolute; right:8px; bottom:22px; z-index:15; display:flex; flex-direction:column; align-items:flex-end; gap:4px; pointer-events:none; max-width:min(46%, 420px); }
-    .corner.raised{ bottom:calc(var(--tb-h) + 34px); }
-    .disclaimer{ font-size:11px; color:#333; background:rgba(255,255,255,.88); padding:2px 6px; border-radius:3px; text-align:right; }
+    .corner{ position:absolute; right:8px; bottom:calc(var(--attr-h, 16px) + 10px); z-index:15; display:flex; align-items:center; gap:6px; pointer-events:none; }
+    .corner.raised{ bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 18px); }
+    .map-wrap .esri-attribution__powered-by::before{ content:var(--atlas-disclaimer, ""); }
+    /* compass rose and scale bar, stacked in the bottom-left corner */
+    .ll-stack{ display:flex; flex-direction:column; align-items:flex-start; gap:12px; }
+    .ll-stack > div:empty{ display:none; }
+    .rose{ width:100px; height:100px; padding:0; border:none; border-radius:50%; background:transparent; cursor:pointer; display:block; filter:drop-shadow(0 1px 3px rgba(0,0,0,.25)); }
+    .rose svg{ width:100%; height:100%; display:block; overflow:visible; }
+    .rose-face{ fill:#fff; }
+    .rose text{ font:500 13px var(--font); fill:#323232; text-anchor:middle; dominant-baseline:central; }
+    .needle-n{ fill:#4a4a4a; }
+    .needle-s{ fill:#fff; stroke:#4a4a4a; stroke-width:1.4; stroke-linejoin:round; }
+    .rose:hover .rose-face{ fill:#f4f4f4; }
     .credit{ font-size:11px; font-weight:600; color:#333; background:rgba(255,255,255,.94); border:1px solid var(--line2); padding:3px 8px; border-radius:4px; white-space:nowrap; }
 
     /* ---------- Toolbar ---------- */
-    .toolbar{ position:absolute; left:50%; bottom:22px; transform:translateX(-50%); display:flex; align-items:stretch; gap:2px; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,.18); padding:6px; z-index:20; max-width:calc(100% - 24px); overflow-x:auto; scrollbar-width:thin; }
-    .tool{ display:flex; flex-direction:column; align-items:center; gap:5px; min-width:64px; padding:8px 9px; border:none; background:transparent; border-radius:6px; color:var(--ink2); cursor:pointer; font-size:11.5px; white-space:nowrap; }
-    .tool svg{ width:22px; height:22px; flex:0 0 auto; }
-    .tool:hover{ background:var(--soft); }
-    .tool[aria-expanded="true"]{ background:var(--brand); color:var(--brand-ink); }
-    .seg{ display:flex; flex-direction:column; gap:3px; justify-content:center; padding:2px 4px; }
-    .seg button{ font-size:11.5px; font-weight:700; border:none; border-radius:4px; padding:5px 14px; cursor:pointer; background:transparent; color:#767676; }
-    .seg button[aria-pressed="true"]{ background:var(--brand-soft); color:var(--brand-strong); }
-    .tb-sep{ width:1px; background:var(--line); margin:4px 2px; }
+    .toolbar{ position:absolute; left:50%; bottom:calc(var(--attr-h, 16px) + 6px); transform:translateX(-50%); display:flex; align-items:stretch; background:#fff; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25); z-index:20; max-width:calc(100% - 24px); overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; }
+    .toolbar > *:not([hidden]) ~ *{ border-left:1px solid var(--tool-line); }
+    .tool{ flex:0 0 auto; width:85px; height:var(--tb-h); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:6px 2px; border:none; background:#fff; color:#323232; cursor:pointer; font-size:15px; white-space:nowrap; }
+    .tool:hover{ background:#f3f3f3; }
+    .tool[aria-expanded="true"]{ background:var(--tool-active); color:var(--tool-active-ink); }
+    .ti{ position:relative; width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; }
+    .ti.sm{ width:16px; height:16px; }
+    .ti > svg{ width:100%; height:100%; display:block; }
+    .ti > calcite-icon.pending{ position:absolute; inset:0; opacity:0; pointer-events:none; }
+    .seg{ flex:0 0 auto; width:85px; display:flex; flex-direction:column; }
+    .seg button{ flex:1 1 50%; display:flex; align-items:center; justify-content:center; gap:8px; border:none; background:#fff; color:#323232; font-size:16px; cursor:pointer; padding:0 6px; }
+    .seg button:hover{ background:#f3f3f3; }
+    .seg button[aria-pressed="true"]{ background:var(--tool-active); color:var(--tool-active-ink); }
 
     /* ---------- Side panels ---------- */
     .panel{ position:absolute; top:14px; right:14px; width:360px; max-height:calc(100% - var(--tb-h) - 40px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--line2); border-radius:6px; box-shadow:0 2px 16px rgba(0,0,0,.2); z-index:25; }
@@ -185,7 +201,7 @@
     /* drop overlay, toast */
     .drop-overlay{ position:absolute; inset:0; z-index:35; background:rgba(0,90,156,.12); outline:3px dashed var(--brand); outline-offset:-10px; display:flex; align-items:center; justify-content:center; pointer-events:none; }
     .drop-inner{ background:#fff; border-radius:8px; padding:14px 22px; font-size:15px; font-weight:600; box-shadow:0 4px 18px rgba(0,0,0,.18); }
-    .toast{ position:absolute; left:50%; bottom:calc(var(--tb-h) + 34px); transform:translateX(-50%); background:#323232; color:#fff; font-size:13.5px; padding:9px 16px; border-radius:18px; z-index:40; box-shadow:0 2px 10px rgba(0,0,0,.28); max-width:calc(100% - 32px); text-align:center; }
+    .toast{ position:absolute; left:50%; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 18px); transform:translateX(-50%); background:#323232; color:#fff; font-size:13.5px; padding:9px 16px; border-radius:18px; z-index:40; box-shadow:0 2px 10px rgba(0,0,0,.28); max-width:calc(100% - 32px); text-align:center; }
     .toast:empty{ display:none; }
 
     /* pop-up content */
@@ -204,20 +220,42 @@
     .filename-row{ display:flex; border:1px solid var(--line2); border-radius:4px; overflow:hidden; }
     .filename-row .field{ border:none; border-radius:0; }
     .ext{ padding:0 12px; font-size:14px; color:var(--muted); background:#f4f6f9; display:flex; align-items:center; border-left:1px solid var(--line2); }
-    .open-card{ background:#fff; border-radius:8px; width:100%; max-width:960px; max-height:calc(100vh - 80px); display:flex; flex-direction:column; box-shadow:0 16px 50px rgba(0,0,0,.32); overflow:hidden; }
-    .open-head{ display:flex; align-items:flex-start; justify-content:space-between; padding:18px 22px 4px; }
+    .open-card{ background:#fff; border-radius:8px; width:100%; max-width:1120px; height:calc(100vh - 80px); max-height:860px; display:flex; flex-direction:column; box-shadow:0 16px 50px rgba(0,0,0,.32); overflow:hidden; }
+    .open-head{ flex:0 0 auto; display:flex; align-items:flex-start; justify-content:space-between; padding:18px 22px 4px; }
     .open-head h2{ margin:0; font-size:19px; font-weight:600; outline:none; }
     .open-head p{ margin:4px 0 0; font-size:13px; color:var(--muted); }
-    .tabs{ display:flex; gap:24px; padding:8px 22px 0; border-bottom:1px solid var(--line); overflow-x:auto; }
+    .tabs{ display:flex; flex:0 0 auto; gap:24px; padding:8px 22px 0; border-bottom:1px solid var(--line); overflow-x:auto; }
     .tab{ border:none; background:none; padding:10px 2px; font-size:14px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:3px solid transparent; white-space:nowrap; }
     .tab[aria-selected="true"]{ color:var(--brand-strong); border-bottom-color:var(--brand); }
     .open-tools{ display:flex; gap:10px; padding:14px 22px 0; flex-wrap:wrap; }
     .open-tools .field{ flex:1 1 220px; }
-    .open-tools select{ flex:0 1 260px; }
+    .browse{ flex:1 1 auto; min-height:0; display:grid; grid-template-columns:250px minmax(0,1fr); }
+    .browse.no-topics{ grid-template-columns:minmax(0,1fr); }
+    .topics{ border-right:1px solid var(--line); overflow-y:auto; padding:16px 12px 16px 16px; min-height:0; }
+    .topics-h{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:2px 10px 8px; }
+    .topic-list{ list-style:none; margin:0; padding:0; }
+    .topic{ display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; text-align:left; border:none; background:none; padding:8px 10px; margin:1px 0; border-radius:6px; font-size:14px; line-height:1.3; color:var(--ink); cursor:pointer; }
+    .topic:hover{ background:var(--soft); }
+    .topic[aria-current="true"]{ background:var(--tool-active); color:var(--tool-active-ink); font-weight:600; }
+    .count{ flex:0 0 auto; font-size:12px; font-weight:600; color:#555; background:var(--soft); border-radius:999px; padding:2px 8px; min-width:30px; text-align:center; }
+    .topic[aria-current="true"] .count{ background:rgba(255,255,255,.7); color:inherit; }
+    .browse-main{ display:flex; flex-direction:column; min-height:0; min-width:0; }
+    .browse-head{ padding:16px 22px 0; }
+    .browse-head .open-tools{ padding:10px 0 0; }
+    .crumbs{ display:flex; flex-wrap:wrap; align-items:center; gap:4px; font-size:13px; margin-bottom:4px; color:var(--muted); }
+    .title-row{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+    .topic-title{ margin:0; font-size:20px; font-weight:600; color:var(--ink); outline:none; }
+    .topic-count{ font-size:13px; color:var(--muted); }
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .chip{ border:1px solid var(--line2); background:#fff; border-radius:999px; padding:6px 12px; font-size:13px; color:var(--ink); cursor:pointer; line-height:1.2; }
+    .chip:hover{ background:var(--soft); }
+    .chip[aria-pressed="true"]{ background:var(--tool-active); border-color:var(--tool-active); color:var(--tool-active-ink); font-weight:600; }
+    .chip .n{ color:#555; font-weight:600; margin-left:2px; }
+    .chip[aria-pressed="true"] .n{ color:inherit; }
     .open-body{ flex:1 1 auto; overflow-y:auto; padding:16px 22px 22px; }
-    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; list-style:none; margin:0; padding:0; }
+    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px; list-style:none; margin:0; padding:0; }
     .map-card{ border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; display:flex; flex-direction:column; }
-    .card-thumb{ height:140px; background:#e9eef2 center/cover no-repeat; }
+    .card-thumb{ height:140px; background:#e9eef2 center/cover no-repeat; cursor:pointer; }
     .card-body{ padding:12px 14px 14px; display:flex; flex-direction:column; gap:8px; flex:1 1 auto; }
     .card-title{ font-size:14.5px; font-weight:600; line-height:1.3; margin:0; }
     .card-snippet{ font-size:12.5px; color:var(--muted); line-height:1.45; margin:0; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
@@ -240,9 +278,12 @@
 
     /* ---------- Responsive ---------- */
     @media (max-width:1024px){
-      .tool{ min-width:46px; padding:9px 8px; }
+      .tool{ width:58px; padding:6px 4px; }
       .tool .tl{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
-      :root{ --tb-h:56px; }
+      .seg{ width:64px; }
+      .seg button{ font-size:13px; gap:5px; }
+      :root{ --tb-h:58px; }
+      .rose{ width:80px; height:80px; }
       .hdr-logo .wide{ display:none; }
       .hdr-logo .compact{ display:block; height:44px; }
       .hdr-links .pill.outline{ display:none; }
@@ -252,15 +293,31 @@
       .hdr{ gap:8px; padding:0 10px; }
       .hdr-title .doc-title{ display:none; }
       .hdr-title{ justify-content:flex-end; }
-      .hdr-links, .ver-btn{ display:none; }
+      .hdr-links{ display:none; }
       .hdr-partners img{ height:30px; }
       .user-name{ display:none; }
       .user-btn{ padding:3px; }
-      .toolbar{ left:6px; right:6px; transform:none; max-width:none; bottom:20px; justify-content:flex-start; }
-      .corner, .corner.raised{ bottom:calc(var(--tb-h) + 34px); max-width:70%; }
-      .panel, .panel.wide{ left:8px; right:8px; width:auto; top:auto; bottom:calc(var(--tb-h) + 28px); max-height:58%; }
-      .open-card{ max-height:calc(100vh - 40px); }
+      .toolbar{ left:6px; right:6px; transform:none; max-width:none; justify-content:flex-start; }
+      .tool{ width:52px; }
+      .corner, .corner.raised{ top:12px; bottom:auto; }   /* phones: keep clear of the compass, scale bar and toolbar */
+      .rose{ width:64px; height:64px; }
+      .rose text{ font-size:15px; }
+      .ll-stack{ gap:8px; }
+      .map-wrap .esri-attribution__powered-by{ white-space:normal; max-width:60%; }
+      .panel, .panel.wide{ left:8px; right:8px; width:auto; top:auto; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 14px); max-height:58%; }
+      .open-card{ height:calc(100vh - 40px); max-height:none; }
       .modal.top{ padding-top:20px; }
+    }
+    @media (max-width:760px){
+      .browse{ grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); }
+      .topics{ border-right:none; border-bottom:1px solid var(--line); overflow-x:auto; overflow-y:hidden; padding:10px 16px; }
+      .topics-h{ display:none; }
+      .topic-list{ display:flex; gap:6px; }
+      .topic{ width:auto; white-space:nowrap; border:1px solid var(--line2); border-radius:999px; padding:6px 10px; }
+      .topic[aria-current="true"]{ border-color:var(--tool-active); }
+      .browse-head{ padding:12px 16px 0; }
+      .open-body{ padding:14px 16px 18px; }
+      .topic-title{ font-size:17px; }
     }
     @media (prefers-reduced-motion: reduce){ *{ scroll-behavior:auto!important; transition:none!important; animation:none!important; } }
   </style>
@@ -274,7 +331,7 @@
         <img class="compact" id="logoCompact" alt="" hidden />
         <span class="logo-text" id="logoText"></span>
       </a>
-      <div class="hdr-title">
+      <div class="hdr-title empty" id="hdrTitle">
         <label for="docTitle" class="sr-only" data-i18n="mapTitle">Map title</label>
         <input id="docTitle" class="doc-title" type="text" value="" spellcheck="false" autocomplete="off" />
         <button class="icon-btn" id="infoBtn" type="button" data-i18n-aria="aboutMap" data-i18n-title="aboutMap">
@@ -295,46 +352,27 @@
           </div>
         </div>
       </div>
-      <button class="ver-btn" id="verBtn" type="button" aria-expanded="false" aria-controls="aboutPanel">v1</button>
     </header>
 
     <main class="map-wrap" id="mapWrap">
       <div id="viewDiv"></div>
       <div id="sceneDiv" hidden></div>
-      <div class="corner"><div class="disclaimer" id="disclaimer" hidden></div><div class="credit">Created by Jason Sawle</div></div>
+      <div class="corner"><button class="ver-btn" id="verBtn" type="button" aria-expanded="false" aria-controls="aboutPanel">v1</button><div class="credit">Created by Jason Sawle</div></div>
 
       <nav class="toolbar" id="toolbar" tabindex="-1" data-i18n-aria="tools">
-        <button class="tool" type="button" id="tool-open" data-feature="openMap">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>
-          <span class="tl" data-i18n="openMap">Open map</span></button>
-        <button class="tool" type="button" id="tool-add" data-panel="add" aria-expanded="false" aria-controls="addPanel" data-feature="addLayer">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-          <span class="tl" data-i18n="addLayer">Add layer</span></button>
-        <button class="tool" type="button" id="tool-layers" data-panel="layers" aria-expanded="false" aria-controls="layersPanel" data-feature="layers">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5zM3 13l9 5 9-5M3 18l9 5 9-5"/></svg>
-          <span class="tl" data-i18n="mapLayers">Map layers</span></button>
-        <button class="tool" type="button" id="tool-legend" data-panel="legend" aria-expanded="false" aria-controls="legendPanel" data-feature="legend">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h3v3H3V5zm5 0h13v3H8V5zM3 10.5h3v3H3v-3zm5 0h13v3H8v-3zM3 16h3v3H3v-3zm5 0h13v3H8v-3z"/></svg>
-          <span class="tl" data-i18n="legend">Legend</span></button>
-        <button class="tool" type="button" id="tool-basemaps" data-panel="basemaps" aria-expanded="false" aria-controls="basemapsPanel" data-feature="basemaps">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 0h7v7h-7v-7z"/></svg>
-          <span class="tl" data-i18n="basemaps">Basemaps</span></button>
-        <button class="tool" type="button" id="tool-measure" data-panel="measure" aria-expanded="false" aria-controls="measurePanel" data-feature="measure">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h18v8H3z"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4" stroke-width="1.6"/></svg>
-          <span class="tl" data-i18n="measure">Measure</span></button>
-        <button class="tool" type="button" id="tool-sketch" data-panel="sketch" aria-expanded="false" aria-controls="sketchPanel" data-feature="sketch">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-          <span class="tl" data-i18n="sketch">Sketch</span></button>
-        <button class="tool" type="button" id="tool-bookmarks" data-panel="bookmarks" aria-expanded="false" aria-controls="bookmarksPanel" data-feature="bookmarks">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 2h12a1 1 0 0 1 1 1v18l-7-4-7 4V3a1 1 0 0 1 1-1z"/></svg>
-          <span class="tl" data-i18n="bookmarks">Bookmarks</span></button>
+        <button class="tool" type="button" id="tool-basemaps" data-panel="basemaps" aria-expanded="false" aria-controls="basemapsPanel" data-feature="basemaps" data-i18n-title="basemaps"><span class="ti" data-icon="basemap" aria-hidden="true"></span><span class="tl" data-i18n="basemaps">Basemaps</span></button>
+        <button class="tool" type="button" id="tool-open" data-feature="openMap" data-i18n-title="openMap"><span class="ti" data-icon="map" aria-hidden="true"></span><span class="tl" data-i18n="openMap">Open map</span></button>
+        <button class="tool" type="button" id="tool-layers" data-panel="layers" aria-expanded="false" aria-controls="layersPanel" data-feature="layers" data-i18n-title="mapLayers"><span class="ti" data-icon="layer-map" aria-hidden="true"></span><span class="tl" data-i18n="mapLayers">Map layers</span></button>
+        <button class="tool" type="button" id="tool-add" data-panel="add" aria-expanded="false" aria-controls="addPanel" data-feature="addLayer" data-i18n-title="addLayer"><span class="ti" data-icon="plus-circle" aria-hidden="true"></span><span class="tl" data-i18n="addLayer">Add layer</span></button>
+        <button class="tool" type="button" id="tool-legend" data-panel="legend" aria-expanded="false" aria-controls="legendPanel" data-feature="legend" data-i18n-title="legend"><span class="ti" data-icon="legend" aria-hidden="true"></span><span class="tl" data-i18n="legend">Legend</span></button>
+        <button class="tool" type="button" id="tool-measure" data-panel="measure" aria-expanded="false" aria-controls="measurePanel" data-feature="measure" data-i18n-title="measure"><span class="ti" data-icon="measure" aria-hidden="true"></span><span class="tl" data-i18n="measure">Measure</span></button>
+        <button class="tool" type="button" id="tool-sketch" data-panel="sketch" aria-expanded="false" aria-controls="sketchPanel" data-feature="sketch" data-i18n-title="sketch"><span class="ti" data-icon="pencil-mark" aria-hidden="true"></span><span class="tl" data-i18n="sketch">Sketch</span></button>
         <div class="seg" role="group" id="viewSeg" data-feature="threeD" data-i18n-aria="viewMode">
-          <button type="button" id="tg2d" aria-pressed="true" data-i18n="view2d">2D</button>
-          <button type="button" id="tg3d" aria-pressed="false" data-i18n="view3d">3D</button>
+          <button type="button" id="tg2d" aria-pressed="true"><span class="ti sm" data-icon="map" aria-hidden="true"></span><span data-i18n="view2d">2D</span></button>
+          <button type="button" id="tg3d" aria-pressed="false"><span class="ti sm" data-icon="cube" aria-hidden="true"></span><span data-i18n="view3d">3D</span></button>
         </div>
-        <button class="tool" type="button" id="tool-save" data-panel="save" aria-expanded="false" aria-controls="savePanel" data-feature="save">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg>
-          <span class="tl" data-i18n="save">Save</span></button>
+        <button class="tool" type="button" id="tool-bookmarks" data-panel="bookmarks" aria-expanded="false" aria-controls="bookmarksPanel" data-feature="bookmarks" data-i18n-title="bookmarks"><span class="ti" data-icon="bookmark" aria-hidden="true"></span><span class="tl" data-i18n="bookmarks">Bookmarks</span></button>
+        <button class="tool" type="button" id="tool-save" data-panel="save" aria-expanded="false" aria-controls="savePanel" data-feature="save" data-i18n-title="save"><span class="ti" data-icon="save" aria-hidden="true"></span><span class="tl" data-i18n="save">Save</span></button>
       </nav>
 
       <!-- ===== Panels ===== -->
@@ -513,12 +551,24 @@
         <button class="tab" role="tab" type="button" id="tabArcgis" aria-selected="false" aria-controls="paneArcgis" data-i18n="tabArcgis" hidden>My ArcGIS maps</button>
       </div>
       <div id="paneGroup" role="tabpanel" aria-labelledby="tabGroup" style="display:flex;flex-direction:column;min-height:0;flex:1 1 auto">
-        <div class="open-tools">
-          <label class="sr-only" for="groupSearch" data-i18n="search">Search</label><input class="field" id="groupSearch" type="search" data-i18n-ph="search" />
-          <label class="sr-only" for="groupCat" data-i18n="allCategories">All topics</label><select class="field" id="groupCat"></select>
+        <div class="browse" id="browse">
+          <nav class="topics" id="topicNav" aria-labelledby="topicsH" hidden>
+            <h3 class="topics-h" id="topicsH" data-i18n="topics">Topics</h3>
+            <ul class="topic-list" id="topicList"></ul>
+          </nav>
+          <div class="browse-main">
+            <div class="browse-head">
+              <nav class="crumbs" id="topicCrumbs" data-i18n-aria="topicPath" hidden></nav>
+              <div class="title-row"><h3 class="topic-title" id="topicTitle" tabindex="-1"></h3><span class="topic-count" id="topicCount" aria-live="polite"></span></div>
+              <div class="chips" id="subTopics" role="group" data-i18n-aria="subtopics" hidden></div>
+              <div class="open-tools"><label class="sr-only" for="groupSearch" id="groupSearchLabel" data-i18n="search">Search</label><input class="field" id="groupSearch" type="search" autocomplete="off" /></div>
+            </div>
+            <div class="open-body"><ul class="grid" id="groupGrid"></ul><p class="empty" id="groupStatus"></p>
+              <p class="center" id="searchAllRow" hidden><button class="btn" type="button" id="searchAllBtn" data-i18n="searchEverywhere">Search all maps instead</button></p>
+              <div class="more-row" id="groupMoreRow" hidden><button class="btn" type="button" id="groupMore" data-i18n="loadMore">Show more</button></div>
+              <p class="center" style="margin-top:18px"><button class="link-btn" type="button" id="newMapBtn" data-i18n="newBlankMap">Start a new blank map</button></p></div>
+          </div>
         </div>
-        <div class="open-body"><ul class="grid" id="groupGrid" aria-live="polite"></ul><p class="empty" id="groupStatus"></p><div class="more-row" id="groupMoreRow" hidden><button class="btn" type="button" id="groupMore" data-i18n="loadMore">Show more</button></div>
-          <p class="center" style="margin-top:18px"><button class="link-btn" type="button" id="newMapBtn" data-i18n="newBlankMap">Start a new blank map</button></p></div>
       </div>
       <div id="paneDevice" role="tabpanel" aria-labelledby="tabDevice" hidden><div class="open-body"><p class="note" data-i18n="deviceLead"></p><button class="btn primary" type="button" id="browseDevice" data-i18n="browseDevice">Browse this device…</button></div></div>
       <div id="paneArcgis" role="tabpanel" aria-labelledby="tabArcgis" hidden style="flex-direction:column;min-height:0;flex:1 1 auto">
