@@ -3,14 +3,15 @@
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
   pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef } from "./lib/csv.js";
-import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, AUTHORING_APP, sanitizeDoc, cleanBookmarks, docToWebMap,
-  operationalLayersToSketch, operationalLayerToDataDef, isOwnLayerJson, specToBookmarks, xyToLonLat } from "./lib/doc.js";
+import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js";
 import { DEFAULT_STRINGS } from "./lib/strings.js";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, flattenTopics, findTopic, topicTrail, indexItems, countTopics,
   filterEntries, chipSet } from "./lib/catalog.js";
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 const COMPASS_VERSION = "1.0";
+const PROFILE_VERSION = "1.0";
 const SKETCH_VERSION = "1.0";
 const CONFIG_SCHEMA = 1;
 const SDK_VERSION = "5.1";
@@ -42,7 +43,7 @@ const DEFAULT_CONFIG = {
   agolTags: ["school map"],
   csvMaxRows: 1000,
   features: { openMap: true, addLayer: true, csv: true, layers: true, legend: true, basemaps: true, measure: true, sketch: true,
-    bookmarks: true, threeD: true, save: true, localSave: true, screenshot: true, print: true, search: true, signIn: true, compass: true },
+    bookmarks: true, threeD: true, save: true, localSave: true, screenshot: true, print: true, search: true, signIn: true, compass: true, elevationProfile: true },
   strings: {}
 };
 function mergeConfig(base, over) {
@@ -170,6 +171,7 @@ const ICON_SVG = {
   "plus-circle": '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v9M7.5 12h9"/>',
   "legend": '<path d="M4 4.5h3v3H4zM4 10.5h3v3H4zM5.5 16.5 7 19H4zM10 6h10M10 12h10M10 18h10"/>',
   "measure": '<path d="M3 15h18v5H3z"/><path d="M6 15v2M9 15v3M12 15v2M15 15v3M18 15v2M3 8h7M5 6 3 8l2 2M14 8h7M19 6l2 2-2 2"/>',
+  "altitude": '<path d="M3 21h18M3 11l3-4 3 3 3-5M17 3v18M14.5 5.5 17 3l2.5 2.5M14.5 18.5 17 21l2.5-2.5M14 3h6"/>',
   "pencil-mark": '<path d="M15 4.5 19.5 9 10 18.5H5.5V14z"/><path d="m13 6.5 4.5 4.5"/><path d="M3.5 21c2-1 3-1 5-1M3 10c1.5-4 4-5 5.5-3.5"/>',
   "cube": '<path d="M12 2.5 20.5 7v10L12 21.5 3.5 17V7z"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5v10"/>',
   "bookmark": '<path d="M6 3h12v18l-6-5.5L6 21z"/>',
@@ -187,7 +189,7 @@ async function upgradeIcons() {
   if (!ready) return;
   const pending = [...document.querySelectorAll(".ti[data-icon]")].map((span) => {
     const ic = document.createElement("calcite-icon");
-    ic.setAttribute("icon", span.dataset.icon); ic.setAttribute("scale", span.classList.contains("sm") ? "s" : "l");
+    ic.setAttribute("icon", span.dataset.icon); ic.setAttribute("scale", span.classList.contains("sm") ? "s" : span.classList.contains("md") ? "m" : "l");
     ic.setAttribute("aria-hidden", "true"); ic.className = "pending";
     span.appendChild(ic);
     return { span, ic };
@@ -211,12 +213,12 @@ paintIcons();
 
 // ============================================================ ArcGIS SDK
 const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel, Basemap, BasemapGallery,
-  PortalBasemapsSource, Measurement, CoordinateConversion, ScaleBar, Search, Expand, Home, NavigationToggle, Legend, Layer,
+  PortalBasemapsSource, Measurement, ElevationProfile, CoordinateConversion, ScaleBar, Search, Expand, Home, NavigationToggle, Legend, Layer,
   Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils] = await $arcgis.import([
   "@arcgis/core/Map.js", "@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js", "@arcgis/core/views/SceneView.js",
   "@arcgis/core/layers/GraphicsLayer.js", "@arcgis/core/layers/FeatureLayer.js", "@arcgis/core/Graphic.js",
   "@arcgis/core/widgets/Sketch/SketchViewModel.js", "@arcgis/core/Basemap.js", "@arcgis/core/widgets/BasemapGallery.js",
-  "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js", "@arcgis/core/widgets/Measurement.js",
+  "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js",
   "@arcgis/core/widgets/CoordinateConversion.js", "@arcgis/core/widgets/ScaleBar.js", "@arcgis/core/widgets/Search.js",
   "@arcgis/core/widgets/Expand.js", "@arcgis/core/widgets/Home.js",
   "@arcgis/core/widgets/NavigationToggle.js", "@arcgis/core/widgets/Legend.js", "@arcgis/core/layers/Layer.js",
@@ -358,13 +360,16 @@ let toastTimer = 0;
 function toast(msg, ms) { const el = $("toast"); el.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.textContent = ""; }, ms || 3400); }
 
 const PANELS = { add: "addPanel", data: "dataPanel", layers: "layersPanel", legend: "legendPanel", basemaps: "basemapsPanel",
-  measure: "measurePanel", sketch: "sketchPanel", bookmarks: "bookmarksPanel", save: "savePanel", about: "aboutPanel" };
+  measure: "measurePanel", profile: "profilePanel", sketch: "sketchPanel", bookmarks: "bookmarksPanel", save: "savePanel", about: "aboutPanel" };
 const TRIGGERS = { add: "tool-add", data: "tool-add", layers: "tool-layers", legend: "tool-legend", basemaps: "tool-basemaps",
-  measure: "tool-measure", sketch: "tool-sketch", bookmarks: "tool-bookmarks", save: "tool-save", about: "verBtn" };
+  measure: "tool-measure", profile: "tool-measure", sketch: "tool-sketch", bookmarks: "tool-bookmarks", save: "tool-save", about: "verBtn" };
 let openPanelName = null;
 function setExpanded(name) {
-  new Set(Object.values(TRIGGERS)).forEach((id) => { const el = $(id); if (el) el.setAttribute("aria-expanded", "false"); });
-  if (name && $(TRIGGERS[name])) $(TRIGGERS[name]).setAttribute("aria-expanded", "true");
+  // A tool that opens a menu (Measure) shows its open panel by colour; aria-expanded is kept for the menu itself.
+  new Set(Object.values(TRIGGERS)).forEach((id) => { const el = $(id); if (!el) return; if (el.getAttribute("aria-haspopup") === "menu") el.classList.remove("active"); else el.setAttribute("aria-expanded", "false"); });
+  const el = name && $(TRIGGERS[name]);
+  if (el) { if (el.getAttribute("aria-haspopup") === "menu") el.classList.add("active"); else el.setAttribute("aria-expanded", "true"); }
+  $("menuMeasure").classList.toggle("active", name === "measure"); $("menuProfile").classList.toggle("active", name === "profile");
 }
 function openPanel(name, opts) {
   if (openPanelName && openPanelName !== name) panelClosing(openPanelName);
@@ -398,10 +403,12 @@ function panelOpening(name) {
   if (name === "legend") ensureLegend();
   if (name === "basemaps") ensureGallery();
   if (name === "measure") ensureMeasure();
+  if (name === "profile") ensureProfile();
 }
 function panelClosing(name) {
   if (name === "sketch") { endSketchOps(); sketchPanelOpen = false; placingText = false; currentTool = null; selectedFeature = null; updateToolButtons(); }
   if (name === "measure") stopMeasuring();
+  if (name === "profile") stopProfile();
   if (name === "data") { addState = null; removePreview(true); }
 }
 document.querySelectorAll("[data-panel]").forEach((b) => b.addEventListener("click", () => togglePanel(b.dataset.panel)));
@@ -442,6 +449,7 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (modalStack.length) { e.preventDefault(); closeModal(modalStack[modalStack.length - 1].id); return; }
+  if (!$("measureMenu").hidden) { closeToolMenu(true); return; }
   if (!$("userMenu").hidden) { closeUserMenu(true); return; }
   if (sketchPanelOpen && (drawing || placingText)) { setTool("select"); return; }
   if (openPanelName) closePanels();
@@ -450,7 +458,7 @@ document.addEventListener("keydown", (e) => {
 // ============================================================ Pop-ups
 let sketchPanelOpen = false, measureActive = false;
 function updatePopupEnabled() {
-  const on = !sketchPanelOpen && !measureActive && !placingText;
+  const on = !sketchPanelOpen && !measureActive && !placingText && openPanelName !== "profile";
   for (const v of [mapView, sceneView]) {
     if (!v) continue;
     v.popupEnabled = on;
@@ -664,6 +672,55 @@ $("mCoord").addEventListener("click", () => {
 });
 $("mClear").addEventListener("click", stopMeasuring);
 
+// Elevation profile: the land's height along a line drawn on the map (or a sketched line), from Esri's world elevation.
+let elevationProfile = null;
+function ensureProfile() {
+  const m = activeMap();
+  if (!m.ground || !m.ground.layers || !m.ground.layers.length) m.ground = "world-elevation";
+  if (!elevationProfile) elevationProfile = new ElevationProfile({ view, container: "profileBody", unit: units, profiles: [{ type: "ground" }] });
+  else elevationProfile.view = view;
+}
+function stopProfile() {
+  if (!elevationProfile) return;
+  try { elevationProfile.viewModel.cancel(); elevationProfile.viewModel.clear(); } catch (e) { /* idle */ }
+}
+
+// The Measure tool opens a small menu above it: Measure, Elevation profile (as in MapMaker).
+const menuItems = () => [...$("measureMenu").querySelectorAll('[role="menuitem"]')].filter((b) => !b.hidden);
+function placeToolMenu() {
+  const menu = $("measureMenu"), wrap = $("mapWrap").getBoundingClientRect(), btn = $("tool-measure").getBoundingClientRect(), tb = $("toolbar").getBoundingClientRect();
+  const mw = menu.offsetWidth;
+  menu.style.left = Math.max(8, Math.min(btn.left + btn.width / 2 - mw / 2 - wrap.left, wrap.width - mw - 8)) + "px";
+  menu.style.bottom = Math.round(wrap.bottom - tb.top + 6) + "px";
+}
+function openToolMenu() {
+  $("measureMenu").hidden = false; placeToolMenu();
+  $("tool-measure").setAttribute("aria-expanded", "true");
+  const items = menuItems(), cur = items.find((b) => b.classList.contains("active")) || items[0];
+  if (cur) cur.focus();
+}
+function closeToolMenu(focusButton) {
+  if ($("measureMenu").hidden) return;
+  $("measureMenu").hidden = true; $("tool-measure").setAttribute("aria-expanded", "false");
+  if (focusButton) $("tool-measure").focus();
+}
+$("tool-measure").addEventListener("click", () => {
+  const items = menuItems();
+  if (items.length < 2) { togglePanel(items[0] === $("menuProfile") ? "profile" : "measure"); return; }
+  if ($("measureMenu").hidden) openToolMenu(); else closeToolMenu(false);
+});
+$("menuMeasure").addEventListener("click", () => { closeToolMenu(false); openPanel("measure"); });
+$("menuProfile").addEventListener("click", () => { closeToolMenu(false); openPanel("profile"); });
+$("measureMenu").addEventListener("keydown", (e) => {
+  const items = menuItems(), i = items.indexOf(document.activeElement);
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (step) { e.preventDefault(); items[(i + step + items.length) % items.length].focus(); }
+  else if (e.key === "Home" || e.key === "End") { e.preventDefault(); items[e.key === "Home" ? 0 : items.length - 1].focus(); }
+  else if (e.key === "Tab") closeToolMenu(false);
+});
+document.addEventListener("pointerdown", (e) => { if (!$("measureMenu").hidden && !$("measureMenu").contains(e.target) && !$("tool-measure").contains(e.target)) closeToolMenu(false); });
+window.addEventListener("resize", () => { if (!$("measureMenu").hidden) placeToolMenu(); });
+
 // ============================================================ 2D / 3D
 let switching = false;
 async function setMode(m) {
@@ -699,6 +756,7 @@ async function setMode(m) {
   sketchVM.view = view;
   if (basemapGallery) basemapGallery.view = view;
   if (measurement) measurement.view = view;
+  if (elevationProfile) { stopProfile(); elevationProfile.view = view; }
   if (coordWidget) coordWidget.view = view;
   if (legend) legend.view = view;
   updatePopupEnabled();
@@ -736,6 +794,25 @@ function sourceLayers() {
 function basemapFrom(ref) { return typeof ref === "string" && ref.startsWith("item:") ? new Basemap({ portalItem: { id: ref.slice(5) } }) : ref; }
 function basemapRef() { const b = activeMap().basemap; return b && b.portalItem && b.portalItem.id ? "item:" + b.portalItem.id : null; }
 
+// This app's own layers (sketches, spreadsheets) come back editable; layers it added from the collection are
+// recognised by their "__item_<id>" layer id so they can be removed again.
+function applyParsedWebMap(parsed) {
+  for (const gj of parsed.graphics) addSketchGraphic(gj);
+  graphicsLayer.visible = parsed.sketchVisible !== false;
+  for (const def of parsed.layers) { try { addDataLayer(def, { silent: true }); } catch (e) { console.warn("Skipped a data layer", e); } }
+  const ops = (currentSource && currentSource.data && currentSource.data.operationalLayers) || [];
+  activeMap().layers.forEach((l) => {
+    if (typeof l.id !== "string" || !l.id.startsWith(ITEM_LAYER_PREFIX)) return;
+    const itemId = l.id.slice(ITEM_LAYER_PREFIX.length);
+    if (!HEX32.test(itemId) || portalLayers.has(itemId)) return;
+    l.__item = { itemId, type: "", title: l.title || "" };
+    l.__opJson = ops.find((o) => o.id === l.id) || null;
+    portalLayers.set(itemId, l);
+  });
+  if (currentSource && currentSource.data) currentSource.data = { ...currentSource.data, operationalLayers: ops.filter((o) => !String(o.id || "").startsWith(ITEM_LAYER_PREFIX)) };
+  bookmarks = parsed.bookmarks;
+  keepSketchOnTop();
+}
 async function openWebMapItem(itemId, opts) {
   opts = opts || {};
   if (!HEX32.test(itemId || "")) return false;
@@ -744,23 +821,17 @@ async function openWebMapItem(itemId, opts) {
   if (!opts.quiet) toast(t("openingMap", { title: opts.title || "" }));
   try {
     const [item, data] = await Promise.all([restGet(`/sharing/rest/content/items/${itemId}`), restGet(`/sharing/rest/content/items/${itemId}/data`)]);
+    const parsed = readWebMap(data, { trusted: true });
+    if (!parsed.ok) throw new Error("Not a web map");
     const wm = new WebMap({ portalItem: { id: itemId } });
     await wm.load();
     if (!opts.keepWorkspace) resetWorkspace();
-    const own = (data.operationalLayers || []).filter(isOwnLayerJson);
-    for (const op of own) { const l = wm.layers.find((x) => x.id === op.id); if (l) wm.remove(l); }
+    for (const op of (data.operationalLayers || []).filter(isOwnLayerJson)) { const l = wm.layers.find((x) => x.id === op.id); if (l) wm.remove(l); }
     setActiveMap(wm);
-    currentSource = { itemId, title: item.title, item, data };
+    currentSource = { itemId, title: item.title, item, data: parsed.webmap };
     if (portalUser && item.owner === portalUser.username) currentAgolItem = { id: itemId, owner: item.owner, title: item.title };
     if (!opts.keepWorkspace) {
-      if (data.authoringApp === AUTHORING_APP) {
-        for (const gj of operationalLayersToSketch(own)) addSketchGraphic(gj);
-        for (const op of own.filter((o) => o.id.startsWith("__data_"))) { const def = operationalLayerToDataDef(op); if (def) addDataLayer(def, { silent: true }); }
-        bookmarks = data.atlasBookmarks ? cleanBookmarks(data.atlasBookmarks) : specToBookmarks(data.bookmarks);
-      } else {
-        bookmarks = specToBookmarks(data.bookmarks);
-      }
-      keepSketchOnTop();
+      applyParsedWebMap(parsed);
       setTitle(item.title); markClean(); currentFileHandle = null; openedHandleUnsaved = false;
       const vp = wm.initialViewProperties && wm.initialViewProperties.viewpoint;
       if (vp) goToSafe(vp, { animate: false });
@@ -768,11 +839,46 @@ async function openWebMapItem(itemId, opts) {
     }
     if (!$("bookmarksPanel").hidden) showBmList();
     if (!$("layersPanel").hidden) renderLayers();
+    if (catalogLoaded) refreshCatalogButtons();
     if (legend) legend.view = view;
     return true;
   } catch (e) {
     console.error("Open map failed", e);
     if (!opts.quiet) toast(S.openFailed, 5000);
+    return false;
+  }
+}
+// A web map saved on this device (or any web map JSON). Every web address in it was checked by readWebMap.
+async function openWebMapFile(raw, fileName) {
+  const parsed = readWebMap(raw);
+  if (!parsed.ok) { toast(S[parsed.code] || S.cantRead, 5000); return false; }
+  closeModal("openModal");
+  closePanels(false);
+  try {
+    const wm = WebMap.fromJSON(parsed.webmap);
+    if (!parsed.webmap.baseMap) wm.basemap = defaultBasemap();
+    await wm.load();
+    resetWorkspace();
+    setActiveMap(wm);
+    const title = titleFromFileName(fileName);
+    currentSource = { itemId: null, title, item: null, data: parsed.webmap };
+    applyParsedWebMap(parsed);
+    setTitle(title);
+    await setMode("2d");   // a web map is a 2D document; switch to 3D again if you like
+    const vp = wm.initialViewProperties && wm.initialViewProperties.viewpoint;
+    if (vp) goToSafe(vp, { animate: false });
+    if (!$("bookmarksPanel").hidden) showBmList();
+    if (!$("layersPanel").hidden) renderLayers();
+    if (catalogLoaded) refreshCatalogButtons();
+    if (legend) legend.view = view;
+    markClean();
+    const n = graphicsLayer.graphics.length + parsed.layers.reduce((x, l) => x + l.features.length, 0);
+    toast(t("openedFile", { title: title || S.untitled, n }));
+    if (parsed.skipped) setTimeout(() => toast(t("skippedOnOpen", { n: parsed.skipped }), 5000), 3500);
+    return true;
+  } catch (e) {
+    console.error("Open file failed", e);
+    toast(S.cantRead, 5000);
     return false;
   }
 }
@@ -793,6 +899,7 @@ async function addPortalLayer(info, opts) {
   if (portalLayers.has(info.itemId)) return portalLayers.get(info.itemId);
   try {
     const layer = await Layer.fromPortalItem({ portalItem: { id: info.itemId } });
+    try { layer.id = ITEM_LAYER_PREFIX + info.itemId; } catch (e) { /* keep the generated id */ }
     layer.__item = { itemId: info.itemId, type: info.type || "", title: info.title || layer.title };
     if (opts.visible === false) layer.visible = false;
     if (typeof opts.opacity === "number") layer.opacity = opts.opacity;
@@ -833,6 +940,7 @@ function buildDataLayer(ld) {
   });
   const props = { source: feats, objectIdField: oidField, fields, geometryType: gtype, spatialReference: ld.spatialReference || { wkid: 102100 },
     title: ld.title || "Data", popupEnabled: true };
+  if (ld.id) props.id = DATA_LAYER_PREFIX + ld.id;   // same id as its saved operational layer, so bookmarks find it again
   if (ld.renderer) { const rj = ld.renderer; props.renderer = rj.type && rj.type.indexOf("-") >= 0 ? rj : rendererJsonUtils.fromJSON(rj); }
   if (ld.labelingInfo && ld.labelingInfo.length) props.labelingInfo = ld.labelingInfo.map((l) => (l && l.symbol && l.symbol.type === "esriTS" ? LabelClass.fromJSON(l) : l));
   if (ld.popupInfo) props.popupTemplate = { title: ld.popupInfo.title || "", content: ld.popupInfo.content || [{ type: "fields", fieldInfos: ld.popupInfo.fieldInfos || [] }], fieldInfos: ld.popupInfo.fieldInfos || [] };
@@ -1511,7 +1619,7 @@ async function handleDroppedFile(f) {
   if (/\.(mmap|json)$/i.test(name)) {
     if (F.localSave === false) return;
     if (!confirmDiscard()) return;
-    try { const txt = await readText(f); if (await openDocText(txt)) { currentFileHandle = null; openedHandleUnsaved = false; } } catch (e) { toast(S.cantRead); }
+    try { const txt = await readText(f); if (await openDocText(txt, name)) { currentFileHandle = null; openedHandleUnsaved = false; } } catch (e) { toast(S.cantRead); }
     return;
   }
   if ((/\.(csv|txt)$/i.test(name) || f.type === "text/csv") && F.csv !== false) {
@@ -1570,10 +1678,11 @@ async function loadDocument(doc) {
   const n = graphicsLayer.graphics.length + (doc.layers || []).reduce((a, l) => a + l.features.length, 0);
   toast(t("openedFile", { title: currentTitle(), n }));
 }
-async function openDocText(text) {
+async function openDocText(text, fileName) {
   let raw;
   try { raw = JSON.parse(text); } catch (e) { toast(S.cantRead); return false; }
-  const res = sanitizeDoc(raw);
+  if (looksLikeWebMap(raw)) return openWebMapFile(raw, fileName);
+  const res = sanitizeDoc(raw);          // a .mmap saved before version 1.2 of this app
   if (!res.ok) { toast(S[res.code] || S.cantRead, 5000); return false; }
   closeModal("openModal");
   await loadDocument(res.doc);
@@ -1584,7 +1693,7 @@ function openFromDevice() {
   if (!confirmDiscard()) return;
   if (window.showOpenFilePicker) {
     window.showOpenFilePicker({ multiple: false, types: [{ description: S.mapFile, accept: { "application/json": [".mmap", ".json"] } }] })
-      .then(async ([h]) => { const f = await h.getFile(); if (await openDocText(await f.text())) { currentFileHandle = h; openedHandleUnsaved = true; } })
+      .then(async ([h]) => { const f = await h.getFile(); if (await openDocText(await f.text(), h.name || f.name)) { currentFileHandle = h; openedHandleUnsaved = true; } })
       .catch((err) => { if (err && err.name === "AbortError") return; pickViaInput(); });
   } else pickViaInput();
 }
@@ -1593,12 +1702,23 @@ function pickViaInput() {
   input.addEventListener("change", async () => {
     const f = input.files && input.files[0];
     if (!f) return;
-    try { if (await openDocText(await readText(f))) { currentFileHandle = null; openedHandleUnsaved = false; } } catch (e) { toast(S.cantRead); }
+    try { if (await openDocText(await readText(f), f.name)) { currentFileHandle = null; openedHandleUnsaved = false; } } catch (e) { toast(S.cantRead); }
   });
   input.click();
 }
 function downloadBlob(blob, filename) { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); }
-function docBlob() { return new Blob([JSON.stringify(buildDocument())], { type: "application/json" }); }
+// The saved file is an ArcGIS web map (Web Map Specification): the same JSON that Save to ArcGIS Online stores.
+let unsavedLayers = 0;
+async function buildWebMapJson() {
+  const doc = buildDocument();
+  const ext = view.extent ? view.extent.clone() : null;
+  const added = [...portalLayers.values()].map(layerToJson);
+  unsavedLayers = added.filter((x) => !x).length;
+  return docToWebMap(doc, { baseMap: await currentBaseMapJson(), sourceLayers: sourceLayersJson(), portalLayers: added.filter(Boolean),
+    extent: ext ? ext.toJSON() : null, scale: mode === "2d" ? mapView.scale : null, rotation: mode === "2d" ? mapView.rotation || 0 : 0,
+    appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false });
+}
+async function docBlob() { return new Blob([JSON.stringify(await buildWebMapJson())], { type: "application/json" }); }
 function saveToDevice(forceNew) {
   if (!window.showSaveFilePicker) { openNameDialog(); return; }
   if (!forceNew && currentFileHandle && openedHandleUnsaved) {
@@ -1614,11 +1734,12 @@ async function writeToHandle(forceNew) {
       currentFileHandle = await window.showSaveFilePicker({ suggestedName: titleSlug() + ".mmap", types: [{ description: S.mapFile, accept: { "application/json": [".mmap"] } }] });
     }
     if (!($("docTitle").value || "").trim()) setTitle(titleFromFileName(currentFileHandle.name));
-    const blob = docBlob();
+    const blob = await docBlob();
     const w = await currentFileHandle.createWritable();
     await w.write(blob); await w.close();
     openedHandleUnsaved = false; markClean();
     toast(t("savedFile", { name: currentFileHandle.name || titleSlug() + ".mmap" }));
+    if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
   } catch (err) {
     if (err && err.name === "AbortError") return;
     if (err && (err.name === "NotAllowedError" || err.name === "NoModificationAllowedError") && !forceNew) { toast(S.readOnlyFile, 5000); currentFileHandle = null; return writeToHandle(true); }
@@ -1630,11 +1751,12 @@ async function writeToHandle(forceNew) {
 $("fsCopy").addEventListener("click", () => { closeModal("firstSaveModal"); writeToHandle(true); });
 $("fsUpdate").addEventListener("click", () => { closeModal("firstSaveModal"); openedHandleUnsaved = false; writeToHandle(false); });
 function openNameDialog() { $("fileNameInput").value = titleSlug(); openModal("nameModal", $("fileNameInput")); setTimeout(() => $("fileNameInput").select(), 0); }
-function confirmNameDialog() {
+async function confirmNameDialog() {
   const name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
   closeModal("nameModal");
   if (!($("docTitle").value || "").trim()) setTitle(titleFromFileName(name));
-  try { downloadBlob(docBlob(), name + ".mmap"); markClean(); toast(t("savedDownload", { name: name + ".mmap" })); } catch (e) { toast(S.saveFailed); }
+  try { downloadBlob(await docBlob(), name + ".mmap"); markClean(); toast(t("savedDownload", { name: name + ".mmap" })); } catch (e) { console.error(e); toast(S.saveFailed); return; }
+  if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
 }
 $("nameConfirm").addEventListener("click", confirmNameDialog);
 $("fileNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") confirmNameDialog(); });
@@ -1772,19 +1894,24 @@ $("signOutBtn").addEventListener("click", () => {
   toast(S.signedOut);
 });
 
+const LAYER_TYPE_JSON = { feature: "ArcGISFeatureLayer", "map-image": "ArcGISMapServiceLayer", tile: "ArcGISTiledMapServiceLayer", "vector-tile": "VectorTileLayer",
+  imagery: "ArcGISImageServiceLayer", "imagery-tile": "ArcGISTiledImageServiceLayer", csv: "CSV", geojson: "GeoJSON", kml: "KML", wms: "WMS", wfs: "WFS",
+  "web-tile": "WebTiledLayer", "geo-rss": "GeoRSS", stream: "ArcGISStreamLayer", "ogc-feature": "OGCFeatureLayer" };
+// Operational layer JSON for a layer added from the collection. A layer that came from a saved map keeps its saved JSON.
 function layerToJson(l) {
-  const base = { id: l.id, title: l.title, visibility: l.visible !== false, opacity: typeof l.opacity === "number" ? l.opacity : 1 };
-  if (l.portalItem && l.portalItem.id) base.itemId = l.portalItem.id;
-  switch (l.type) {
-    case "feature": return { ...base, layerType: "ArcGISFeatureLayer", url: l.url != null && l.layerId != null ? l.url + "/" + l.layerId : l.url };
-    case "map-image": return { ...base, layerType: "ArcGISMapServiceLayer", url: l.url };
-    case "tile": return { ...base, layerType: "ArcGISTiledMapServiceLayer", url: l.url };
-    case "vector-tile": return { ...base, layerType: "VectorTileLayer", styleUrl: l.url };
-    case "imagery": return { ...base, layerType: "ArcGISImageServiceLayer", url: l.url };
-    case "imagery-tile": return { ...base, layerType: "ArcGISTiledImageServiceLayer", url: l.url };
-    case "group": return { id: l.id, title: l.title, visibility: base.visibility, opacity: base.opacity, layerType: "GroupLayer", layers: l.layers.toArray().map(layerToJson).filter(Boolean) };
-    default: return null;
-  }
+  const visibility = l.visible !== false, opacity = typeof l.opacity === "number" ? l.opacity : 1;
+  if (l.__opJson) return { ...l.__opJson, id: l.id, title: l.title || l.__opJson.title, visibility, opacity };
+  const base = { id: l.id, title: l.title, visibility, opacity };
+  if (l.type === "group") { const layers = l.layers.toArray().map(layerToJson).filter(Boolean); return layers.length ? { ...base, layerType: "GroupLayer", layers } : null; }
+  const layerType = LAYER_TYPE_JSON[l.type];
+  if (!layerType) { console.warn("Can't save a layer of type", l.type, l.title); return null; }
+  const out = { ...base, layerType };
+  if (l.portalItem && l.portalItem.id) out.itemId = l.portalItem.id;
+  if (l.type === "feature") { if (l.url) out.url = l.layerId != null ? l.url + "/" + l.layerId : l.url; }
+  else if (l.type === "vector-tile") { if (l.url) out.styleUrl = /\.json(\?|$)/i.test(l.url) ? l.url : l.url.replace(/\/?$/, "/resources/styles/root.json"); }
+  else if (l.type === "web-tile") { if (l.urlTemplate) out.templateUrl = l.urlTemplate; }
+  else if (l.url) out.url = l.url;
+  return out.url || out.styleUrl || out.templateUrl || out.itemId ? out : null;
 }
 async function currentBaseMapJson() {
   const b = activeMap().basemap;
@@ -1792,8 +1919,8 @@ async function currentBaseMapJson() {
   if (id) { try { const d = await restGet(`/sharing/rest/content/items/${id}/data`); if (d && d.baseMap) return d.baseMap; } catch (e) { /* fall through */ } }
   if (currentSource && currentSource.data && currentSource.data.baseMap && !id) return currentSource.data.baseMap;
   try { const j = b.toJSON(); if (j && j.baseMapLayers && j.baseMapLayers.length) return j; } catch (e) { /* fall through */ }
-  const d = await restGet(`/sharing/rest/content/items/${cfg.defaultBasemap}/data`);
-  return d.baseMap;
+  try { const d = await restGet(`/sharing/rest/content/items/${cfg.defaultBasemap}/data`); if (d && d.baseMap) return d.baseMap; } catch (e) { /* offline */ }
+  return null;   // the file still opens: the app's default basemap is used
 }
 function sourceLayersJson() {
   if (!currentSource || !currentSource.data) return [];
@@ -1812,10 +1939,8 @@ async function saveToArcGIS(update) {
   const user = portalUser.username;
   const p = document.createElement("span"); p.textContent = S.arcgisSaving; agolStatus(p);
   try {
-    const doc = buildDocument();
     const ext = view.extent.clone();
-    const wmJson = docToWebMap(doc, { baseMap: await currentBaseMapJson(), sourceLayers: sourceLayersJson(), portalLayers: [...portalLayers.values()].map(layerToJson).filter(Boolean),
-      extent: ext.toJSON(), appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false });
+    const wmJson = await buildWebMapJson();
     const sw = xyToLonLat(ext.xmin, ext.ymin), ne = xyToLonLat(ext.xmax, ext.ymax);
     const form = new FormData();
     form.append("f", "json");
@@ -1845,6 +1970,7 @@ async function saveToArcGIS(update) {
     box.append(a1, document.createTextNode(" · "), a2);
     agolStatus(box);
     toast(S.arcgisSaved);
+    if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
   } catch (e) {
     console.error("Save to ArcGIS Online failed", e);
     const s = document.createElement("span"); s.textContent = t("arcgisFailed", { msg: e.message || e.name || "" }); agolStatus(s);
@@ -1859,11 +1985,12 @@ function renderVersions() {
   const rows = [
     [cfg.appName + " (app)", APP_VERSION, "White-label build of the MapMaker app: every MapMaker tool, local save, CSV data, ArcGIS Online sign-in. Created by Jason Sawle."],
     ["Open map topics", CATALOG_VERSION, "Browse the collection's maps by its group categories, with map counts, sub-topics and search within a topic."],
+    ["Elevation profile", PROFILE_VERSION, "Esri's Elevation Profile widget, opened from Measure: the ground's height along a drawn or sketched line, from Esri's world elevation."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
-    ["Saved map file (.mmap)", String(DOC_VERSION), "MapMakerLocalDocument. Opens files from the Atlas local-save concept and Map Studio."],
+    ["Saved map (.mmap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers, basemap, view and bookmarks. The same JSON is stored in ArcGIS Online."],
+    ["Older .mmap files (open only)", String(DOC_VERSION), "MapMakerLocalDocument versions 2 to 4, from earlier versions of this app, the local-save concept and Map Studio."],
     ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview."],
     ["Sketch", SKETCH_VERSION, "Points, lines, areas, circles and text, with pop-ups, images, colour, size and rotation; move, reshape and delete."],
-    ["ArcGIS Online web map writer", WEBMAP_WRITER_VERSION, "Saves the map, your sketches, data and bookmarks as a private web map; reopens them for editing."],
     [S.configLabel, String(cfg.configVersion || 1), cfgName + ".json (schema " + CONFIG_SCHEMA + ")"],
     ["ArcGIS Maps SDK for JavaScript", SDK_VERSION, "Esri mapping library"]
   ];

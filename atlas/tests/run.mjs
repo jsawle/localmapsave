@@ -150,8 +150,93 @@ test("web map round trip keeps sketches, data and bookmarks", () => {
   assert.equal(wm.bookmarks[0].name, "Start");
   const bms = doc.specToBookmarks(wm.bookmarks);
   assert.ok(Math.abs(bms[0].viewpoint.center[0] + 0.12) < 1e-6 && Math.abs(bms[0].viewpoint.zoom - 10) < 1e-6);
-  assert.equal(doc.cleanBookmarks(wm.atlasBookmarks)[0].layers[0].visible, false);
+  assert.deepEqual(wm.presentation.slides[0].visibleLayers, []);      // the only layer in the snapshot (sketches) was off
   JSON.stringify(wm);
+});
+const ROOT_KEYS = new Set(["applicationProperties", "authoringApp", "authoringAppVersion", "background", "baseMap", "bookmarks", "geotriggersInfo", "initialState",
+  "mapFloorInfo", "mapIPSInfo", "mapRangeInfo", "operationalLayers", "parcelFabric", "presentation", "referenceScale", "spatialReference", "tables", "timeZone",
+  "utilityNetworks", "version", "widgets"]);
+const OP_KEYS = new Set(["attributeTableInfo", "blendMode", "capabilities", "charts", "customParameters", "definitionEditor", "disablePopup", "effect", "featureCollection",
+  "featureCollectionType", "featureEffect", "formInfo", "id", "itemId", "layerDefinition", "layerType", "mode", "opacity", "popupInfo", "refreshInterval", "showLabels",
+  "showLegend", "subtypeCode", "timeAnimation", "title", "url", "visibility", "visibilityTimeExtent", "visibleLayers"]);
+const LAYERDEF_KEYS = new Set(["name", "type", "geometryType", "objectIdField", "fields", "drawingInfo", "extent", "capabilities", "definitionExpression", "maxScale", "minScale",
+  "templates", "types", "typeIdField", "hasAttachments", "displayField", "spatialReference"]);
+function trip() {
+  const pt2 = { x: 1000, y: 2000, spatialReference: { wkid: 102100 } };
+  const d = { graphics: [{ geometry: pt2, attributes: { uid: "p1", kind: "point", title: "Camp", description: "Night 1", imageUrl: "data:image/png;base64,iVBORw0KGgo=", color: "#0079c1", size: 12, rotation: 30 } }],
+    layers: [{ id: "csv1", title: "Trees", geometryType: "point", objectIdField: "ObjectId", fields: [{ name: "ObjectId", type: "esriFieldTypeOID" }, { name: "H", type: "esriFieldTypeDouble" }],
+      renderer: { type: "simple", symbol: { type: "esriSMS", style: "esriSMSCircle", color: [0, 0, 0, 255], size: 8 } }, popupInfo: { title: "Tree", fieldInfos: [{ fieldName: "H" }] },
+      features: [{ geometry: pt2, attributes: { ObjectId: 1, H: 4.5 } }], visible: false, opacity: 0.6 }],
+    bookmarks: [{ title: "Here", viewpoint: { center: [10, 20], zoom: 6 }, thumb: "data:image/jpeg;base64,/9j/4AAQ", layers: [{ id: "__sketch", visible: true }, { id: "__data_csv1", visible: false }, { id: "lyrA", visible: true }] },
+      { title: "No layers", viewpoint: { center: [0, 0], zoom: 2 }, layers: [] }] };
+  return doc.docToWebMap(d, { baseMap: { baseMapLayers: [{ id: "b", layerType: "ArcGISTiledMapServiceLayer", url: "https://services.arcgisonline.com/x/MapServer" }], title: "Topo" },
+    sourceLayers: [{ id: "lyrA", title: "Rivers", layerType: "ArcGISFeatureLayer", url: "https://services.arcgis.com/a/FeatureServer/0", visibility: true }],
+    portalLayers: [{ id: "__item_" + "a".repeat(32), title: "Biomes", layerType: "ArcGISFeatureLayer", itemId: "a".repeat(32), url: "https://services.arcgis.com/b/FeatureServer/0" }],
+    extent: { xmin: 0, ymin: 0, xmax: 10, ymax: 10, spatialReference: { wkid: 102100 } }, scale: 50000, rotation: 15, appVersion: "1.2.0", sketchTitle: "My sketches", sketchVisible: true });
+}
+test("saved file is a web map with spec properties only", () => {
+  const wm = trip();
+  for (const k of Object.keys(wm)) assert.ok(ROOT_KEYS.has(k), "root key " + k);
+  for (const k of ["authoringApp", "authoringAppVersion", "baseMap", "spatialReference", "version"]) assert.ok(wm[k], "required " + k);
+  for (const op of wm.operationalLayers) {
+    for (const k of Object.keys(op)) assert.ok(OP_KEYS.has(k), op.id + " key " + k);
+    for (const l of (op.featureCollection && op.featureCollection.layers) || []) for (const k of Object.keys(l.layerDefinition)) assert.ok(LAYERDEF_KEYS.has(k), op.id + " layerDefinition key " + k);
+  }
+  assert.deepEqual(wm.initialState.viewpoint, { targetGeometry: { xmin: 0, ymin: 0, xmax: 10, ymax: 10, spatialReference: { wkid: 102100 } }, scale: 50000, rotation: 15 });
+  assert.equal(wm.bookmarks[0].thumbnail.url.slice(0, 15), "data:image/jpeg");
+  const pts = wm.operationalLayers.find((o) => o.id === "__sketch_points").featureCollection.layers[0];
+  assert.equal(pts.popupInfo.mediaInfos[0].value.sourceURL, "{imageUrl}");
+  assert.equal(wm.presentation.slides.length, 2);
+  assert.deepEqual(wm.presentation.slides[0].visibleLayers.map((v) => v.id).sort(), ["__sketch_points", "lyrA"]);
+  assert.equal(wm.presentation.slides[1].visibleLayers, undefined);   // no layer list: opening it leaves layers alone
+});
+test("reading a saved web map gives back everything, editable", () => {
+  const r = doc.readWebMap(JSON.parse(JSON.stringify(trip())));
+  assert.ok(r.ok); assert.equal(r.skipped, 0);
+  assert.deepEqual(r.webmap.operationalLayers.map((o) => o.id), ["lyrA", "__item_" + "a".repeat(32)]);
+  assert.equal(r.webmap.baseMap.title, "Topo");
+  assert.equal(r.webmap.initialState.viewpoint.rotation, 15);
+  assert.equal(r.graphics.length, 1); assert.equal(r.graphics[0].attributes.rotation, 30); assert.ok(r.graphics[0].attributes.imageUrl.startsWith("data:image/png"));
+  assert.equal(r.layers.length, 1); assert.equal(r.layers[0].id, "csv1"); assert.equal(r.layers[0].visible, false); assert.equal(r.layers[0].opacity, 0.6);
+  assert.equal(r.bookmarks.length, 2); assert.ok(r.bookmarks[0].thumb.startsWith("data:image/jpeg"));
+  const st = Object.fromEntries(r.bookmarks[0].layers.map((x) => [x.id, x.visible]));
+  assert.deepEqual(st, { lyrA: true, ["__item_" + "a".repeat(32)]: false, __data_csv1: false, __sketch: true });
+  assert.deepEqual(r.bookmarks[1].layers, []);
+  assert.ok(Math.abs(r.bookmarks[0].viewpoint.zoom - 6) < 1e-9);
+});
+test("web maps from files are checked before they load", () => {
+  const bad = { operationalLayers: [
+      { id: "ok", layerType: "ArcGISFeatureLayer", url: "https://services.arcgis.com/x/FeatureServer/0", popupInfo: { mediaInfos: [{ type: "image", value: { sourceURL: "http://tracker.example/p.gif" } }] } },
+      { id: "plainhttp", layerType: "ArcGISMapServiceLayer", url: "http://insecure.example/MapServer" },
+      { id: "script", layerType: "WMS", url: "javascript:alert(1)" },
+      { id: "weird", layerType: "SomethingElse", url: "https://x.example" },
+      { id: "fc", layerType: "ArcGISFeatureLayer", featureCollection: { layers: [{ layerDefinition: { drawingInfo: { renderer: { type: "simple", symbol: { type: "esriPMS", url: "http://x/y.png" } } } },
+        featureSet: { features: Array.from({ length: 6000 }, (_, i) => ({ geometry: { x: i, y: i }, attributes: {} })) } }] } },
+      { id: "grp", layerType: "GroupLayer", layers: [{ id: "in1", layerType: "ArcGISFeatureLayer", url: "https://a.example/0" }, { id: "in2", layerType: "KML", url: "ftp://b" }] }],
+    baseMap: { baseMapLayers: [{ id: "bm", layerType: "WebTiledLayer", templateUrl: "http://tiles.example/{level}/{col}/{row}.png" }], title: "Bad" },
+    __proto__x: 1 };
+  const r = doc.readWebMap(bad);
+  assert.ok(r.ok);
+  assert.deepEqual(r.webmap.operationalLayers.map((o) => o.id), ["ok", "fc", "grp"]);
+  assert.equal(r.webmap.operationalLayers[0].popupInfo.mediaInfos[0].value.sourceURL, undefined);
+  const fc = r.webmap.operationalLayers[1].featureCollection.layers[0];
+  assert.equal(fc.layerDefinition.drawingInfo.renderer.symbol.type, "esriSMS");   // picture from a plain-http address replaced
+  assert.equal(fc.featureSet.features.length, doc.MAX_FEATURES);
+  assert.deepEqual(r.webmap.operationalLayers[2].layers.map((o) => o.id), ["in1"]);
+  assert.equal(r.webmap.baseMap, undefined);                                        // falls back to the app's basemap
+  assert.equal(r.skipped, 3);
+  assert.equal(doc.readWebMap({ type: doc.DOC_TYPE, graphics: [] }).ok, false);
+  assert.equal(doc.readWebMap([1, 2]).ok, false);
+});
+test("ArcGIS Online items and older saves", () => {
+  const item = { operationalLayers: [{ id: "x", layerType: "ArcGISMapServiceLayer", url: "http://legacy.example/MapServer" }], baseMap: { baseMapLayers: [], title: "T" } };
+  assert.equal(doc.readWebMap(item, { trusted: true }).webmap.operationalLayers.length, 1);   // items load from ArcGIS Online, as in MapMaker
+  const old = { operationalLayers: [], baseMap: { baseMapLayers: [], title: "T" }, bookmarks: [{ name: "A", extent: { xmin: 0, ymin: 0, xmax: 1, ymax: 1, spatialReference: { wkid: 102100 } } }],
+    atlasBookmarks: [{ title: "A", viewpoint: { center: [1, 2], zoom: 5 }, layers: [{ id: "q", title: "Q", visible: false }] }] };
+  const r = doc.readWebMap(old);
+  assert.equal(r.bookmarks[0].layers[0].visible, false);
+  const mapViewer = { operationalLayers: [], baseMap: { baseMapLayers: [], title: "T" }, bookmarks: [{ name: "MV", viewpoint: { targetGeometry: { xmin: 0, ymin: 0, xmax: 10, ymax: 10, spatialReference: { wkid: 102100 } } } }] };
+  assert.ok(doc.readWebMap(mapViewer).bookmarks[0].viewpoint.extent);
 });
 // ---------- Open map topics ----------
 const SCHEMA = { categorySchema: [{ title: "Categories", categories: [

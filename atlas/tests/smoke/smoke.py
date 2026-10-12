@@ -83,10 +83,36 @@ def serve(root, port_holder):
     port_holder.append(srv.server_address[1]); srv.serve_forever()
 
 
+LAYER_ITEM = {"id": "d" * 32, "title": "Earthquakes", "type": "Feature Service", "snippet": "Past week"}
+# What a collection web map holds (its layers, basemap and a bookmark), and the default basemap.
+MAP_DATA = {"operationalLayers": [{"id": "rivers", "title": "Rivers", "layerType": "ArcGISFeatureLayer", "url": "https://services.arcgis.com/r/arcgis/rest/services/Rivers/FeatureServer/0", "visibility": True}],
+            "baseMap": {"baseMapLayers": [{"id": "topo", "layerType": "ArcGISTiledMapServiceLayer", "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer"}], "title": "Topographic"},
+            "spatialReference": {"wkid": 102100}, "version": "2.31", "authoringApp": "ArcGIS Online", "authoringAppVersion": "2026.3",
+            "bookmarks": [{"name": "Amazon", "extent": {"xmin": -8e6, "ymin": -1e6, "xmax": -5e6, "ymax": 1e6, "spatialReference": {"wkid": 102100}}}]}
+BASEMAP_DATA = {"baseMap": {"baseMapLayers": [{"id": "ng", "layerType": "ArcGISTiledMapServiceLayer", "url": "https://services.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer"}], "title": "National Geographic Style"}}
+PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+# A web map file from somewhere else: two layers (one on a plain-http server, which must be left out), a sketch, a spreadsheet layer, a bookmark.
+TRIP_FILE = {"operationalLayers": [
+    {"id": "parks", "title": "Parks", "layerType": "ArcGISFeatureLayer", "url": "https://services.arcgis.com/p/arcgis/rest/services/Parks/FeatureServer/0", "visibility": False},
+    {"id": "insecure", "title": "Old server", "layerType": "ArcGISMapServiceLayer", "url": "http://old.example.org/arcgis/rest/services/X/MapServer"},
+    {"id": "__data_csv1", "title": "Trees", "layerType": "ArcGISFeatureLayer", "featureCollection": {"layers": [{"layerDefinition": {"name": "Trees", "type": "Feature Layer", "geometryType": "esriGeometryPoint", "objectIdField": "ObjectId",
+        "fields": [{"name": "ObjectId", "type": "esriFieldTypeOID"}, {"name": "Height", "type": "esriFieldTypeDouble"}], "drawingInfo": {"renderer": {"type": "simple", "symbol": {"type": "esriSMS", "style": "esriSMSCircle", "color": [0, 120, 0, 255], "size": 9}}}},
+        "featureSet": {"geometryType": "esriGeometryPoint", "features": [{"geometry": {"x": 10, "y": 20, "spatialReference": {"wkid": 102100}}, "attributes": {"ObjectId": 1, "Height": 12.5}}]}, "popupInfo": {"title": "Tree"}}]}},
+    {"id": "__sketch_points", "title": "My sketches", "layerType": "ArcGISFeatureLayer", "featureCollection": {"layers": [{"layerDefinition": {"name": "My sketches", "type": "Feature Layer", "geometryType": "esriGeometryPoint", "objectIdField": "ObjectId", "fields": []},
+        "featureSet": {"geometryType": "esriGeometryPoint", "features": [{"geometry": {"x": 5, "y": 5, "spatialReference": {"wkid": 102100}}, "attributes": {"uid": "s1", "kind": "point", "title": "Camp", "description": "Night 1", "imageUrl": PIXEL, "color": "#d4572a", "size": 14, "rotation": 0}}]}}]}}],
+  "baseMap": {"baseMapLayers": [{"id": "img", "layerType": "ArcGISTiledMapServiceLayer", "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"}], "title": "Imagery"},
+  "spatialReference": {"wkid": 102100}, "version": "2.31", "authoringApp": "Somewhere", "authoringAppVersion": "1",
+  "initialState": {"viewpoint": {"targetGeometry": {"xmin": -1e6, "ymin": -1e6, "xmax": 1e6, "ymax": 1e6, "spatialReference": {"wkid": 102100}}}},
+  "bookmarks": [{"name": "Camp", "extent": {"xmin": 0, "ymin": 0, "xmax": 100, "ymax": 100, "spatialReference": {"wkid": 102100}}, "thumbnail": {"url": PIXEL}}],
+  "presentation": {"slides": [{"title": {"text": "Camp"}, "visibleLayers": [{"id": "parks"}, {"id": "__sketch_points"}]}]}}
+SPEC_ROOT = {"applicationProperties", "authoringApp", "authoringAppVersion", "background", "baseMap", "bookmarks", "geotriggersInfo", "initialState", "mapFloorInfo", "mapIPSInfo",
+             "mapRangeInfo", "operationalLayers", "parcelFabric", "presentation", "referenceScale", "spatialReference", "tables", "timeZone", "utilityNetworks", "version", "widgets"}
+
+
 def search_response(params):
     q = params.get("q", "")
-    if 'type:"Web Map"' not in q:
-        return {"total": 0, "start": 1, "num": 0, "nextStart": -1, "results": []}
+    if 'type:"Web Map"' not in q or q.startswith("-type"):
+        return {"total": 1, "start": 1, "num": 1, "nextStart": -1, "results": [LAYER_ITEM]}
     num, start = int(params.get("num", 10)), int(params.get("start", 1))
     res = ITEMS[start - 1:start - 1 + num]
     nxt = start + num if start - 1 + num < len(ITEMS) else -1
@@ -124,7 +150,8 @@ def main():
             u = urlparse(url); params = {k: v[0] for k, v in parse_qs(u.query).items()}
             if u.path.endswith("/categorySchema"): body = SCHEMA
             elif u.path.endswith(f"/groups/{GROUP}/search"): body = search_response(params)
-            elif re.search(r"/content/items/\w+/data$", u.path): body = {"operationalLayers": [], "baseMap": {}}
+            elif re.search(r"/content/items/a82ff7ce1c3a493f9d82aa89f5a1ddcf/data$", u.path): body = BASEMAP_DATA
+            elif re.search(r"/content/items/\w+/data$", u.path): body = MAP_DATA
             elif re.search(r"/content/items/(\w+)$", u.path):
                 iid = u.path.rsplit("/", 1)[1]; it = next((i for i in ITEMS if i["id"] == iid), {"id": iid, "title": "Map"}); body = {**it, "owner": "mpmkr"}
             else: body = {"error": {"message": "not in fixture"}}
@@ -150,7 +177,7 @@ def main():
             box = page.eval_on_selector("#toolbar", "e => { const r = e.getBoundingClientRect(); return [r.width, r.height, innerHeight - r.bottom]; }")
             check(840 <= box[0] <= 860 and 86 <= box[1] <= 90, f"toolbar size {box}")
             # Icons: every one becomes Esri's Calcite icon once drawn
-            page.wait_for_function("[...document.querySelectorAll('.ti[data-icon]')].every(s => s.querySelector('calcite-icon:not(.pending)') && !s.querySelector('svg'))", timeout=15000)
+            page.wait_for_function("[...document.querySelectorAll('#toolbar .ti[data-icon]')].every(s => s.querySelector('calcite-icon:not(.pending)') && !s.querySelector('svg'))", timeout=15000)
             check(True, "calcite icons")
             # Compass rose above the scale bar, bottom-left
             stack = page.eval_on_selector(".esri-ui-bottom-left .ll-stack", "e => [...e.children].map(c => c.className || c.tagName)")
@@ -174,13 +201,43 @@ def main():
             check(page.is_hidden("#hdrTitle > input"), "no title until a map is open")
             signin_visible = page.is_visible("#signInBtn")
             check(signin_visible == (cfg != "mapmaker"), f"header sign-in visible={signin_visible}")
-            check(page.inner_text("#verBtn") == "v1.1.0" and page.inner_text(".credit") == "Created by Jason Sawle", "version and credit corner")
+            check(page.inner_text("#verBtn") == "v1.2.0" and page.inner_text(".credit") == "Created by Jason Sawle", "version and credit corner")
             check(page.evaluate(OVERLAP_JS) == {"stack": False, "attribution": False, "corner": False}, "nothing under the toolbar (desktop)")
             page.screenshot(path=str(shots / f"{cfg}-desktop.png"))
             page.set_viewport_size({"width": 1280, "height": 800}); page.wait_for_timeout(500)
             check(page.evaluate(OVERLAP_JS) == {"stack": False, "attribution": False, "corner": False}, "nothing under the toolbar (1280 wide): " + str(page.evaluate(OVERLAP_JS)))
             page.screenshot(path=str(shots / f"{cfg}-1280.png"))
             page.set_viewport_size({"width": 1910, "height": 937}); page.wait_for_timeout(300)
+
+            # White label: no logo images in the header; the name shows as text
+            check(page.is_hidden("#logoImg") and page.is_hidden("#logoCompact") and not page.query_selector_all("#hdrPartners img"), "no logos")
+            check(page.is_visible("#logoText") and page.inner_text("#logoText").strip() != "", "name shown instead of a logo")
+            # Measure opens a menu above it: Measure, Elevation profile
+            page.click("#tool-measure")
+            check(page.is_visible("#measureMenu") and page.get_attribute("#tool-measure", "aria-expanded") == "true", "measure menu opens")
+            mb = page.evaluate("""() => { const m = document.querySelector('#measureMenu').getBoundingClientRect(), b = document.querySelector('#tool-measure').getBoundingClientRect(), t = document.querySelector('#toolbar').getBoundingClientRect();
+              return { above: m.bottom <= t.top, gap: t.top - m.bottom, centred: Math.abs((m.left + m.right) / 2 - (b.left + b.right) / 2) }; }""")
+            check(mb["above"] and mb["gap"] < 12 and mb["centred"] < 2, f"menu sits above the Measure tool {mb}")
+            page.wait_for_function("[...document.querySelectorAll('#measureMenu .ti')].every(s => s.querySelector('calcite-icon:not(.pending)'))", timeout=8000)
+            check(True, "menu icons are Esri's (measure, altitude)")
+            page.screenshot(path=str(shots / f"{cfg}-measure-menu.png"))
+            labels = page.eval_on_selector_all("#measureMenu [role=menuitem]", "bs => bs.map(b => b.textContent.trim())")
+            check(len(labels) == 2, f"menu items {labels}")
+            check(page.evaluate("document.activeElement.id") == "menuMeasure", "focus on first menu item")
+            page.keyboard.press("ArrowRight"); check(page.evaluate("document.activeElement.id") == "menuProfile", "arrow keys in the menu")
+            page.keyboard.press("Escape")
+            check(page.is_hidden("#measureMenu") and page.evaluate("document.activeElement.id") == "tool-measure", "Escape closes the menu")
+            page.click("#tool-measure"); page.click("#menuProfile")
+            check(page.is_visible("#profilePanel") and page.is_hidden("#measureMenu"), "Elevation profile opens")
+            check(page.evaluate("window.__stub.profile.unit") == ("imperial" if cfg == "mapmaker" else "metric"), "profile units from config")
+            check("active" in (page.get_attribute("#tool-measure", "class") or ""), "Measure tool shows active while a measure panel is open")
+            page.click("#profilePanel [data-close]")
+            check(page.evaluate("window.__stub.profileCleared") >= 1 and "active" not in (page.get_attribute("#tool-measure", "class") or ""), "closing clears the profile")
+            page.click("#tool-measure"); page.click("#menuMeasure")
+            check(page.is_visible("#measurePanel"), "Measure opens from the menu")
+            page.click("#measurePanel [data-close]")
+            page.click("#tool-measure"); page.mouse.click(900, 300)
+            check(page.is_hidden("#measureMenu"), "clicking the map closes the menu")
 
             # Open map: topics
             page.click("#tool-open"); page.wait_for_selector("#topicList .topic")
@@ -245,6 +302,57 @@ def main():
             bg = page.eval_on_selector("#tool-legend", "e => getComputedStyle(e).backgroundColor")
             if cfg == "mapmaker": check(bg == "rgb(160, 220, 255)", f"active tool colour {bg}")
             check(not errors, f"console errors {errors[:3]}")
+            ctx.close()
+
+            # Local save is a web map: open a web map file, save it, check the JSON, reopen it
+            ctx = browser.new_context(viewport={"width": 1600, "height": 900}, accept_downloads=True)
+            ctx.add_init_script("delete window.showSaveFilePicker; delete window.showOpenFilePicker;")
+            page = ctx.new_page(); page.route("**/*", route); page.on("dialog", lambda d: d.accept())
+            errors = []; page.on("pageerror", lambda e: errors.append(str(e)))
+            page.goto(f"{base}/index.html?config={cfg}"); page.wait_for_function("window.__stub && window.__stub.views.length > 0"); page.wait_for_timeout(500)
+            trip = shots / "Field_trip.mmap"; trip.write_text(json.dumps(TRIP_FILE))
+            page.click("#tool-open"); page.click("#tabDevice")
+            with page.expect_file_chooser() as fc: page.click("#browseDevice")
+            fc.value.set_files(str(trip)); page.wait_for_timeout(800)
+            loaded = page.evaluate("window.__stub.fromJSON")
+            check(loaded and [o["id"] for o in loaded["operationalLayers"]] == ["parks"], f"file layers checked before loading {loaded and [o['id'] for o in loaded['operationalLayers']]}")
+            check(page.input_value("#docTitle") == "Field trip", "title from the file name")
+            page.click("#tool-bookmarks"); check(len(page.query_selector_all("#bmList li")) == 1, "bookmark from the file")
+            page.click("#bookmarksPanel [data-close]")
+            page.click("#tool-save")
+            with page.expect_download() as dl:
+                page.click("#saveTile"); page.wait_for_selector("#nameModal:not([hidden])"); page.fill("#fileNameInput", "Field_trip_2"); page.click("#nameConfirm")
+            saved = json.loads(pathlib.Path(dl.value.path()).read_text())
+            check(set(saved) <= SPEC_ROOT, f"only spec properties {sorted(set(saved) - SPEC_ROOT)}")
+            check(all(k in saved for k in ("authoringApp", "authoringAppVersion", "baseMap", "spatialReference", "version")), "required web map properties")
+            ids = [o["id"] for o in saved["operationalLayers"]]
+            check(ids == ["parks", "__data_csv1", "__sketch_points"], f"saved layers {ids}")
+            check(saved["operationalLayers"][0]["visibility"] is False, "layer visibility kept")
+            check(saved["baseMap"]["title"] == "Imagery", "basemap kept")
+            sk = saved["operationalLayers"][2]["featureCollection"]["layers"][0]
+            check(sk["featureSet"]["features"][0]["attributes"]["imageUrl"].startswith("data:image/png") and sk["popupInfo"]["mediaInfos"][0]["value"]["sourceURL"] == "{imageUrl}", "sketch picture saved and shown in pop-ups elsewhere")
+            check(saved["bookmarks"][0]["name"] == "Camp" and saved["bookmarks"][0]["thumbnail"]["url"].startswith("data:image"), "bookmark with thumbnail")
+            vis = sorted(v["id"] for v in saved["presentation"]["slides"][0]["visibleLayers"])
+            check(vis == ["__sketch_points", "parks"], f"bookmark's layers on/off {vis}")
+            check(saved["initialState"]["viewpoint"]["targetGeometry"]["spatialReference"]["wkid"] == 102100 and saved["initialState"]["viewpoint"].get("scale"), "view saved")
+            # a collection map plus a layer from Add layer, saved and reopened
+            page.click("#tool-open"); page.click("#tabGroup"); page.wait_for_selector("#groupGrid .btn.primary"); page.click("#groupGrid > li:first-child .btn.primary"); page.wait_for_timeout(600)
+            page.click("#tool-add"); page.wait_for_selector("#layerList [data-item]"); page.click("#layerList [data-item]"); page.wait_for_timeout(400)
+            page.click("#tool-save")
+            with page.expect_download() as dl:
+                page.click("#saveTile"); page.wait_for_selector("#nameModal:not([hidden])"); page.fill("#fileNameInput", "Collection_map"); page.click("#nameConfirm")
+            saved2 = json.loads(pathlib.Path(dl.value.path()).read_text())
+            ids2 = [o["id"] for o in saved2["operationalLayers"]]
+            check(ids2 == ["rivers", "__item_" + "d" * 32], f"collection map layers {ids2}")
+            check(saved2["operationalLayers"][1].get("itemId") == "d" * 32 and saved2["operationalLayers"][1]["url"].endswith("/FeatureServer/0"), "added layer keeps its item and address")
+            check(saved2["baseMap"]["title"] == "Topographic" and saved2["bookmarks"][0]["name"] == "Amazon", "collection map's basemap and bookmark")
+            back = shots / "Collection_map.mmap"; back.write_text(json.dumps(saved2))
+            page.click("#tool-open"); page.click("#tabDevice")
+            with page.expect_file_chooser() as fc: page.click("#browseDevice")
+            fc.value.set_files(str(back)); page.wait_for_timeout(800)
+            page.click("#tool-add"); page.wait_for_selector("#layerList [data-item]")
+            check(page.inner_text("#layerList [data-item]") in ("Added", "Agregado", "Añadido") or page.get_attribute("#layerList [data-item]", "aria-pressed") == "true", "reopened file knows the added layer")
+            check(not errors, f"console errors (save/open) {errors[:3]}")
             ctx.close()
 
             # Phone

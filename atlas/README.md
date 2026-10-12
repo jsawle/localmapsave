@@ -2,18 +2,18 @@
 
 A configurable version of the National Geographic MapMaker app (an Atlas Instant App), built on ArcGIS Maps SDK for JavaScript 5.1. It has the same screen layout and tools, and adds three things MapMaker can't do today:
 
-- **Local save:** save to a `.mmap` file on the device and reopen it later, with no account.
+- **Local save:** save to a `.mmap` file on the device and reopen it later, with no account. The file is a standard ArcGIS web map (see *Saved maps* below).
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.1.0**. Created by Jason Sawle.
+Version **1.2.0**. Created by Jason Sawle.
 
 ## Try it
 
 | Link | What you get |
 |---|---|
 | `https://jsawle.github.io/localmapsave/atlas/` | Neutral "School Atlas" branding |
-| `…/atlas/?config=mapmaker` | MapMaker's own branding, groups, units and wording, to compare side by side with the real app |
+| `…/atlas/?config=mapmaker` | MapMaker's groups, units, colours and wording, to compare side by side with the real app. No logos: the name shows as text |
 | `…/atlas/?config=example-es` | A Spanish-language version for a distributor (Panama start view) |
 | `…/atlas/?webmap=<item id>` | Opens straight into one map (works with any config) |
 
@@ -31,11 +31,11 @@ The toolbar is in MapMaker's order: Basemaps, Open map, Map layers, Add layer, L
 | Map layers | Turn layers on and off, zoom to a layer, remove layers you added |
 | Legend | Legend for every layer |
 | Basemaps | The basemap group, starting on the configured default |
-| Measure | Distance, area and coordinates; direct-line distance in 3D |
+| Measure | Opens a small menu above the tool, as in MapMaker: **Measure** (distance, area and coordinates; direct-line distance in 3D) and **Elevation profile** (the ground's height along a line you draw or a line you've sketched) |
 | Sketch | Point, line, area, circle and text. Each has a pop-up with title, description and image, plus colour, size and rotation. Select to move or reshape; delete |
 | Bookmarks | Saves the location and which layers are on. A map's own bookmarks appear when you open it |
 | 2D / 3D | One map shown in either view |
-| Save | Save, Save as, Screenshot, Print. With sign-in: Save to ArcGIS Online and Update |
+| Save | Save, Save as, Screenshot, Print. With sign-in: Save to ArcGIS Online and Update. Save and Save to ArcGIS Online write the same web map |
 | On the map | Search, Home and zoom (top left); MapMaker's compass rose above the scale bar (bottom left), which turns with the map and faces north again when selected; the disclaimer in the attribution bar; version and credit (bottom right) |
 
 ## Set up a version for your country
@@ -45,7 +45,7 @@ Copy `config/default.json` to `config/<name>.json`, edit it, and open `…/atlas
 | Setting | What it does |
 |---|---|
 | `appName` | Name in the browser tab and header (when there's no logo), and in "{app} maps" |
-| `logo.url`, `logo.compactUrl`, `logo.alt`, `logo.link` | Wide logo, and a narrower logo for tablets and phones. `showName: true` shows the name next to the logo |
+| `logo.url`, `logo.compactUrl`, `logo.alt`, `logo.link` | Your wide logo, and a narrower one for tablets and phones. None of the configs here ship a logo; without one, the app name shows as text. `showName: true` shows the name next to a logo |
 | `headerLinks` | Pill buttons: `{ "label", "url", "style": "dark" or "outline" }`. Outline pills are hidden on tablets and phones |
 | `partnerLogos` | Logos on the right of the header: `{ "url", "alt", "link" }` |
 | `theme` | `brand` (buttons and links), `toolActive` (open tools, 2D/3D and the chosen topic; MapMaker uses `#a0dcff`), `header`, `headerInk`, `pill`, `pillInk`, `font`. Text colours are picked for contrast when you leave them out |
@@ -58,10 +58,30 @@ Copy `config/default.json` to `config/<name>.json`, edit it, and open `…/atlas
 | `signIn` | `clientId` (see below), `popup`, `headerButton` (`false` hides Sign in from the header; people sign in from Save), and the sign-in screen's `onboardingTitle` and `onboardingHtml` |
 | `agolTags` | Tags added to maps saved to ArcGIS Online |
 | `csvMaxRows` | Largest spreadsheet allowed (default 1,000) |
-| `features` | Turn tools off: `openMap`, `addLayer`, `csv`, `layers`, `legend`, `basemaps`, `measure`, `sketch`, `bookmarks`, `threeD`, `save`, `localSave`, `screenshot`, `print`, `search`, `signIn`, `compass` |
+| `features` | Turn tools off: `openMap`, `addLayer`, `csv`, `layers`, `legend`, `basemaps`, `measure`, `sketch`, `bookmarks`, `threeD`, `save`, `localSave`, `screenshot`, `print`, `search`, `signIn`, `compass`, `elevationProfile` |
 | `locale`, `dir`, `strings` | Language for the ArcGIS tools (e.g. `es`), text direction (`rtl` for Arabic), and your translation of every word the app shows. `config/example-es.json` has the full list in Spanish, including the compass letters (N, E, S, O) |
 
 Groups should be **public**. Signed-in users can also see content shared with their organisation.
+
+## Saved maps
+
+A saved map is an ArcGIS **web map**: JSON that follows Esri's [Web Map Specification](https://developers.arcgis.com/web-map-specification/) (version 2.31), with only properties the specification defines. Save (a `.mmap` file) and Save to ArcGIS Online write exactly the same JSON.
+
+| What's in the map | How it's written |
+|---|---|
+| The map you opened from the collection | Its own operational layers, with your layers on/off and transparency. The file no longer depends on the collection map staying the same |
+| Layers from Add layer | Operational layers that keep their item ID and address (layer id `__item_<item id>`) |
+| Your spreadsheet data | A feature collection layer with its style, labels and pop-up (layer id `__data_…`) |
+| Your sketches | Feature collection layers for points, lines, areas and text (layer ids `__sketch_…`). Pop-ups show the title, description and picture in other ArcGIS apps too |
+| Basemap | The full basemap definition |
+| View | `initialState.viewpoint`: extent, scale and rotation |
+| Bookmarks | `bookmarks`, with a thumbnail. Which layers each one turns on is kept in a matching presentation slide (`presentation.slides`, `visibleLayers`), because a bookmark has no layer list in the specification |
+
+Opening:
+- **Any web map JSON** opens: a `.mmap` from this app, or the data of a web map from ArcGIS Online saved to a file. This app's sketches and spreadsheet layers come back editable.
+- **Files are checked first.** Layers must load from `https` addresses and be a layer type the specification defines. Pictures must be embedded or come from `https`. Picture symbols that would load from anywhere else are replaced, and files are capped at 5,000 features. Anything left out is counted in a message.
+- **Older `.mmap` files** (saved before version 1.2) still open.
+- A web map is a 2D document, so saved maps reopen in 2D.
 
 ## Sign-in setup (once per web address)
 
@@ -81,7 +101,8 @@ Notes:
 - **Without sign-in:** nothing a student adds, draws or saves leaves the device. CSV files are read in the browser, and saved maps are files on the device. Printing happens in the browser, so no print service is used.
 - **What the app does load:** basemap tiles and collection content come from ArcGIS Online, and search terms go to Esri's geocoder.
 - **With sign-in:** saving to ArcGIS Online creates a private item that only the signed-in user can see.
-- **Opened files are checked first:** only embedded images are kept (no web links), and picture symbols are replaced. Pop-ups are reduced to their fields, and files are capped at 5,000 features.
+- **Opening a saved map loads its layers** from the web addresses written in it (only `https`). A file from someone else can therefore contact the servers its layers come from, just as a web map in ArcGIS Online does.
+- **Opened files are checked first** (see *Saved maps*).
 
 ## Accessibility (WCAG 2.1 AA / Section 508)
 
@@ -90,6 +111,7 @@ Notes:
 - Toolbar buttons report open/closed and on/off states. Messages are read out by screen readers.
 - In Open map, arrow keys move along the topics list, each topic's name includes its number of maps, and the map count is announced when the list changes.
 - The compass is a button whose name says which way the map faces.
+- Measure opens a menu: arrow keys move between Measure and Elevation profile, and Escape closes it and returns to the tool.
 - There's a skip link, and focus is always visible.
 - Theme text colours are chosen to reach 4.5:1 contrast.
 - The page can be zoomed, and it respects "reduce motion".
@@ -102,18 +124,19 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.1.0 |
+| App | 1.2.0 |
 | Open map topics | 1.0 |
 | Compass | 1.0 |
-| Saved map file (.mmap) | 4. Also opens files from the local-save concept (versions 2 and 3) and from Map Studio |
+| Elevation profile | 1.0 |
+| Saved map (.mmap and ArcGIS Online) | 2.0: a web map (Web Map Specification 2.31) |
+| Older .mmap files (open only) | 4. Also opens versions 2 and 3 from the local-save concept, and Map Studio files |
 | CSV import | 3.0 |
 | Sketch | 1.0 |
-| ArcGIS Online web map writer | 1.0 |
-| Config schema | 1 (configs are at version 2) |
+| Config schema | 1 (configs are at version 3) |
 
 ## Known limits
 
-- **Esri widgets:** Measure, Legend, Search, Basemap gallery, Home and Scale bar use Esri widgets. Esri marks these as deprecated from SDK 5.0 in favour of web components. They work in 5.1 but should move to components in a later version.
+- **Esri widgets:** Measure, Elevation profile, Legend, Search, Basemap gallery, Home and Scale bar use Esri widgets. Esri marks these as deprecated from SDK 5.0 in favour of web components. They work in 5.1 but should move to components in a later version.
 - **Pie-chart layers** only draw in 2D.
 - **Choosing a folder** for local save needs Chrome or Edge. Safari and Firefox save to Downloads instead.
 - **Maps reopened from ArcGIS Online:** the sketches and spreadsheet data the app wrote come back fully editable. Other apps see them as ordinary layers.
@@ -121,6 +144,6 @@ The app version, plus a version for each part, is shown under the version button
 
 ## Tests
 
-- `node atlas/tests/run.mjs` runs the unit tests for CSV import, saved maps and Open map topics.
+- `node atlas/tests/run.mjs` runs the unit tests for CSV import, saved maps (web map writing, reading and file checks) and Open map topics.
 - `python3 atlas/tests/smoke/smoke.py` runs a browser test of all three configs (Python Playwright with Chromium). It uses a stand-in for the ArcGIS library, Esri's real Calcite icons, fixture data shaped like the MapMaker group, and an axe-core scan.
 - Toolbar icons are Esri's Calcite icons, loaded by the ArcGIS library; built-in outline icons show until they load.

@@ -164,6 +164,8 @@ export const DEFAULT_STRINGS = {
   coordinates: "Coordinates",
   clear: "Clear",
   measureHint: "Choose a tool, then click on the map. Double-click to finish.",
+  elevationProfile: "Elevation profile",
+  profileHint: "Draw a line on the map, or select a line you've sketched, to see how the height of the land changes along it.",
 
   // Sketch
   drawTools: "Tools",
@@ -213,6 +215,7 @@ export const DEFAULT_STRINGS = {
   openMapViewer: "Open in Map Viewer",
   openItemPage: "Item page",
   savedFile: "Saved {name}.",
+  layersNotSaved: "{n} added layer(s) couldn't be written into the saved map, so they were left out.",
   savedDownload: "Saved {name} to your downloads.",
   saveFailed: "Couldn't save the file.",
   shotSaved: "Screenshot saved to your downloads.",
@@ -235,7 +238,7 @@ export const DEFAULT_STRINGS = {
   // Open / file
   openedFile: "Opened “{title}”: {n} feature(s).",
   skippedOnOpen: "{n} item(s) in the file couldn't be used and were left out.",
-  notMapFile: "That isn't a saved map (.mmap) from this app.",
+  notMapFile: "That isn't a saved map (.mmap) or a web map file.",
   cantRead: "Couldn't read that file.",
   mapFile: "Map",
 
