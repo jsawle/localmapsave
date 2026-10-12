@@ -83,6 +83,7 @@ css.textContent = ".esri-attribution{position:absolute;left:0;right:0;bottom:0;d
   ".esri-attribution__sources{flex:1 1 auto;padding:0 5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;align-self:flex-end}" +
   ".esri-attribution__powered-by{text-align:right;white-space:nowrap;align-self:flex-end;padding:0 16px 0 4px}";
 document.head.appendChild(css);
+const DEFAULT_UI_IDS = ["compass", "navigation-toggle", "zoom"];
 class UI {
   set padding(p) { this._padding = p; for (const c of ["bottom-left", "bottom-right"]) this.corners[c].style.bottom = (p.bottom - 15) + "px"; }
   get padding() { return this._padding || { top: 15, left: 15, right: 15, bottom: 30 }; }
@@ -96,6 +97,26 @@ class UI {
       view.root.appendChild(d); this.corners[c] = d;
     }
   }
+  // Like 5.1's DefaultUI: setting components removes the old default widgets and, on the next watcher run, creates the
+  // new ones in the top-left. Only these ids exist; any other makes the real SDK throw while drawing (and the view then
+  // never draws its layers), so the stand-in throws the same error.
+  set components(list) {
+    this._components = list.slice();
+    if (this._pending) return;
+    this._pending = true;
+    queueMicrotask(() => {                 // one watcher run with the latest list, as the SDK's watchers do
+      this._pending = false;
+      for (const el of this._defaults || []) el.remove();
+      this._defaults = [];
+      for (const id of this._components) {
+        if (!DEFAULT_UI_IDS.includes(id)) { this.view.__uiBroken = true; throw new TypeError("Failed to execute 'appendChild' on 'Node': parameter 1 is not of type 'Node'."); }
+        const el = document.createElement("div"); el.className = "esri-" + id + " esri-widget";
+        el.innerHTML = id === "zoom" ? btn("Zoom in", "+") + btn("Zoom out", "−") : btn(id === "compass" ? "Reset to north" : "Pan or rotate", id === "compass" ? "⌖" : "⤧");
+        this.add(el, "top-left"); this._defaults.push(el);
+      }
+    });
+  }
+  get components() { return this._components || []; }
   add(comp, pos) {
     const position = typeof pos === "string" ? pos : (pos && pos.position) || "manual";
     const index = pos && typeof pos === "object" ? pos.index : undefined;
@@ -116,9 +137,7 @@ class MapView extends Accessor {
     Object.assign(this.root.style, { position: "absolute", inset: "0", background: "linear-gradient(160deg,#9fc7e6,#6aa3cf 60%,#8fbf8a)" });
     this.container.appendChild(this.root);
     this.ui = new UI(this);
-    const zoom = document.createElement("div"); zoom.className = "esri-zoom";
-    zoom.innerHTML = btn("Zoom in", "+") + btn("Zoom out", "−");
-    this.ui.add(zoom, "top-left");
+    this.ui.components = new.target.defaultUI;
     const att = document.createElement("div"); att.className = "esri-attribution esri-widget"; att.setAttribute("dir", "ltr");
     att.innerHTML = '<div class="esri-attribution__sources">Esri | TomTom | FAO | NOAA | USGS | Sources: Esri, USGS</div><div class="esri-attribution__powered-by">Powered by <a href="https://www.esri.com/">Esri</a></div>';
     this.root.appendChild(att);
@@ -133,7 +152,8 @@ class MapView extends Accessor {
   takeScreenshot() { return Promise.resolve({ dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" }); }
   closePopup() {}
 }
-class SceneView extends MapView { constructor(p) { super(p); this.type = "3d"; this.camera = { heading: 0, tilt: 0, toJSON() { return {}; } }; } }
+MapView.defaultUI = ["zoom"];   // the SDK's 2D and 3D defaults
+class SceneView extends MapView { static defaultUI = ["zoom", "navigation-toggle", "compass"]; constructor(p) { super(p); this.type = "3d"; this.camera = { heading: 0, tilt: 0, toJSON() { return {}; } }; } }
 class GraphicsLayer extends Accessor { constructor(p) { super(p); this.graphics = new Collection(); this.visible = true; } add(g) { this.graphics.add(g); } remove(g) { this.graphics.remove(g); } removeAll() { this.graphics.removeAll(); } }
 class FeatureLayer extends Accessor { constructor(p) { super(p); if (this.visible === undefined) this.visible = true; if (!this.id) this.id = "fl" + Math.random().toString(36).slice(2, 7); if (!this.type) this.type = "feature"; if (this.opacity === undefined) this.opacity = 1; } queryExtent() { return Promise.resolve({ extent: null }); } }
 class Graphic extends Accessor {
