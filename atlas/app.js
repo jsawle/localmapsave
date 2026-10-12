@@ -6,10 +6,10 @@ import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js";
 import { DEFAULT_STRINGS } from "./lib/strings.js";
-import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, flattenTopics, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, chipSet } from "./lib/catalog.js";
+import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
+  filterEntries, pageList } from "./lib/catalog.js";
 
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "1.0";
 const SKETCH_VERSION = "1.0";
@@ -156,8 +156,7 @@ function applyHeader() {
   $("verBtn").textContent = "v" + APP_VERSION;
   $("verBtn").setAttribute("aria-label", S.versions + " v" + APP_VERSION);
   $("tabGroup").textContent = t("tabGroup");
-  $("addIntro").textContent = t("addLayerIntro");
-  $("catalogLabel").textContent = t("layersFrom");
+  $("tabLayers").textContent = t("layersFrom");
   document.querySelectorAll("[data-feature]").forEach((el) => { if (F[el.dataset.feature] === false) el.hidden = true; });
   $("signInBtn").hidden = F.signIn === false || (cfg.signIn || {}).headerButton === false;
   $("agolSection").hidden = F.signIn === false;
@@ -255,7 +254,17 @@ function addViewUI(v, is3d) {
     const sb = document.createElement("div"); stack.appendChild(sb);
     new ScaleBar({ view: v, container: sb, unit: ["dual", "metric", "imperial"].includes(cfg.scalebar) ? cfg.scalebar : "dual" });
   }
-  if (stack.children.length) v.ui.add(stack, "bottom-left");
+  // While Elevation profile is docked under the map the toolbar is tucked away; this button brings it back.
+  const tt = document.createElement("button"); tt.type = "button"; tt.className = "tools-toggle"; tt.setAttribute("aria-controls", "toolbar");
+  tt.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="19" cy="19" r="2"/></svg>';
+  tt.addEventListener("click", () => { $("app").classList.toggle("tools-shown"); syncToolsToggles(); layoutBottom(); });
+  stack.appendChild(tt);
+  v.ui.add(stack, "bottom-left");
+  syncToolsToggles();
+}
+function syncToolsToggles() {
+  const shown = $("app").classList.contains("tools-shown");
+  document.querySelectorAll(".tools-toggle").forEach((b) => { b.setAttribute("aria-expanded", String(shown)); const l = shown ? S.hideTools : S.showTools; b.setAttribute("aria-label", l); b.title = l; });
 }
 // MapMaker's large compass rose: turns with the map; select it to face north again.
 function makeCompass(v, is3d) {
@@ -359,9 +368,9 @@ function titleSlug() { return currentTitle().replace(/[^\w\-]+/g, "_").replace(/
 let toastTimer = 0;
 function toast(msg, ms) { const el = $("toast"); el.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.textContent = ""; }, ms || 3400); }
 
-const PANELS = { add: "addPanel", data: "dataPanel", layers: "layersPanel", legend: "legendPanel", basemaps: "basemapsPanel",
+const PANELS = { data: "dataPanel", layers: "layersPanel", legend: "legendPanel", basemaps: "basemapsPanel",
   measure: "measurePanel", profile: "profilePanel", sketch: "sketchPanel", bookmarks: "bookmarksPanel", save: "savePanel", about: "aboutPanel" };
-const TRIGGERS = { add: "tool-add", data: "tool-add", layers: "tool-layers", legend: "tool-legend", basemaps: "tool-basemaps",
+const TRIGGERS = { data: "tool-add", layers: "tool-layers", legend: "tool-legend", basemaps: "tool-basemaps",
   measure: "tool-measure", profile: "tool-measure", sketch: "tool-sketch", bookmarks: "tool-bookmarks", save: "tool-save", about: "verBtn" };
 let openPanelName = null;
 function setExpanded(name) {
@@ -397,18 +406,17 @@ function panelOpening(name) {
   if (name === "sketch") { sketchPanelOpen = true; setTool("select"); selectForEdit(null); }
   if (name === "layers") renderLayers();
   if (name === "bookmarks") showBmList();
-  if (name === "add") ensureCatalog();
   if (name === "save") renderAgol();
   if (name === "about") renderVersions();
   if (name === "legend") ensureLegend();
   if (name === "basemaps") ensureGallery();
   if (name === "measure") ensureMeasure();
-  if (name === "profile") ensureProfile();
+  if (name === "profile") { $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles(); ensureProfile(); }
 }
 function panelClosing(name) {
   if (name === "sketch") { endSketchOps(); sketchPanelOpen = false; placingText = false; currentTool = null; selectedFeature = null; updateToolButtons(); }
   if (name === "measure") stopMeasuring();
-  if (name === "profile") stopProfile();
+  if (name === "profile") { stopProfile(); $("app").classList.remove("docked", "tools-shown"); syncToolsToggles(); setTimeout(layoutBottom, 0); }
   if (name === "data") { addState = null; removePreview(true); }
 }
 document.querySelectorAll("[data-panel]").forEach((b) => b.addEventListener("click", () => togglePanel(b.dataset.panel)));
@@ -1071,13 +1079,6 @@ function getTopicTree() {
     .then(buildTopicTree).catch((e) => { console.warn("No category schema", e); return []; });
   return topicTreePromise;
 }
-async function fillCategorySelect(sel) {
-  const tree = await getTopicTree();
-  sel.innerHTML = "";
-  const all = document.createElement("option"); all.value = ""; all.textContent = S.allCategories; sel.appendChild(all);
-  for (const n of flattenTopics(tree)) { const op = document.createElement("option"); op.value = n.path; op.textContent = "   ".repeat(n.depth) + n.title; sel.appendChild(op); }
-  sel.hidden = !tree.length;
-}
 const cleanQuery = (s) => String(s || "").replace(/["':()\\[\]{}^~*?]/g, " ").replace(/\s+/g, " ").trim();
 function thumbUrl(item) {
   if (!item || !item.thumbnail) return "";
@@ -1086,14 +1087,211 @@ function thumbUrl(item) {
   return u;
 }
 
-// ============================================================ Open map dialog
-// The collection's maps are browsed by topic: a list of topics with how many maps each holds, sub-topic chips,
-// and a search that looks inside the chosen topic. Up to MAX_INDEX maps are loaded once and filtered here in the
-// browser; a bigger collection is filtered by ArcGIS Online instead (topics still work, without counts).
-const PAGE = 24;
-const browse = { ready: null, tree: [], entries: null, counts: null, other: 0, mode: "index", topic: ALL, list: [], shown: 0, server: { start: 1, token: 0 } };
+// ============================================================ Collection browser (Open map and Add layer)
+// After MapMaker's Add layer dialog: search, a Categories tree (the content group's categories, with chevrons for
+// sub-categories and a reset button), wide cards with an expandable description, and page numbers. Up to MAX_INDEX
+// items are loaded once and filtered in the browser, with counts; a bigger group is searched in ArcGIS Online instead.
+const PAGE_SIZE = 10;
+const SVG = (d, w) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (w || 1.8) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + d + "</svg>";
+const ICON_PLUS = SVG('<path d="M12 5v14M5 12h14"/>'), ICON_MINUS = SVG('<path d="M5 12h14"/>'), ICON_CHEV_R = SVG('<path d="m9 5 7 7-7 7"/>', 2), ICON_CHEV_D = SVG('<path d="m5 9 7 7 7-7"/>');
+const SUPPORTED_TYPES = { "Feature Service": "typeLayer", "Feature Collection": "typeLayer", "Map Service": "typeMapLayer", "Image Service": "typeImagery",
+  "Vector Tile Service": "typeTiles", "Group Layer": "typeGroup", "WMS": "typeMapLayer", "KML": "typeLayer", "GeoJson": "typeLayer", "CSV": "typeLayer" };
+let searchTimer = 0, descSeq = 0;
+function createBrowser(o) {
+  // o: { p (id prefix), query, accept(item), kind ("maps" | "layers"), descLabel, thumbOpens, decorate(button, item), run(item, button) }
+  const el = (x) => $(o.p + x);
+  const st = { ready: null, loaded: false, tree: [], entries: null, counts: null, other: 0, mode: "index", topic: ALL, page: 1, expanded: new Set(), token: 0 };
+  const unitText = (n) => (n === 1 ? S[o.kind + "CountOne"] : t(o.kind + "Count", { n }));
+  const countFor = (key) => (!st.counts ? null : !key ? st.entries.length : key === OTHER ? st.other : st.counts.get(key) || 0);
+  const topicName = (key) => (!key ? "" : key === OTHER ? S.otherCategory : (findTopic(st.tree, key) || {}).title || "");
+  function load() {
+    if (st.ready) return st.ready;
+    st.ready = (async () => {
+      const path = `/sharing/rest/content/groups/${cfg.contentGroup}/search`, q = { num: 100, start: 1, q: o.query, sortField: "title", sortOrder: "asc" };
+      const [tree, first] = await Promise.all([getTopicTree(), restGet(path, q)]);
+      st.tree = tree;
+      if ((first.total || 0) > MAX_INDEX) { st.mode = "server"; st.entries = null; st.counts = null; st.other = 0; return; }
+      const items = (first.results || []).slice();
+      for (let next = first.nextStart; next > 0 && items.length < MAX_INDEX;) { const d = await restGet(path, { ...q, start: next }); items.push(...(d.results || [])); next = d.nextStart; }
+      st.mode = "index";
+      st.entries = indexItems(items.filter(o.accept));
+      const c = countTopics(tree, st.entries); st.counts = c.counts; st.other = c.other;
+    })();
+    st.ready.catch(() => { st.ready = null; });
+    return st.ready;
+  }
+  function countBadgeFor(n) {
+    const c = document.createElement("span"); c.className = "count"; c.textContent = n.toLocaleString(cfg.locale || undefined);
+    const u = document.createElement("span"); u.className = "sr-only"; u.textContent = " " + (n === 1 ? S[o.kind + "UnitOne"] : S[o.kind + "Unit"]);
+    c.appendChild(u); return c;
+  }
+  function renderTree(focusKey, focusChevron) {
+    const root = el("Tree"); root.innerHTML = "";
+    const addRows = (nodes, ul) => nodes.forEach((n) => {
+      const c = countFor(n.key);
+      if (c === 0) return;
+      const kids = n.children.filter((k) => countFor(k.key) !== 0);
+      const li = document.createElement("li"), row = document.createElement("div"); row.className = "tree-row";
+      if (kids.length) {
+        const ch = document.createElement("button"); ch.type = "button"; ch.className = "tree-chev"; ch.dataset.key = n.key; ch.innerHTML = ICON_CHEV_R;
+        const open = st.expanded.has(n.key);
+        ch.setAttribute("aria-expanded", String(open)); ch.setAttribute("aria-label", t("subCategoriesOf", { topic: n.title }));
+        ch.addEventListener("click", () => { if (st.expanded.has(n.key)) st.expanded.delete(n.key); else st.expanded.add(n.key); renderTree(n.key, true); });
+        row.appendChild(ch);
+      } else { const sp = document.createElement("span"); sp.className = "tree-spacer"; row.appendChild(sp); }
+      const b = document.createElement("button"); b.type = "button"; b.className = "tree-name"; b.dataset.key = n.key;
+      const nm = document.createElement("span"); nm.textContent = n.title; b.appendChild(nm);
+      if (c != null) b.appendChild(countBadgeFor(c));
+      if (st.topic === n.key) b.setAttribute("aria-current", "true");
+      b.addEventListener("click", () => select(n.key, "tree"));
+      row.appendChild(b); li.appendChild(row);
+      if (kids.length && st.expanded.has(n.key)) { const sub = document.createElement("ul"); sub.className = "tree-sub"; addRows(kids, sub); li.appendChild(sub); }
+      ul.appendChild(li);
+    });
+    addRows(st.tree, root);
+    if (st.counts && st.other > 0 && st.tree.length) {
+      const li = document.createElement("li"), row = document.createElement("div"); row.className = "tree-row";
+      const sp = document.createElement("span"); sp.className = "tree-spacer";
+      const b = document.createElement("button"); b.type = "button"; b.className = "tree-name"; b.dataset.key = OTHER;
+      const nm = document.createElement("span"); nm.textContent = S.otherCategory; b.append(nm, countBadgeFor(st.other));
+      if (st.topic === OTHER) b.setAttribute("aria-current", "true");
+      b.addEventListener("click", () => select(OTHER, "tree"));
+      row.append(sp, b); li.appendChild(row); root.appendChild(li);
+    }
+    const has = st.tree.length > 0;
+    el("CatsBtn").hidden = !has;
+    if (!has) el("Body").classList.add("side-hidden");
+    if (focusKey != null) { const f = [...root.querySelectorAll(focusChevron ? ".tree-chev" : ".tree-name")].find((x) => x.dataset.key === focusKey); if (f) f.focus(); }
+  }
+  function card(item) {
+    const li = document.createElement("li"); li.className = "cat-card";
+    const top = document.createElement("div"); top.className = "cat-card-top";
+    const txt = document.createElement("div"); txt.className = "cat-card-text";
+    const h = document.createElement("h4"); h.className = "cat-card-title"; h.textContent = item.title || S.untitled;
+    const sn = document.createElement("p"); sn.className = "cat-card-snippet"; sn.textContent = item.snippet || "";
+    const act = document.createElement("button"); act.type = "button"; act.className = "cat-act"; act._item = item;
+    o.decorate(act, item);
+    act.addEventListener("click", () => o.run(item, act));
+    txt.append(h, sn, act);
+    const th = document.createElement("div"); th.className = "cat-thumb" + (o.thumbOpens ? " open" : ""); th.setAttribute("aria-hidden", "true");
+    const tu = thumbUrl(item); if (tu) th.style.backgroundImage = "url('" + tu.replace(/'/g, "%27") + "')";
+    if (o.thumbOpens) th.addEventListener("click", () => o.run(item, act));
+    top.append(txt, th);
+    const id = "desc" + (++descSeq);
+    const db = document.createElement("button"); db.type = "button"; db.className = "cat-desc-btn"; db.setAttribute("aria-expanded", "false"); db.setAttribute("aria-controls", id);
+    const dl = document.createElement("span"); dl.textContent = o.descLabel(); db.appendChild(dl); db.insertAdjacentHTML("beforeend", ICON_CHEV_D);
+    db.setAttribute("aria-label", o.descLabel() + ": " + (item.title || ""));
+    const dd = document.createElement("div"); dd.className = "cat-desc rich"; dd.id = id; dd.hidden = true;
+    db.addEventListener("click", () => {
+      const open = db.getAttribute("aria-expanded") !== "true";
+      if (open && !dd.childNodes.length) {
+        if (item.description) dd.appendChild(safeFragment(item.description));
+        else { const p = document.createElement("p"); p.textContent = item.snippet || S.noDescription; dd.appendChild(p); }
+        if (item.accessInformation) { const p = document.createElement("p"); const b = document.createElement("strong"); b.textContent = S.credits + ": "; p.append(b, document.createTextNode(item.accessInformation)); dd.appendChild(p); }
+      }
+      db.setAttribute("aria-expanded", String(open)); dd.hidden = !open;
+    });
+    li.append(top, db, dd);
+    return li;
+  }
+  function paint(items, n, pages, text, focusList) {
+    const ul = el("List"); ul.innerHTML = "";
+    for (const it of items) ul.appendChild(card(it));
+    el("Empty").textContent = n ? "" : text ? (st.topic ? t("noMatchIn", { topic: topicName(st.topic) }) : S.noMatch) : S[o.kind === "maps" ? "noMaps" : "noLayersHere"];
+    el("SearchAllRow").hidden = !(n === 0 && text && st.topic);
+    renderPager(pages);
+    el("Main").scrollTop = 0;
+    if (focusList) ul.focus();
+  }
+  function setStatus(n, total, text) {
+    const topic = topicName(st.topic);
+    el("Status").textContent = text ? (topic ? t("matchOfIn", { n, count: unitText(total), topic }) : t("matchOf", { n, count: unitText(total) }))
+      : topic ? t("inTopic", { count: unitText(n), topic }) : unitText(n);
+  }
+  function renderList(focusList) {
+    if (!st.loaded) return;
+    if (st.mode === "server") { serverPage(focusList); return; }
+    const text = el("Search").value.trim();
+    const list = filterEntries(st.entries, st.tree, st.topic, text, cfg.locale);
+    const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+    if (st.page > pages) st.page = pages;
+    paint(list.slice((st.page - 1) * PAGE_SIZE, st.page * PAGE_SIZE).map((e) => e.item), list.length, pages, text, focusList);
+    setStatus(list.length, countFor(st.topic) ?? list.length, text);
+  }
+  async function serverPage(focusList) {
+    const token = ++st.token, text = cleanQuery(el("Search").value);
+    const q = { num: PAGE_SIZE, start: (st.page - 1) * PAGE_SIZE + 1, q: o.query + (text ? " AND (" + text + ")" : "") };
+    if (!text) { q.sortField = "title"; q.sortOrder = "asc"; }
+    const node = st.topic && st.topic !== OTHER ? findTopic(st.tree, st.topic) : null;
+    if (node) q.categories = node.path;
+    el("List").setAttribute("aria-busy", "true");
+    try {
+      const d = await restGet(`/sharing/rest/content/groups/${cfg.contentGroup}/search`, q);
+      if (token !== st.token) return;
+      const total = d.total || 0;
+      paint((d.results || []).filter(o.accept), total, Math.max(1, Math.ceil(total / PAGE_SIZE)), text, focusList);
+      setStatus(total, total, "");
+    } catch (e) { if (token === st.token) { console.error(e); el("Empty").textContent = S.groupError; } }
+    if (token === st.token) el("List").removeAttribute("aria-busy");
+  }
+  function renderPager(pages) {
+    const nav = el("Pager"); nav.innerHTML = "";
+    nav.hidden = pages <= 1;
+    if (pages <= 1) return;
+    const btn = (label, aria, page, disabled, current) => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.setAttribute("aria-label", aria); b.disabled = !!disabled;
+      if (current) b.setAttribute("aria-current", "page");
+      b.addEventListener("click", () => { st.page = page; renderList(true); });
+      nav.appendChild(b);
+    };
+    btn("‹", S.prevPage, st.page - 1, st.page <= 1);
+    for (const n of pageList(st.page, pages)) {
+      if (n === "…") { const sp = document.createElement("span"); sp.textContent = "…"; sp.setAttribute("aria-hidden", "true"); nav.appendChild(sp); }
+      else btn(String(n), t("pageN", { n }), n, false, n === st.page);
+    }
+    btn("›", S.nextPage, st.page + 1, st.page >= pages);
+  }
+  function select(key, from) {
+    st.topic = key || ALL; st.page = 1;
+    const node = st.topic && st.topic !== OTHER ? findTopic(st.tree, st.topic) : null;
+    if (node) for (const n of topicTrail(node)) if (n.children.length) st.expanded.add(n.key);   // show the chosen category's sub-categories
+    renderTree(from === "tree" ? st.topic : null, false);
+    renderList(false);
+  }
+  async function start() {
+    if (st.loaded) { renderTree(); renderList(false); return; }
+    el("List").innerHTML = ""; el("Status").textContent = ""; el("Pager").hidden = true; el("SearchAllRow").hidden = true;
+    el("Empty").textContent = S.loadingMaps; el("List").setAttribute("aria-busy", "true");
+    try { await load(); }
+    catch (e) { console.error(e); el("Empty").textContent = S.groupError; el("List").removeAttribute("aria-busy"); return; }
+    el("List").removeAttribute("aria-busy");
+    st.loaded = true;
+    if (st.topic && st.topic !== OTHER && !findTopic(st.tree, st.topic)) st.topic = ALL;
+    renderTree(); renderList(false);
+  }
+  el("Search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { st.page = 1; renderList(false); }, st.mode === "server" ? 350 : 150); });
+  el("SearchAll").addEventListener("click", () => { select(ALL); el("Search").focus(); });
+  el("Reset").addEventListener("click", () => { st.expanded.clear(); el("Search").value = ""; select(ALL); });
+  el("CatsBtn").addEventListener("click", () => {
+    const show = el("Body").classList.contains("side-hidden");
+    el("Body").classList.toggle("side-hidden", !show); el("CatsBtn").setAttribute("aria-expanded", String(show));
+  });
+  if (window.matchMedia && window.matchMedia("(max-width: 760px)").matches) { el("Body").classList.add("side-hidden"); el("CatsBtn").setAttribute("aria-expanded", "false"); }
+  return {
+    start,
+    forget() { st.ready = null; st.loaded = false; },
+    refreshActions() { el("List").querySelectorAll(".cat-act").forEach((b) => o.decorate(b, b._item)); }
+  };
+}
+
+// ---------- Open map
+const openCollectionMap = (it) => openWebMapItem(it.id, { title: it.title });
+const mapBrowser = createBrowser({ p: "om", query: 'type:"Web Map"', accept: () => true, kind: "maps", thumbOpens: true, descLabel: () => S.mapDescription,
+  decorate(b, item) { b.textContent = S.openThisMap; b.setAttribute("aria-label", S.openThisMap + ": " + (item.title || "")); },
+  run(item) { openCollectionMap(item); } });
+function forgetBrowse() { mapBrowser.forget(); addBrowser.forget(); groupLoaded = false; }
 const agolState = { start: 1, loading: false };
-function mapCard(item, onOpen) {
+function mapCard(item, onOpen) {     // My ArcGIS maps
   const li = document.createElement("li"); li.className = "map-card";
   const th = document.createElement("div"); th.className = "card-thumb"; th.setAttribute("aria-hidden", "true");
   const tu = thumbUrl(item); if (tu) th.style.backgroundImage = "url('" + tu.replace(/'/g, "%27") + "')";
@@ -1105,175 +1303,10 @@ function mapCard(item, onOpen) {
   const open = document.createElement("button"); open.type = "button"; open.className = "btn primary"; open.textContent = S.openThisMap;
   open.setAttribute("aria-label", S.openThisMap + ": " + (item.title || ""));
   open.addEventListener("click", () => onOpen(item));
-  const det = document.createElement("button"); det.type = "button"; det.className = "btn"; det.textContent = S.details;
-  det.setAttribute("aria-label", S.details + ": " + (item.title || ""));
-  det.addEventListener("click", () => showItemInfo(item.id));
-  acts.append(open, det);
+  acts.append(open);
   body.append(h, sn, acts); li.append(th, body);
   return li;
 }
-const openCollectionMap = (it) => openWebMapItem(it.id, { title: it.title });
-function loadBrowse() {
-  if (browse.ready) return browse.ready;
-  browse.ready = (async () => {
-    const q = { num: 100, start: 1, q: 'type:"Web Map"', sortField: "title", sortOrder: "asc" };
-    const path = `/sharing/rest/content/groups/${cfg.contentGroup}/search`;
-    const [tree, first] = await Promise.all([getTopicTree(), restGet(path, q)]);
-    browse.tree = tree;
-    if ((first.total || 0) > MAX_INDEX) { browse.mode = "server"; browse.entries = null; browse.counts = null; browse.other = 0; return; }
-    const items = (first.results || []).slice();
-    for (let next = first.nextStart; next > 0 && items.length < MAX_INDEX;) { const d = await restGet(path, { ...q, start: next }); items.push(...(d.results || [])); next = d.nextStart; }
-    browse.mode = "index";
-    browse.entries = indexItems(items);
-    const c = countTopics(tree, browse.entries); browse.counts = c.counts; browse.other = c.other;
-  })();
-  browse.ready.catch(() => { browse.ready = null; });
-  return browse.ready;
-}
-const currentTopicNode = () => (browse.topic && browse.topic !== OTHER ? findTopic(browse.tree, browse.topic) : null);
-function topicName(key) { if (!key) return S.allMaps; if (key === OTHER) return S.otherMaps; const n = findTopic(browse.tree, key); return n ? n.title : S.allMaps; }
-const countText = (n) => (n === 1 ? S.mapsCountOne : t("mapsCount", { n }));
-// A visible number with the word "maps" for screen readers, so the button's name starts with what it shows (WCAG 2.5.3).
-function countBadge(n, cls) {
-  const c = document.createElement("span"); c.className = cls; c.textContent = n.toLocaleString(cfg.locale || undefined);
-  const u = document.createElement("span"); u.className = "sr-only"; u.textContent = " " + (n === 1 ? S.mapsUnitOne : S.mapsUnit);
-  c.appendChild(u);
-  return c;
-}
-function countFor(key) {
-  if (!browse.counts) return null;
-  if (!key) return browse.entries.length;
-  return key === OTHER ? browse.other : browse.counts.get(key) || 0;
-}
-function renderTopicNav() {
-  const list = $("topicList"); list.innerHTML = "";
-  const rows = [{ key: ALL, title: S.allMaps }];
-  for (const n of browse.tree) if (countFor(n.key) !== 0) rows.push({ key: n.key, title: n.title });
-  if (browse.counts && browse.other > 0) rows.push({ key: OTHER, title: S.otherMaps });
-  const node = currentTopicNode();
-  const currentTop = node ? topicTrail(node)[0].key : browse.topic;   // a sub-topic highlights its top-level topic
-  for (const r of rows) {
-    const li = document.createElement("li");
-    const b = document.createElement("button"); b.type = "button"; b.className = "topic"; b.dataset.key = r.key;
-    const on = r.key === currentTop;
-    if (on) b.setAttribute("aria-current", "true");
-    b.tabIndex = on ? 0 : -1;
-    const nm = document.createElement("span"); nm.textContent = r.title; b.appendChild(nm);
-    const n = countFor(r.key);
-    if (n != null) b.appendChild(countBadge(n, "count"));
-    b.addEventListener("click", () => selectTopic(r.key, "nav"));
-    li.appendChild(b); list.appendChild(li);
-  }
-  const has = browse.tree.length > 0;
-  $("topicNav").hidden = !has; $("browse").classList.toggle("no-topics", !has);
-}
-function topicChip(key, label, pressed) {
-  const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.dataset.key = key;
-  b.setAttribute("aria-pressed", String(pressed));
-  b.appendChild(document.createTextNode(label + " "));
-  const n = countFor(key);
-  if (n != null) b.appendChild(countBadge(n, "n"));
-  b.addEventListener("click", () => selectTopic(key, "chip"));
-  return b;
-}
-function renderTopicHead() {
-  const node = currentTopicNode();
-  $("topicTitle").textContent = topicName(browse.topic);
-  const cr = $("topicCrumbs"); cr.innerHTML = "";
-  if (node && node.depth > 0) {
-    const parts = [{ key: ALL, title: S.allMaps }, ...topicTrail(node).slice(0, -1).map((n) => ({ key: n.key, title: n.title }))];
-    parts.forEach((p, i) => {
-      if (i) { const sep = document.createElement("span"); sep.setAttribute("aria-hidden", "true"); sep.textContent = "›"; cr.appendChild(sep); }
-      const b = document.createElement("button"); b.type = "button"; b.className = "link-btn"; b.textContent = p.title;
-      b.addEventListener("click", () => selectTopic(p.key, "crumb"));
-      cr.appendChild(b);
-    });
-  }
-  cr.hidden = !cr.children.length;
-  const chips = $("subTopics"); chips.innerHTML = "";
-  const set = node ? chipSet(node, browse.counts) : null;
-  if (set && set.chips.length) {
-    chips.appendChild(topicChip(set.parent.key, t("allInTopic", { topic: set.parent.title }), browse.topic === set.parent.key));
-    for (const c of set.chips) chips.appendChild(topicChip(c.key, c.title, browse.topic === c.key));
-  }
-  chips.hidden = !chips.children.length;
-  const ph = browse.topic ? t("searchIn", { topic: topicName(browse.topic) }) : S.searchAllMaps;
-  $("groupSearch").placeholder = ph; $("groupSearchLabel").textContent = ph;
-}
-function renderGroupGrid() {
-  if (browse.mode === "server") { loadGroupMapsServer(true); return; }
-  const text = $("groupSearch").value.trim();
-  browse.list = filterEntries(browse.entries, browse.tree, browse.topic, text, cfg.locale);
-  $("groupGrid").innerHTML = ""; browse.shown = 0;
-  showMoreCards(false);
-  const n = browse.list.length;
-  $("topicCount").textContent = text ? t("mapsMatch", { n, total: countFor(browse.topic) }) : countText(n);
-  $("groupStatus").textContent = n ? "" : text ? (browse.topic ? t("noMatchIn", { topic: topicName(browse.topic) }) : S.noMatch) : S.noMaps;
-  $("searchAllRow").hidden = !(n === 0 && text && browse.topic);
-}
-function showMoreCards(focusFirst) {
-  const next = browse.list.slice(browse.shown, browse.shown + PAGE);
-  const first = browse.shown;
-  for (const e of next) $("groupGrid").appendChild(mapCard(e.item, openCollectionMap));
-  browse.shown += next.length;
-  $("groupMoreRow").hidden = browse.shown >= browse.list.length;
-  if (focusFirst && next.length) { const btn = $("groupGrid").children[first].querySelector(".btn.primary"); if (btn) btn.focus(); }
-}
-async function loadGroupMapsServer(reset) {
-  const token = ++browse.server.token;
-  if (reset) browse.server.start = 1;
-  const text = cleanQuery($("groupSearch").value);
-  const q = { num: PAGE, start: browse.server.start, q: 'type:"Web Map"' + (text ? " AND (" + text + ")" : "") };
-  if (!text) { q.sortField = "title"; q.sortOrder = "asc"; }
-  const node = currentTopicNode(); if (node) q.categories = node.path;
-  $("groupStatus").textContent = S.loadingMaps; $("groupGrid").setAttribute("aria-busy", "true");
-  try {
-    const d = await restGet(`/sharing/rest/content/groups/${cfg.contentGroup}/search`, q);
-    if (token !== browse.server.token) return;
-    if (reset) $("groupGrid").innerHTML = "";
-    const first = $("groupGrid").children.length;
-    for (const item of d.results || []) $("groupGrid").appendChild(mapCard(item, openCollectionMap));
-    if (!reset && $("groupGrid").children[first]) { const btn = $("groupGrid").children[first].querySelector(".btn.primary"); if (btn) btn.focus(); }
-    browse.server.start = d.nextStart;
-    $("groupMoreRow").hidden = !(d.nextStart > 0);
-    $("topicCount").textContent = countText(d.total || 0);
-    $("groupStatus").textContent = $("groupGrid").children.length ? "" : (text ? S.noMatch : S.noMaps);
-    $("searchAllRow").hidden = !(!$("groupGrid").children.length && text && browse.topic);
-  } catch (e) { if (token === browse.server.token) { console.error(e); $("groupStatus").textContent = S.groupError; } }
-  if (token === browse.server.token) $("groupGrid").removeAttribute("aria-busy");
-}
-function selectTopic(key, from) {
-  browse.topic = key || ALL;
-  renderTopicNav(); renderTopicHead(); renderGroupGrid();
-  // Keep keyboard focus on the control the person used (the list and chips are redrawn).
-  const sel = (root) => [...$(root).querySelectorAll("button[data-key]")].find((b) => b.dataset.key === browse.topic);
-  let f = null;
-  if (from === "nav") f = [...$("topicList").querySelectorAll("button")].find((b) => b.getAttribute("aria-current") === "true");
-  else if (from === "chip") f = sel("subTopics");
-  if (from && !f) f = $("topicTitle");
-  if (f) f.focus();
-}
-async function startBrowse() {
-  $("groupGrid").innerHTML = ""; $("topicCount").textContent = ""; $("groupMoreRow").hidden = true; $("searchAllRow").hidden = true;
-  $("groupStatus").textContent = S.loadingMaps; $("groupGrid").setAttribute("aria-busy", "true");
-  try { await loadBrowse(); }
-  catch (e) { console.error(e); $("groupStatus").textContent = S.groupError; $("groupGrid").removeAttribute("aria-busy"); groupLoaded = false; return; }
-  $("groupGrid").removeAttribute("aria-busy");
-  if (browse.topic && browse.topic !== OTHER && !findTopic(browse.tree, browse.topic)) browse.topic = ALL;
-  renderTopicNav(); renderTopicHead(); renderGroupGrid();
-}
-function forgetBrowse() { browse.ready = null; groupLoaded = false; }
-// Arrow keys move along the topic list (only the chosen topic is a tab stop).
-$("topicList").addEventListener("keydown", (e) => {
-  const keys = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, Home: "first", End: "last" };
-  if (!(e.key in keys)) return;
-  const btns = [...$("topicList").querySelectorAll("button")], i = btns.indexOf(document.activeElement);
-  if (i < 0) return;
-  e.preventDefault();
-  const k = keys[e.key], j = k === "first" ? 0 : k === "last" ? btns.length - 1 : (i + k + btns.length) % btns.length;
-  btns.forEach((b, x) => { b.tabIndex = x === j ? 0 : -1; });
-  btns[j].focus();
-});
 async function loadAgolMaps(reset) {
   if (!portalUser || agolState.loading) return;
   agolState.loading = true;
@@ -1291,88 +1324,47 @@ async function loadAgolMaps(reset) {
   agolState.loading = false;
 }
 let groupLoaded = false;
-const TABS = [["tabGroup", "paneGroup"], ["tabDevice", "paneDevice"], ["tabArcgis", "paneArcgis"]];
-function switchTab(tabId) {
-  for (const [tb, pane] of TABS) { const on = tb === tabId; $(tb).setAttribute("aria-selected", String(on)); $(tb).tabIndex = on ? 0 : -1; $(pane).hidden = !on; }
-  if (tabId === "tabGroup" && !groupLoaded) { groupLoaded = true; startBrowse(); }
+function setupTabs(tabs, onSwitch) {
+  const sw = (tabId) => { for (const [tb, pane] of tabs) { const on = tb === tabId; $(tb).setAttribute("aria-selected", String(on)); $(tb).tabIndex = on ? 0 : -1; $(pane).hidden = !on; } onSwitch(tabId); };
+  tabs.forEach(([tb]) => $(tb).addEventListener("click", () => sw(tb)));
+  $(tabs[0][0]).parentElement.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const vis = tabs.map((x) => x[0]).filter((id) => !$(id).hidden);
+    const i = vis.indexOf(document.activeElement && document.activeElement.id);
+    if (i < 0) return;
+    const next = vis[(i + (e.key === "ArrowRight" ? 1 : vis.length - 1)) % vis.length];
+    $(next).focus(); sw(next);
+  });
+  return sw;
+}
+const switchTab = setupTabs([["tabGroup", "paneGroup"], ["tabDevice", "paneDevice"], ["tabArcgis", "paneArcgis"]], (tabId) => {
+  if (tabId === "tabGroup") { mapBrowser.start(); groupLoaded = true; }
   if (tabId === "tabArcgis") loadAgolMaps(true);
-}
-function openOpenModal(tabId) {
-  openModal("openModal");
-  switchTab(tabId || "tabGroup");
-}
-$("tool-open").addEventListener("click", () => openOpenModal("tabGroup"));
-TABS.forEach(([tb]) => $(tb).addEventListener("click", () => switchTab(tb)));
-$("tabGroup").parentElement.addEventListener("keydown", (e) => {
-  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-  const vis = TABS.map((x) => x[0]).filter((id) => !$(id).hidden);
-  const i = vis.indexOf(document.activeElement && document.activeElement.id);
-  if (i < 0) return;
-  const next = vis[(i + (e.key === "ArrowRight" ? 1 : vis.length - 1)) % vis.length];
-  $(next).focus(); switchTab(next);
 });
-let searchTimer = 0;
-$("groupSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { if (browse.ready) renderGroupGrid(); }, browse.mode === "server" ? 350 : 150); });
-$("searchAllBtn").addEventListener("click", () => { selectTopic(ALL); $("groupSearch").focus(); });
-$("groupMore").addEventListener("click", () => { if (browse.mode === "server") loadGroupMapsServer(false); else showMoreCards(true); });
+function openOpenModal(tabId) { openModal("openModal"); switchTab(tabId || "tabGroup"); }
+$("tool-open").addEventListener("click", () => openOpenModal("tabGroup"));
 $("agolSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadAgolMaps(true), 350); });
 $("agolMore").addEventListener("click", () => loadAgolMaps(false));
 $("browseDevice").addEventListener("click", openFromDevice);
 $("newMapBtn").addEventListener("click", newBlankMap);
 
-// ============================================================ Add layer panel (collection layers)
+// ---------- Add layer
 let catalogLoaded = false;
-const catalogState = { start: 1, loading: false };
-const SUPPORTED_TYPES = { "Feature Service": "typeLayer", "Feature Collection": "typeLayer", "Map Service": "typeMapLayer", "Image Service": "typeImagery",
-  "Vector Tile Service": "typeTiles", "Group Layer": "typeGroup", "WMS": "typeMapLayer", "KML": "typeLayer", "GeoJson": "typeLayer", "CSV": "typeLayer" };
-function ensureCatalog() { if (catalogLoaded) return; catalogLoaded = true; fillCategorySelect($("layerCat")); loadCatalog(true); }
-function refreshCatalogButtons() {
-  document.querySelectorAll("#layerList [data-item]").forEach((b) => {
-    const on = portalLayers.has(b.dataset.item);
-    b.setAttribute("aria-pressed", String(on)); b.textContent = on ? S.added : S.add;
-  });
-}
-async function loadCatalog(reset) {
-  if (catalogState.loading) return;
-  catalogState.loading = true;
-  if (reset) { catalogState.start = 1; $("layerList").innerHTML = ""; }
-  const text = cleanQuery($("layerSearch").value);
-  const q = { num: 20, start: catalogState.start, q: '-type:"Web Map"' + (text ? " AND (" + text + ")" : "") };
-  if (!text) { q.sortField = "title"; q.sortOrder = "asc"; }
-  if ($("layerCat").value) q.categories = $("layerCat").value;
-  try {
-    const d = await restGet(`/sharing/rest/content/groups/${cfg.contentGroup}/search`, q);
-    for (const item of d.results || []) {
-      const key = SUPPORTED_TYPES[item.type];
-      if (!key) continue;
-      const li = document.createElement("li"); li.className = "li";
-      const main = document.createElement("div"); main.className = "li-main";
-      const tt = document.createElement("span"); tt.className = "li-title"; tt.textContent = item.title;
-      const sub = document.createElement("span"); sub.className = "li-sub"; sub.textContent = S[key];
-      main.append(tt, sub);
-      const info = document.createElement("button"); info.type = "button"; info.className = "mini"; info.innerHTML = ICON_INFO; info.title = S.details;
-      info.setAttribute("aria-label", S.details + ": " + item.title);
-      info.addEventListener("click", () => showItemInfo(item.id));
-      const add = document.createElement("button"); add.type = "button"; add.className = "btn add-btn"; add.dataset.item = item.id;
-      add.setAttribute("aria-label", S.add + ": " + item.title);
-      add.addEventListener("click", async () => {
-        if (portalLayers.has(item.id)) removePortalLayer(item.id);
-        else { add.disabled = true; await addPortalLayer({ itemId: item.id, type: item.type, title: item.title }); add.disabled = false; }
-        refreshCatalogButtons();
-      });
-      li.append(main, info, add);
-      $("layerList").appendChild(li);
-    }
-    catalogState.start = d.nextStart;
-    $("layerMoreRow").hidden = !(d.nextStart > 0);
-    if (!$("layerList").children.length) { const p = document.createElement("li"); p.className = "empty"; p.textContent = text ? S.noMatch : S.noMaps; $("layerList").appendChild(p); }
-    refreshCatalogButtons();
-  } catch (e) { console.error(e); $("layerList").innerHTML = '<li class="empty"></li>'; $("layerList").firstChild.textContent = S.groupError; }
-  catalogState.loading = false;
-}
-$("layerSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadCatalog(true), 350); });
-$("layerCat").addEventListener("change", () => loadCatalog(true));
-$("layerMore").addEventListener("click", () => loadCatalog(false));
+const addBrowser = createBrowser({ p: "al", query: '-type:"Web Map"', accept: (it) => !!SUPPORTED_TYPES[it.type], kind: "layers", thumbOpens: false, descLabel: () => S.layerDescription,
+  decorate(b, item) {
+    const on = portalLayers.has(item.id), label = on ? S.removeThisLayer : S.addThisLayer;
+    b.innerHTML = (on ? ICON_MINUS : ICON_PLUS) + "<span></span>"; b.lastChild.textContent = label;
+    b.classList.toggle("on", on); b.setAttribute("aria-label", label + ": " + (item.title || ""));
+  },
+  async run(item, b) {
+    if (portalLayers.has(item.id)) removePortalLayer(item.id);
+    else { b.disabled = true; await addPortalLayer({ itemId: item.id, type: item.type, title: item.title }); b.disabled = false; }
+    refreshCatalogButtons(); b.focus();
+  } });
+function refreshCatalogButtons() { addBrowser.refreshActions(); }
+const switchAddTab = setupTabs([["tabLayers", "paneLayers"], ["tabOwnData", "paneOwnData"]], (tabId) => { if (tabId === "tabLayers") { addBrowser.start(); catalogLoaded = true; } });
+function openAddModal(tabId) { closePanels(false); openModal("addModal"); switchAddTab(tabId || "tabLayers"); }
+$("tool-add").addEventListener("click", () => openAddModal("tabLayers"));
 
 // ============================================================ Map and item information (ⓘ)
 function safeFragment(html) {
@@ -1596,7 +1588,7 @@ $("dataSize").addEventListener("input", () => {
 });
 function pickCsv() {
   const input = document.createElement("input"); input.type = "file"; input.accept = ".csv,text/csv,.txt";
-  input.addEventListener("change", () => { const f = input.files && input.files[0]; if (f) handleDroppedFile(f); });
+  input.addEventListener("change", () => { const f = input.files && input.files[0]; if (f) { closeModal("addModal"); handleDroppedFile(f); } });
   input.click();
 }
 $("csvPick").addEventListener("click", pickCsv);
@@ -1984,7 +1976,7 @@ $("agolUpdate").addEventListener("click", () => saveToArcGIS(true));
 function renderVersions() {
   const rows = [
     [cfg.appName + " (app)", APP_VERSION, "White-label build of the MapMaker app: every MapMaker tool, local save, CSV data, ArcGIS Online sign-in. Created by Jason Sawle."],
-    ["Open map topics", CATALOG_VERSION, "Browse the collection's maps by its group categories, with map counts, sub-topics and search within a topic."],
+    ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
     ["Elevation profile", PROFILE_VERSION, "Esri's Elevation Profile widget, opened from Measure: the ground's height along a drawn or sketched line, from Esri's world elevation."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.mmap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers, basemap, view and bookmarks. The same JSON is stored in ArcGIS Online."],

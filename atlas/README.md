@@ -6,7 +6,7 @@ A configurable version of the National Geographic MapMaker app (an Atlas Instant
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.2.0**. Created by Jason Sawle.
+Version **1.3.0**. Created by Jason Sawle.
 
 ## Try it
 
@@ -26,12 +26,12 @@ The toolbar is in MapMaker's order: Basemaps, Open map, Map layers, Add layer, L
 | Tool | What it does |
 |---|---|
 | Header | Logo (wide, plus a compact version on tablets and phones), help links, partner logos. The map title with ⓘ (description and credits) appears once a map is open. A Sign in button is optional (`signIn.headerButton`); MapMaker signs in from Save |
-| Open map | Browse the collection by **topic**: the content group's categories, with the number of maps in each. Choosing a topic shows its sub-topics as chips, and the search looks inside the chosen topic. Maps whose categories aren't in the group's list appear under *Other maps*. Also maps on this device and, when signed in, *My ArcGIS maps*. Plus *Start a new blank map* |
-| Add layer | Layers from the collection, with search and topics. Also *Your own data* (CSV) |
+| Open map | MapMaker's browser for the collection's maps: search, a **Categories** tree (the content group's categories, with arrows for sub-categories, a reset button, and a Categories button to hide the tree), wide cards with an expandable description, and page numbers. Counts show how many maps each category holds, and the search looks inside the chosen category. Maps whose categories aren't in the group's list appear under *Other*. Also maps on this device and, when signed in, *My ArcGIS maps*. Plus *Start a new blank map* |
+| Add layer | A dialog like MapMaker's: the same browser for the collection's layers, each card with **Add layer** (then **Remove layer**). A second tab, *Your own data*, adds a spreadsheet (CSV) |
 | Map layers | Turn layers on and off, zoom to a layer, remove layers you added |
 | Legend | Legend for every layer |
 | Basemaps | The basemap group, starting on the configured default |
-| Measure | Opens a small menu above the tool, as in MapMaker: **Measure** (distance, area and coordinates; direct-line distance in 3D) and **Elevation profile** (the ground's height along a line you draw or a line you've sketched) |
+| Measure | Opens a small menu above the tool, as in MapMaker: **Measure** (distance, area and coordinates; direct-line distance in 3D) and **Elevation profile**, which docks across the bottom of the screen with the map above it, as in MapMaker: the ground's height along a line you draw or a line you've sketched. While it's open the toolbar is tucked away; the button under the scale bar brings it back |
 | Sketch | Point, line, area, circle and text. Each has a pop-up with title, description and image, plus colour, size and rotation. Select to move or reshape; delete |
 | Bookmarks | Saves the location and which layers are on. A map's own bookmarks appear when you open it |
 | 2D / 3D | One map shown in either view |
@@ -48,9 +48,9 @@ Copy `config/default.json` to `config/<name>.json`, edit it, and open `…/atlas
 | `logo.url`, `logo.compactUrl`, `logo.alt`, `logo.link` | Your wide logo, and a narrower one for tablets and phones. None of the configs here ship a logo; without one, the app name shows as text. `showName: true` shows the name next to a logo |
 | `headerLinks` | Pill buttons: `{ "label", "url", "style": "dark" or "outline" }`. Outline pills are hidden on tablets and phones |
 | `partnerLogos` | Logos on the right of the header: `{ "url", "alt", "link" }` |
-| `theme` | `brand` (buttons and links), `toolActive` (open tools, 2D/3D and the chosen topic; MapMaker uses `#a0dcff`), `header`, `headerInk`, `pill`, `pillInk`, `font`. Text colours are picked for contrast when you leave them out |
+| `theme` | `brand` (buttons and links), `toolActive` (open tools and 2D/3D; MapMaker uses `#a0dcff`), `header`, `headerInk`, `pill`, `pillInk`, `font`. Text colours are picked for contrast when you leave them out |
 | `portalUrl` | `https://www.arcgis.com` or your organisation's URL (needed for SAML/SSO sign-in) |
-| `contentGroup` | Group whose web maps appear in Open map and whose layers appear in Add layer. Its categories become the topics in Open map. Up to 1,000 web maps are counted and filtered in the browser; a bigger group is filtered by ArcGIS Online, without counts |
+| `contentGroup` | Group whose web maps appear in Open map and whose layers appear in Add layer. Its categories become the Categories tree in both. Up to 1,000 items are counted and filtered in the browser; a bigger group is searched in ArcGIS Online, without counts |
 | `basemapGroup`, `defaultBasemap` | Basemap gallery group, and the basemap (web map item ID) that new maps start on |
 | `startView` | `center` [longitude, latitude] and `zoom` |
 | `units`, `scalebar` | `metric` or `imperial` for Measure; `dual`, `metric`, `imperial` or `none` for the scale bar |
@@ -109,7 +109,7 @@ Notes:
 - Every control can be reached and used by keyboard.
 - Escape closes the top dialog or panel and returns focus to the button that opened it. Focus stays inside dialogs while they're open.
 - Toolbar buttons report open/closed and on/off states. Messages are read out by screen readers.
-- In Open map, arrow keys move along the topics list, each topic's name includes its number of maps, and the map count is announced when the list changes.
+- In Open map and Add layer, each category's name includes its number of maps or layers, the arrow buttons say which branch they open, page buttons are labelled, the result count is announced when the list changes, and changing page moves focus to the list.
 - The compass is a button whose name says which way the map faces.
 - Measure opens a menu: arrow keys move between Measure and Elevation profile, and Escape closes it and returns to the tool.
 - There's a skip link, and focus is always visible.
@@ -124,15 +124,15 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.2.0 |
-| Open map topics | 1.0 |
+| App | 1.3.0 |
+| Collection browser (Open map, Add layer) | 2.0 |
 | Compass | 1.0 |
 | Elevation profile | 1.0 |
 | Saved map (.mmap and ArcGIS Online) | 2.0: a web map (Web Map Specification 2.31) |
 | Older .mmap files (open only) | 4. Also opens versions 2 and 3 from the local-save concept, and Map Studio files |
 | CSV import | 3.0 |
 | Sketch | 1.0 |
-| Config schema | 1 (configs are at version 3) |
+| Config schema | 1 |
 
 ## Known limits
 
@@ -144,6 +144,6 @@ The app version, plus a version for each part, is shown under the version button
 
 ## Tests
 
-- `node atlas/tests/run.mjs` runs the unit tests for CSV import, saved maps (web map writing, reading and file checks) and Open map topics.
+- `node atlas/tests/run.mjs` runs the unit tests for CSV import, saved maps (web map writing, reading and file checks), categories and page numbers.
 - `python3 atlas/tests/smoke/smoke.py` runs a browser test of all three configs (Python Playwright with Chromium). It uses a stand-in for the ArcGIS library, Esri's real Calcite icons, fixture data shaped like the MapMaker group, and an axe-core scan.
 - Toolbar icons are Esri's Calcite icons, loaded by the ArcGIS library; built-in outline icons show until they load.

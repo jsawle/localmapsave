@@ -296,6 +296,14 @@ test("sub-topic chips", () => {
   assert.equal(catalog.chipSet(catalog.findTopic(tree, "/categories/real-time data"), counts), null);
   assert.equal(catalog.chipSet(hg, null).chips.length, 3);             // without counts (large groups) every sub-topic shows
 });
+test("page numbers", () => {
+  assert.deepEqual(catalog.pageList(1, 1), [1]);
+  assert.deepEqual(catalog.pageList(2, 5), [1, 2, 3, 4, 5]);
+  assert.deepEqual(catalog.pageList(1, 12), [1, 2, 3, 4, 5, "…", 12]);
+  assert.deepEqual(catalog.pageList(6, 12), [1, "…", 5, 6, 7, "…", 12]);
+  assert.deepEqual(catalog.pageList(12, 12), [1, "…", 8, 9, 10, 11, 12]);
+  assert.deepEqual(catalog.pageList(99, 3), [1, 2, 3]);
+});
 test("every config translates only known strings", () => {
   for (const f of ["default", "mapmaker", "example-es"]) {
     const c = JSON.parse(readFileSync(new URL("../config/" + f + ".json", import.meta.url)));

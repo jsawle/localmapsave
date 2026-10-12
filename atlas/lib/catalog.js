@@ -1,6 +1,6 @@
 // Open map topics: the content group's categories used to browse its web maps.
 // Pure functions (no ArcGIS SDK), so they can be unit tested. Created by Jason Sawle.
-export const CATALOG_VERSION = "1.0";
+export const CATALOG_VERSION = "2.0";   // 2.0 = MapMaker's category tree, cards and pages; shared by Open map and Add layer
 export const MAX_INDEX = 1000;        // up to this many web maps are loaded once and filtered in the browser
 export const OTHER = "__other__";     // maps that sit in no topic of the group's category list
 export const ALL = "";
@@ -80,4 +80,17 @@ export function chipSet(node, counts) {
   if (node.children.some(has)) return { parent: node, chips: node.children.filter(has) };
   if (node.parent) return { parent: node.parent, chips: node.parent.children.filter(has) };
   return null;
+}
+
+// Page buttons to show: every page when there are few, otherwise the first, the last and those around the current one.
+export function pageList(current, total) {
+  total = Math.max(1, Math.floor(total || 1)); current = Math.min(total, Math.max(1, Math.floor(current || 1)));
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const out = [1];
+  const from = Math.max(2, Math.min(current - 1, total - 4)), to = Math.min(total - 1, Math.max(current + 1, 5));
+  if (from > 2) out.push("…");
+  for (let i = from; i <= to; i++) out.push(i);
+  if (to < total - 1) out.push("…");
+  out.push(total);
+  return out;
 }

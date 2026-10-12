@@ -83,7 +83,12 @@ def serve(root, port_holder):
     port_holder.append(srv.server_address[1]); srv.serve_forever()
 
 
-LAYER_ITEM = {"id": "d" * 32, "title": "Earthquakes", "type": "Feature Service", "snippet": "Past week"}
+LAYER_ITEM = {"id": "d" * 32, "title": "Annual Average Temperature", "type": "Feature Service", "snippet": "Mean surface air temperature",
+              "description": "<p>Explore Earth's <b>mean surface air temperature</b>.</p><script>alert(1)</script>", "accessInformation": "CHELSA",
+              "groupCategories": ["/Categories/Physical Science/Climate"]}
+LAYERS = [LAYER_ITEM] + [{"id": f"{0xe0 + i:02x}" * 16, "title": f"Layer {i:02d}", "type": "Map Service" if i % 2 else "Feature Service", "snippet": f"Layer snippet {i}",
+          "groupCategories": ["/Categories/Physical Science/" + ("Oceans" if i % 3 else "Weather")] if i < 9 else ["/Categories/Human Geography/Migration"]} for i in range(13)] \
+         + [{"id": "f" * 32, "title": "A story map", "type": "Web Mapping Application", "groupCategories": ["/Categories/Physical Science"]}]
 # What a collection web map holds (its layers, basemap and a bookmark), and the default basemap.
 MAP_DATA = {"operationalLayers": [{"id": "rivers", "title": "Rivers", "layerType": "ArcGISFeatureLayer", "url": "https://services.arcgis.com/r/arcgis/rest/services/Rivers/FeatureServer/0", "visibility": True}],
             "baseMap": {"baseMapLayers": [{"id": "topo", "layerType": "ArcGISTiledMapServiceLayer", "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer"}], "title": "Topographic"},
@@ -112,7 +117,9 @@ SPEC_ROOT = {"applicationProperties", "authoringApp", "authoringAppVersion", "ba
 def search_response(params):
     q = params.get("q", "")
     if 'type:"Web Map"' not in q or q.startswith("-type"):
-        return {"total": 1, "start": 1, "num": 1, "nextStart": -1, "results": [LAYER_ITEM]}
+        num, start = int(params.get("num", 10)), int(params.get("start", 1))
+        res = sorted(LAYERS, key=lambda x: x["title"].lower())[start - 1:start - 1 + num]
+        return {"total": len(LAYERS), "start": start, "num": num, "nextStart": start + num if start - 1 + num < len(LAYERS) else -1, "results": res}
     num, start = int(params.get("num", 10)), int(params.get("start", 1))
     res = ITEMS[start - 1:start - 1 + num]
     nxt = start + num if start - 1 + num < len(ITEMS) else -1
@@ -168,6 +175,7 @@ def main():
             page = ctx.new_page(); page.route("**/*", route)
             errors = []; page.on("pageerror", lambda e: errors.append(str(e)))
             page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "favicon" not in m.text else None)
+            page.on("dialog", lambda d: d.accept())   # "You have unsaved changes" after adding a layer
             page.goto(f"{base}/index.html?config={cfg}"); page.wait_for_function("window.__stub && window.__stub.views.length > 0")
             page.wait_for_timeout(600)
 
@@ -181,7 +189,7 @@ def main():
             check(True, "calcite icons")
             # Compass rose above the scale bar, bottom-left
             stack = page.eval_on_selector(".esri-ui-bottom-left .ll-stack", "e => [...e.children].map(c => c.className || c.tagName)")
-            check(stack[0] == "rose" and len(stack) == 2, f"bottom-left stack {stack}")
+            check(stack[0] == "rose" and "esri-scale-bar" in stack[1] and stack[2] == "tools-toggle", f"bottom-left stack {stack}")
             lab = page.get_attribute(".rose", "aria-label")
             check(lab and len(lab) > 5, f"compass label {lab}")
             letters = page.eval_on_selector_all(".rose text", "ts => ts.map(t => t.textContent)")
@@ -201,7 +209,7 @@ def main():
             check(page.is_hidden("#hdrTitle > input"), "no title until a map is open")
             signin_visible = page.is_visible("#signInBtn")
             check(signin_visible == (cfg != "mapmaker"), f"header sign-in visible={signin_visible}")
-            check(page.inner_text("#verBtn") == "v1.2.0" and page.inner_text(".credit") == "Created by Jason Sawle", "version and credit corner")
+            check(page.inner_text("#verBtn") == "v1.3.0" and page.inner_text(".credit") == "Created by Jason Sawle", "version and credit corner")
             check(page.evaluate(OVERLAP_JS) == {"stack": False, "attribution": False, "corner": False}, "nothing under the toolbar (desktop)")
             page.screenshot(path=str(shots / f"{cfg}-desktop.png"))
             page.set_viewport_size({"width": 1280, "height": 800}); page.wait_for_timeout(500)
@@ -227,68 +235,103 @@ def main():
             page.keyboard.press("ArrowRight"); check(page.evaluate("document.activeElement.id") == "menuProfile", "arrow keys in the menu")
             page.keyboard.press("Escape")
             check(page.is_hidden("#measureMenu") and page.evaluate("document.activeElement.id") == "tool-measure", "Escape closes the menu")
+            map_h = page.eval_on_selector("#mapWrap", "e => e.getBoundingClientRect().height")
             page.click("#tool-measure"); page.click("#menuProfile")
             check(page.is_visible("#profilePanel") and page.is_hidden("#measureMenu"), "Elevation profile opens")
+            dock = page.evaluate("""() => { const d = document.querySelector('#profilePanel').getBoundingClientRect(), m = document.querySelector('#mapWrap').getBoundingClientRect();
+              return { full: Math.abs(d.width - innerWidth) < 2, under: Math.abs(d.top - m.bottom) < 2, bottom: Math.abs(d.bottom - innerHeight) < 2, mapH: m.height }; }""")
+            check(dock["full"] and dock["under"] and dock["bottom"] and dock["mapH"] < map_h - 200, f"profile docked under a shorter map {dock}")
+            check(page.is_hidden("#toolbar") and page.is_visible("#viewDiv .tools-toggle"), "toolbar tucked away, tools button shown")
+            page.click("#viewDiv .tools-toggle")
+            check(page.is_visible("#toolbar") and page.get_attribute("#viewDiv .tools-toggle", "aria-expanded") == "true", "tools button brings the toolbar back")
+            check(page.evaluate(OVERLAP_JS)["stack"] is False, "toolbar clear of compass while docked")
+            page.screenshot(path=str(shots / f"{cfg}-profile-dock.png"))
             check(page.evaluate("window.__stub.profile.unit") == ("imperial" if cfg == "mapmaker" else "metric"), "profile units from config")
             check("active" in (page.get_attribute("#tool-measure", "class") or ""), "Measure tool shows active while a measure panel is open")
             page.click("#profilePanel [data-close]")
             check(page.evaluate("window.__stub.profileCleared") >= 1 and "active" not in (page.get_attribute("#tool-measure", "class") or ""), "closing clears the profile")
+            check(page.is_visible("#toolbar") and page.is_hidden("#viewDiv .tools-toggle") and abs(page.eval_on_selector("#mapWrap", "e => e.getBoundingClientRect().height") - map_h) < 2, "closing gives the map its height back")
             page.click("#tool-measure"); page.click("#menuMeasure")
             check(page.is_visible("#measurePanel"), "Measure opens from the menu")
             page.click("#measurePanel [data-close]")
             page.click("#tool-measure"); page.mouse.click(900, 300)
             check(page.is_hidden("#measureMenu"), "clicking the map closes the menu")
 
-            # Open map: topics
-            page.click("#tool-open"); page.wait_for_selector("#topicList .topic")
+            # Open map: categories tree, cards, pages
+            page.click("#tool-open"); page.wait_for_selector("#omTree .tree-name")
             check(page.eval_on_selector("#tabGroup", "e => e.getBoundingClientRect().height") >= 30, "tabs row not squashed")
-            topics = page.eval_on_selector_all("#topicList .topic", "bs => bs.map(b => [b.dataset.key, b.querySelector('.count') && b.querySelector('.count').firstChild.textContent])")
-            check(topics[0][0] == "" and topics[0][1] == str(len(ITEMS)), f"All maps count {topics[0]}")
-            for k, c in topics[1:]:
+            tops = page.eval_on_selector_all("#omTree > li > .tree-row .tree-name", "bs => bs.map(b => [b.dataset.key, b.querySelector('.count').firstChild.textContent])")
+            for k, c in tops:
                 if k == "__other__": check(int(c) == other, f"other {c} vs {other}")
                 else: check(int(c) == counts[k], f"count {k} {c} vs {counts[k]}")
-            shown = {k for k, _ in topics}
-            check("/categories/national geographic explorers" not in shown, "empty topic hidden")
-            check(len(page.query_selector_all("#groupGrid > li")) == 24 and page.is_visible("#groupMore"), "first page of cards")
-            page.click("#groupMore"); check(len(page.query_selector_all("#groupGrid > li")) == 48, "show more")
+            check("/categories/national geographic explorers" not in {k for k, _ in tops}, "empty category hidden")
+            check(page.inner_text("#omStatus").startswith(str(len(ITEMS))), "status shows all maps")
+            check(len(page.query_selector_all("#omList > li")) == 10, "ten cards a page")
+            pages = page.eval_on_selector_all("#omPager button", "bs => bs.map(b => b.textContent)")
+            check(pages[0] == "‹" and pages[-1] == "›" and "12" in pages, f"page numbers {pages}")
+            page.click('#omPager button[aria-label="Page 2"], #omPager button[aria-label="Página 2"]')
+            check(page.get_attribute('#omPager [aria-current="page"]', "aria-label") in ("Page 2", "Página 2") and page.evaluate("document.activeElement.id") == "omList", "page 2, focus on the list")
             hg = "/categories/human geography"
-            page.click(f'#topicList .topic[data-key="{hg}"]')
-            check(page.inner_text("#topicTitle") == "Human Geography", "topic title")
-            check(len(page.query_selector_all("#groupGrid > li")) == min(24, counts[hg]), "topic cards")
-            chips = page.eval_on_selector_all("#subTopics .chip", "cs => cs.map(c => c.dataset.key)")
-            check(chips[0] == hg and len(chips) > 3, f"sub-topic chips {chips[:3]}")
-            check(page.evaluate("document.activeElement.dataset.key") == hg, "focus stays on topic")
+            page.click(f'#omTree .tree-name[data-key="{hg}"]')
+            check(page.get_attribute(f'#omTree .tree-chev[data-key="{hg}"]', "aria-expanded") == "true", "choosing a category opens its sub-categories")
+            check(page.evaluate("document.activeElement.dataset.key") == hg, "focus stays on the category")
+            check(f"{counts[hg]}" in page.inner_text("#omStatus") and "Human Geography" in page.inner_text("#omStatus"), "status names the category")
             pp = hg + "/populated places"
-            page.click(f'#subTopics .chip[data-key="{pp}"]')
-            check(page.get_attribute(f'#subTopics .chip[data-key="{pp}"]', "aria-pressed") == "true", "chip pressed")
-            check(page.is_visible("#topicCrumbs") and "Human Geography" in page.inner_text("#topicCrumbs"), "breadcrumb")
-            check(any("Light Pollution" in t for t in page.eval_on_selector_all("#groupGrid .card-title", "e => e.map(x => x.textContent)")), "lower-case category path matched")
-            check(page.get_attribute(f'#topicList .topic[data-key="{hg}"]', "aria-current") == "true", "sidebar marks parent topic")
-            page.fill("#groupSearch", "zzzz"); page.wait_for_timeout(400)
-            check(page.is_visible("#searchAllBtn") and len(page.query_selector_all("#groupGrid > li")) == 0, "no match offers search all")
-            page.click("#searchAllBtn"); page.wait_for_timeout(300)
-            check(page.inner_text("#topicTitle") in ("All maps", "Todos los mapas"), "search all goes to All maps")
-            page.fill("#groupSearch", "volcanoes"); page.wait_for_timeout(400)
-            check(len(page.query_selector_all("#groupGrid > li")) == 1, "search uses description text")
-            page.fill("#groupSearch", "geografia panama"); page.wait_for_timeout(400)
-            check(len(page.query_selector_all("#groupGrid > li")) == 1, "accent-insensitive search")
-            page.fill("#groupSearch", "")
-            page.click('#topicList .topic[data-key="__other__"]'); page.wait_for_timeout(200)
-            check(len(page.query_selector_all("#groupGrid > li")) == other, "other maps")
-            # keyboard: arrows move along topics
-            page.focus('#topicList .topic[aria-current="true"]'); page.keyboard.press("Home")
-            check(page.evaluate("document.activeElement.dataset.key") == "", "Home key")
-            page.keyboard.press("ArrowDown")
-            check(page.evaluate("document.activeElement.dataset.key") == topics[1][0], "ArrowDown")
-            page.keyboard.press("Enter"); page.wait_for_timeout(200)
-            check(page.inner_text("#topicTitle") != "", "Enter selects")
+            page.click(f'#omTree .tree-name[data-key="{pp}"]')
+            check(page.get_attribute(f'#omTree .tree-name[data-key="{pp}"]', "aria-current") == "true", "sub-category chosen")
+            check(any("Light Pollution" in t for t in page.eval_on_selector_all("#omList .cat-card-title", "e => e.map(x => x.textContent)")), "lower-case category path matched")
+            page.click(f'#omTree .tree-chev[data-key="{hg}"]')
+            check(page.get_attribute(f'#omTree .tree-chev[data-key="{hg}"]', "aria-expanded") == "false" and page.evaluate("document.activeElement.classList.contains('tree-chev')"), "chevron closes the branch")
+            page.fill("#omSearch", "zzzz"); page.wait_for_timeout(400)
+            check(page.is_visible("#omSearchAll") and len(page.query_selector_all("#omList > li")) == 0, "no match offers search all")
+            page.click("#omSearchAll"); page.wait_for_timeout(300)
+            check(not page.query_selector_all('#omTree [aria-current="true"]'), "search all clears the category")
+            page.fill("#omSearch", "volcanoes"); page.wait_for_timeout(400)
+            check(len(page.query_selector_all("#omList > li")) == 1, "search uses description text")
+            page.click("#omList .cat-desc-btn")
+            check(page.get_attribute("#omList .cat-desc-btn", "aria-expanded") == "true" and "volcanoes" in page.inner_text("#omList .cat-desc"), "card description opens")
+            page.fill("#omSearch", "geografia panama"); page.wait_for_timeout(400)
+            check(len(page.query_selector_all("#omList > li")) == 1, "accent-insensitive search")
+            page.fill("#omSearch", ""); page.wait_for_timeout(300)
+            page.click('#omTree .tree-name[data-key="__other__"]'); page.wait_for_timeout(200)
+            check(len(page.query_selector_all("#omList > li")) == other, "other maps")
+            page.click("#omReset"); page.wait_for_timeout(200)
+            check(not page.query_selector_all('#omTree [aria-current="true"]') and not page.query_selector_all('#omTree .tree-chev[aria-expanded="true"]'), "reset shows all and closes branches")
+            page.click("#omCatsBtn")
+            check(page.is_hidden("#omSide") and page.get_attribute("#omCatsBtn", "aria-expanded") == "false", "Categories button hides the tree")
+            page.click("#omCatsBtn")
             page.screenshot(path=str(shots / f"{cfg}-open-map.png"))
             # accessibility (WCAG 2.1 AA) with the dialog open, map canvas excluded (stand-in SDK)
             page.add_script_tag(content=axe_js)
             res = page.evaluate("axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))")
             check(not res, f"axe (Open map) {res}")
+            page.keyboard.press("Escape")
+            # Add layer: the same browser for the collection's layers, plus Your own data
+            page.click("#tool-add"); page.wait_for_selector("#alList .cat-card")
+            check(page.is_visible("#addModal") and page.inner_text("#tabLayers") != "", "Add layer dialog")
+            check(page.inner_text("#alStatus").startswith("14"), "only layer types the app can add: " + page.inner_text("#alStatus"))
+            ps = "/categories/physical science"
+            page.click(f'#alTree .tree-name[data-key="{ps}"]')
+            subs = page.eval_on_selector_all(f'#alTree .tree-name[data-key^="{ps}/"]', "bs => bs.map(b => b.dataset.key.split('/').pop())")
+            check(sorted(subs) == ["climate", "oceans", "weather"], f"sub-categories with layers {subs}")
+            first = page.query_selector("#alList .cat-card")
+            check(first.query_selector(".cat-thumb") is not None and first.query_selector(".cat-act") is not None and first.query_selector(".cat-desc-btn") is not None, "card: title, description, Add Layer, picture, description row")
+            page.click(f'#alTree .tree-name[data-key="{ps}/climate"]')
+            page.click("#alList .cat-desc-btn")
+            desc_html = page.inner_html("#alList .cat-desc")
+            check("<script" not in desc_html and "mean surface air temperature" in page.inner_text("#alList .cat-desc") and "CHELSA" in page.inner_text("#alList .cat-desc"), "description cleaned, with credits")
+            page.click("#alList .cat-act"); page.wait_for_timeout(300)
+            check("on" in page.get_attribute("#alList .cat-act", "class") and page.evaluate("document.activeElement.classList.contains('cat-act')"), "Add Layer turns into Remove layer")
+            res = page.evaluate("axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))")
+            check(not res, f"axe (Add layer) {res}")
+            page.screenshot(path=str(shots / f"{cfg}-add-layer.png"))
+            page.click("#tabOwnData")
+            check(page.is_visible("#csvPick"), "Your own data tab")
+            page.keyboard.press("Escape")
+            check(page.is_hidden("#addModal") and page.evaluate("document.activeElement.id") == "tool-add", "Escape closes Add layer")
             # open a map from a card: title shows in the header
-            page.click("#groupGrid > li:first-child .btn.primary"); page.wait_for_timeout(500)
+            page.click("#tool-open"); page.wait_for_selector("#omList .cat-act")
+            page.click("#omList > li:first-child .cat-act"); page.wait_for_timeout(500)
             check(page.is_visible("#docTitle") and page.input_value("#docTitle") != "", "title shows after opening a map")
             check(page.evaluate("!!window.__stub.openedWebMap"), "web map opened")
             # 2D / 3D
@@ -336,8 +379,9 @@ def main():
             check(vis == ["__sketch_points", "parks"], f"bookmark's layers on/off {vis}")
             check(saved["initialState"]["viewpoint"]["targetGeometry"]["spatialReference"]["wkid"] == 102100 and saved["initialState"]["viewpoint"].get("scale"), "view saved")
             # a collection map plus a layer from Add layer, saved and reopened
-            page.click("#tool-open"); page.click("#tabGroup"); page.wait_for_selector("#groupGrid .btn.primary"); page.click("#groupGrid > li:first-child .btn.primary"); page.wait_for_timeout(600)
-            page.click("#tool-add"); page.wait_for_selector("#layerList [data-item]"); page.click("#layerList [data-item]"); page.wait_for_timeout(400)
+            page.click("#tool-open"); page.click("#tabGroup"); page.wait_for_selector("#omList .cat-act"); page.click("#omList > li:first-child .cat-act"); page.wait_for_timeout(600)
+            page.click("#tool-add"); page.wait_for_selector("#alList .cat-act"); page.fill("#alSearch", "annual average"); page.wait_for_timeout(300)
+            page.click("#alList .cat-act"); page.wait_for_timeout(400); page.keyboard.press("Escape")
             page.click("#tool-save")
             with page.expect_download() as dl:
                 page.click("#saveTile"); page.wait_for_selector("#nameModal:not([hidden])"); page.fill("#fileNameInput", "Collection_map"); page.click("#nameConfirm")
@@ -350,8 +394,8 @@ def main():
             page.click("#tool-open"); page.click("#tabDevice")
             with page.expect_file_chooser() as fc: page.click("#browseDevice")
             fc.value.set_files(str(back)); page.wait_for_timeout(800)
-            page.click("#tool-add"); page.wait_for_selector("#layerList [data-item]")
-            check(page.inner_text("#layerList [data-item]") in ("Added", "Agregado", "Añadido") or page.get_attribute("#layerList [data-item]", "aria-pressed") == "true", "reopened file knows the added layer")
+            page.click("#tool-add"); page.wait_for_selector("#alList .cat-act"); page.fill("#alSearch", "annual average"); page.wait_for_timeout(300)
+            check("on" in (page.get_attribute("#alList .cat-act", "class") or ""), "reopened file knows the added layer")
             check(not errors, f"console errors (save/open) {errors[:3]}")
             ctx.close()
 
@@ -365,8 +409,10 @@ def main():
             check(not page.evaluate("""() => { const a = document.querySelector('.corner').getBoundingClientRect(), b = document.querySelector('#viewDiv .ll-stack').getBoundingClientRect();
               return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top; }"""), "credit clear of compass and scale bar (phone)")
             page.screenshot(path=str(shots / f"{cfg}-phone.png"))
-            page.click("#tool-open"); page.wait_for_selector("#topicList .topic"); page.wait_for_timeout(300)
-            check(page.eval_on_selector("#topicList", "e => getComputedStyle(e).display") == "flex", "topics strip on phone")
+            page.click("#tool-open"); page.wait_for_selector("#omList .cat-card"); page.wait_for_timeout(300)
+            check(page.is_hidden("#omSide") and page.get_attribute("#omCatsBtn", "aria-expanded") == "false", "categories folded away on phone")
+            page.click("#omCatsBtn"); check(page.is_visible("#omSide"), "Categories button shows them")
+            check(page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "Open map fits the phone")
             page.screenshot(path=str(shots / f"{cfg}-phone-open.png"))
             ctx.close()
         browser.close()
