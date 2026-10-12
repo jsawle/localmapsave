@@ -6,7 +6,7 @@ A configurable version of the National Geographic MapMaker app (an Atlas Instant
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.3.2**. Created by Jason Sawle.
+Version **1.4.0**. Created by Jason Sawle.
 
 **For developers:** the local save and add data logic is packaged on its own, with a minimal example, in [`kit/`](kit/README.md).
 
@@ -15,7 +15,7 @@ Version **1.3.2**. Created by Jason Sawle.
 | Link | What you get |
 |---|---|
 | `https://jsawle.github.io/localmapsave/atlas/` | Neutral "School Atlas" branding |
-| `…/atlas/?config=mapmaker` | MapMaker's groups, units, colours and wording, to compare side by side with the real app. No logos: the name shows as text |
+| `…/atlas/?config=mapmaker` | MapMaker's groups, units, colours and wording, to compare side by side with the real app. No logos and no name in the header (the browser tab still says National Geographic MapMaker) |
 | `…/atlas/?config=example-es` | A Spanish-language version for a distributor (Panama start view) |
 | `…/atlas/?webmap=<item id>` | Opens straight into one map (works with any config) |
 
@@ -30,12 +30,12 @@ The toolbar is in MapMaker's order: Basemaps, Open map, Map layers, Add layer, L
 | Header | Logo (wide, plus a compact version on tablets and phones), help links, partner logos. The map title with ⓘ (description and credits) appears once a map is open. A Sign in button is optional (`signIn.headerButton`); MapMaker signs in from Save |
 | Open map | MapMaker's browser for the collection's maps: search, a **Categories** tree (the content group's categories, with arrows for sub-categories, a reset button, and a Categories button to hide the tree), wide cards with an expandable description, and page numbers. Counts show how many maps each category holds, and the search looks inside the chosen category. Maps whose categories aren't in the group's list appear under *Other*. Also maps on this device and, when signed in, *My ArcGIS maps*. Plus *Start a new blank map* |
 | Add layer | A dialog like MapMaker's: the same browser for the collection's layers, each card with **Add layer** (then **Remove layer**). A second tab, *Your own data*, adds a spreadsheet (CSV) |
-| Map layers | Turn layers on and off, zoom to a layer, remove layers you added |
+| Map layers | Turn layers on and off, zoom to a layer, remove layers you added. As in MapMaker, the button shows how many layers the map has: its top-level layers, so a group counts once (MapMaker shows 6 for "1777-1778 Revolutionary Battles": four layers and two groups). It updates as layers are added or removed |
 | Legend | Legend for every layer |
 | Basemaps | The basemap group, starting on the configured default |
 | Measure | Opens a small menu above the tool, as in MapMaker: **Measure** (distance, area and coordinates; direct-line distance in 3D) and **Elevation profile**, which docks across the bottom of the screen with the map above it, as in MapMaker: the ground's height along a line you draw or a line you've sketched. While it's open the toolbar is tucked away; the button under the scale bar brings it back |
 | Sketch | Point, line, area, circle and text. Each has a pop-up with title, description and image, plus colour, size and rotation. Select to move or reshape; delete |
-| Bookmarks | Saves the location and which layers are on. A map's own bookmarks appear when you open it |
+| Bookmarks | Saves the location and which layers are on. A map's own bookmarks appear when you open it. As in MapMaker, a blue dot on the button shows the map has bookmarks |
 | 2D / 3D | One map shown in either view. Switching to 3D tilts the camera towards the horizon (60° by default) so it's obvious the view has changed. From the whole-world start view the SDK allows almost no tilt (0.5°), so there the globe itself is the change; the tilt shows from about country scale in. The 3D view has zoom and one pan/rotate toggle; the compass rose turns with it |
 | Save | Save, Save as, Screenshot, Print. With sign-in: Save to ArcGIS Online and Update. Save and Save to ArcGIS Online write the same web map |
 | On the map | Search, Home and zoom (top left); MapMaker's compass rose above the scale bar (bottom left), which turns with the map and faces north again when selected; the disclaimer in the attribution bar; version and credit (bottom right) |
@@ -47,6 +47,7 @@ Copy `config/default.json` to `config/<name>.json`, edit it, and open `…/atlas
 | Setting | What it does |
 |---|---|
 | `appName` | Name in the browser tab and header (when there's no logo), and in "{app} maps" |
+| `showAppName` | `false` leaves the name out of the header (default `true`). The browser tab still uses `appName` |
 | `logo.url`, `logo.compactUrl`, `logo.alt`, `logo.link` | Your wide logo, and a narrower one for tablets and phones. None of the configs here ship a logo; without one, the app name shows as text. `showName: true` shows the name next to a logo |
 | `headerLinks` | Pill buttons: `{ "label", "url", "style": "dark" or "outline" }`. Outline pills are hidden on tablets and phones |
 | `partnerLogos` | Logos on the right of the header: `{ "url", "alt", "link" }` |
@@ -112,6 +113,7 @@ Notes:
 - Every control can be reached and used by keyboard.
 - Escape closes the top dialog or panel and returns focus to the button that opened it. Focus stays inside dialogs while they're open.
 - Toolbar buttons report open/closed and on/off states. Messages are read out by screen readers.
+- The layer count and the bookmarks dot are part of the buttons' names for screen readers ("Map layers, 6 layers", "Bookmarks, 1 bookmark"), and stay visible in Windows high-contrast mode.
 - In Open map and Add layer, each category's name includes its number of maps or layers, the arrow buttons say which branch they open, page buttons are labelled, the result count is announced when the list changes, and changing page moves focus to the list.
 - The compass is a button whose name says which way the map faces.
 - Measure opens a menu: arrow keys move between Measure and Elevation profile, and Escape closes it and returns to the tool.
@@ -127,7 +129,7 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.3.2 |
+| App | 1.4.0 |
 | Collection browser (Open map, Add layer) | 2.0 |
 | Compass | 1.0 |
 | Elevation profile | 1.0 |
@@ -149,5 +151,5 @@ The app version, plus a version for each part, is shown under the version button
 
 - `node atlas/tests/run.mjs` runs the unit tests for CSV import, saved maps (web map writing, reading and file checks), categories and page numbers.
 - `python3 atlas/tests/smoke/smoke.py` runs a browser test of all three configs (Python Playwright with Chromium). It uses a stand-in for the ArcGIS library, Esri's real Calcite icons, fixture data shaped like the MapMaker group, and an axe-core scan.
-- `python3 atlas/tests/real-sdk/real.py` runs the app on the real ArcGIS library (5.1.0 from npm, about 400 MB on first run) in Chromium, offline: ArcGIS Online is answered with the smoke test's fixtures and plain tiles. It checks what the stand-in can't: the basemap draws in 2D and 3D, the 3D controls, the tilt, and no uncaught errors. It takes a few minutes, because 3D runs on software WebGL. Version 1.3.1 failed it (no basemap in 3D); the stand-in now copies that SDK behaviour too.
+- `python3 atlas/tests/real-sdk/real.py` runs the app on the real ArcGIS library (5.1.0 from npm, about 400 MB on first run) in Chromium, offline: ArcGIS Online is answered with the smoke test's fixtures and plain tiles. It checks what the stand-in can't: the basemap draws in 2D and 3D, the 3D controls, the tilt, the Map layers count for a map shaped like Revolutionary Battles (and that it follows layers being removed and added), and no uncaught errors. It takes a few minutes, because 3D runs on software WebGL. Version 1.3.1 failed it (no basemap in 3D); the stand-in now copies that SDK behaviour too.
 - Toolbar icons are Esri's Calcite icons, loaded by the ArcGIS library; built-in outline icons show until they load.

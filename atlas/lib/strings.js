@@ -218,6 +218,8 @@ export const DEFAULT_STRINGS = {
   bookmarkTitle: "Title",
   bookmarkHint: "Saves the current location and which layers are on.",
   bookmarkDefault: "Bookmark {n}",
+  bookmarksCount: "{n} bookmarks",
+  bookmarksCountOne: "1 bookmark",
   enterTitle: "Enter a title",
   deleteBookmark: "Delete bookmark",
 

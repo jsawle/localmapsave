@@ -209,7 +209,7 @@ def main():
             check(page.is_hidden("#hdrTitle > input"), "no title until a map is open")
             signin_visible = page.is_visible("#signInBtn")
             check(signin_visible == (cfg != "mapmaker"), f"header sign-in visible={signin_visible}")
-            check(page.inner_text("#verBtn") == "v1.3.2" and page.inner_text(".credit") == "Created by Jason Sawle", "version and credit corner")
+            check(page.inner_text("#verBtn") == "v1.4.0" and page.inner_text(".credit") == "Created by Jason Sawle", "version and credit corner")
             check(page.evaluate(OVERLAP_JS) == {"stack": False, "attribution": False, "corner": False}, "nothing under the toolbar (desktop)")
             page.screenshot(path=str(shots / f"{cfg}-desktop.png"))
             page.set_viewport_size({"width": 1280, "height": 800}); page.wait_for_timeout(500)
@@ -219,7 +219,12 @@ def main():
 
             # White label: no logo images in the header; the name shows as text
             check(page.is_hidden("#logoImg") and page.is_hidden("#logoCompact") and not page.query_selector_all("#hdrPartners img"), "no logos")
-            check(page.is_visible("#logoText") and page.inner_text("#logoText").strip() != "", "name shown instead of a logo")
+            if cfg == "mapmaker":   # no name in the header (and no empty link left behind)
+                check(page.is_hidden("#logoText") and page.is_hidden("#logoLink"), "MapMaker: no name in the header")
+            else:
+                check(page.is_visible("#logoText") and page.inner_text("#logoText").strip() != "", "name shown instead of a logo")
+            # Toolbar badges: nothing until there are layers or bookmarks
+            check(page.is_hidden("#layersBadge") and page.is_hidden("#bookmarksDot") and page.inner_text("#tool-layers").strip() in ("Map layers", "Capas del mapa"), "no badge or dot on a new map")
             # Measure opens a menu above it: Measure, Elevation profile
             page.click("#tool-measure")
             check(page.is_visible("#measureMenu") and page.get_attribute("#tool-measure", "aria-expanded") == "true", "measure menu opens")
@@ -322,6 +327,7 @@ def main():
             check("<script" not in desc_html and "mean surface air temperature" in page.inner_text("#alList .cat-desc") and "CHELSA" in page.inner_text("#alList .cat-desc"), "description cleaned, with credits")
             page.click("#alList .cat-act"); page.wait_for_timeout(300)
             check("on" in page.get_attribute("#alList .cat-act", "class") and page.evaluate("document.activeElement.classList.contains('cat-act')"), "Add Layer turns into Remove layer")
+            check(page.is_visible("#layersBadge") and page.inner_text("#layersBadge") == "1", "Map layers shows 1 after adding a layer")
             res = page.evaluate("axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))")
             check(not res, f"axe (Add layer) {res}")
             page.screenshot(path=str(shots / f"{cfg}-add-layer.png"))
@@ -334,6 +340,27 @@ def main():
             page.click("#omList > li:first-child .cat-act"); page.wait_for_timeout(500)
             check(page.is_visible("#docTitle") and page.input_value("#docTitle") != "", "title shows after opening a map")
             check(page.evaluate("!!window.__stub.openedWebMap"), "web map opened")
+            # the opened map's layers (1) and its bookmark (a blue dot), also said to screen readers
+            badge = page.evaluate("""() => { const b = document.querySelector('#layersBadge'), d = document.querySelector('#bookmarksDot'), r = b.getBoundingClientRect(), t = document.querySelector('#tool-layers').getBoundingClientRect();
+              return { n: b.hidden ? null : b.textContent, dot: !d.hidden, dotColour: getComputedStyle(d).backgroundColor, bg: getComputedStyle(b).backgroundColor,
+                inside: r.left >= t.left && r.right <= t.right && r.top >= t.top, sr: document.querySelector('#layersBadgeSr').textContent, srB: document.querySelector('#bookmarksDotSr').textContent }; }""")
+            one_layer, one_bm = (", 1 capa", ", 1 marcador") if cfg == "example-es" else (", 1 layer", ", 1 bookmark")
+            check(badge["n"] == "1" and badge["inside"] and badge["bg"] == "rgb(199, 235, 255)" and badge["sr"] == one_layer, f"Map layers count after opening a map {badge}")
+            check(badge["dot"] and badge["dotColour"] == "rgb(0, 121, 193)" and badge["srB"] == one_bm, f"Bookmarks dot {badge}")
+            # deleting the only bookmark takes the dot away; adding one brings it back
+            page.click("#tool-bookmarks"); page.click("#bmList .mini"); page.click("#bmDelete"); page.wait_for_timeout(150)
+            check(page.is_hidden("#bookmarksDot") and page.inner_text("#bookmarksDotSr") == "", "no dot without bookmarks")
+            page.click("#bmAddBtn"); page.click("#bmSave"); page.wait_for_timeout(150)
+            check(page.is_visible("#bookmarksDot"), "dot back after adding a bookmark")
+            page.click("#tool-bookmarks")
+            page.locator("#toolbar").screenshot(path=str(shots / f"{cfg}-toolbar-badges.png"))
+            for w in (1000, 390):   # icons only, narrower buttons: the badge and dot stay on their button
+                page.set_viewport_size({"width": w, "height": 800}); page.wait_for_timeout(300)
+                fit = page.evaluate("""() => ['layersBadge', 'bookmarksDot'].map(id => { const e = document.getElementById(id).getBoundingClientRect(), b = document.getElementById(id).closest('.tool').getBoundingClientRect();
+                  return e.left >= b.left && e.right <= b.right && e.top >= b.top; })""")
+                check(fit == [True, True], f"badge and dot inside their buttons at {w}px {fit}")
+                page.locator("#toolbar").screenshot(path=str(shots / f"{cfg}-toolbar-badges-{w}.png"))
+            page.set_viewport_size({"width": 1910, "height": 937}); page.wait_for_timeout(300)
             # 2D / 3D
             page.click("#tg3d"); page.wait_for_timeout(400)
             check(page.get_attribute("#tg3d", "aria-pressed") == "true", "3D on")
