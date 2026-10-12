@@ -1,5 +1,5 @@
 {
-  "configVersion": 3,
+  "configVersion": 4,
   "appName": "National Geographic MapMaker",
   "locale": "en",
   "dir": "ltr",
@@ -34,5 +34,5 @@
   "agolTags": ["MapMaker", "student map"],
   "csvMaxRows": 1000,
   "features": { "openMap": true, "addLayer": true, "csv": true, "layers": true, "legend": true, "basemaps": true, "measure": true, "sketch": true, "bookmarks": true, "threeD": true, "save": true, "localSave": true, "screenshot": true, "print": true, "search": true, "signIn": true, "compass": true, "elevationProfile": true },
-  "strings": { "tabGroup": "MapMaker maps", "layersFrom": "Layers from MapMaker" }
+  "strings": { "tabGroup": "MapMaker maps", "layersFrom": "MapMaker layers" }
 }
