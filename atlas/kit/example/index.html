@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Local Save Kit</title>
+  <meta name="description" content="Minimal example of the Atlas local save and add data kit: add a CSV, sketch, save the map to a file as a web map, and open it again." />
+  <link rel="stylesheet" href="https://js.arcgis.com/5.1/esri/themes/light/main.css" />
+  <script type="module" src="https://js.arcgis.com/5.1/"></script>
+  <style>
+    :root{ --ink:#2b2b2b; --muted:#5f5f5f; --line:#d9d9d9; --brand:#0b5c8e; }
+    html,body{ height:100%; margin:0; font-family:"Avenir Next","Helvetica Neue",Arial,sans-serif; color:var(--ink); background:#fff; }
+    #app{ display:flex; flex-direction:column; height:100vh; height:100dvh; }
+    header{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; padding:10px 14px; border-bottom:1px solid var(--line); }
+    h1{ font-size:17px; margin:0 12px 0 0; }
+    .group{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+    button, .file-btn{ font:inherit; font-size:14px; padding:6px 12px; border:1px solid var(--brand); background:#fff; color:var(--brand); border-radius:3px; cursor:pointer; }
+    button:hover, .file-btn:hover{ background:#eaf2f8; }
+    .file-btn{ display:inline-block; }
+    .file-btn input{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+    .file-btn:focus-within{ outline:3px solid #1a73e8; outline-offset:2px; }
+    :focus-visible{ outline:3px solid #1a73e8; outline-offset:2px; }
+    input[type=text]{ font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:3px; width:17em; }
+    #status{ margin:0; padding:6px 14px; font-size:13.5px; color:var(--muted); border-bottom:1px solid var(--line); min-height:1.4em; }
+    main{ position:relative; flex:1 1 auto; min-height:0; }
+    #viewDiv{ position:absolute; inset:0; }
+    .corner{ position:absolute; right:8px; bottom:26px; display:flex; gap:6px; pointer-events:none; }
+    .corner span{ font-size:11px; font-weight:600; background:rgba(255,255,255,.94); border:1px solid #ccc; border-radius:4px; padding:3px 8px; }
+    .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Local save and add data</h1>
+      <div class="group" role="group" aria-label="Maps">
+        <label class="sr-only" for="itemId">Web map item ID</label>
+        <input id="itemId" type="text" placeholder="Web map item ID (optional)" spellcheck="false" />
+        <button type="button" id="openItem">Open web map</button>
+        <button type="button" id="newMap">New map</button>
+      </div>
+      <div class="group" role="group" aria-label="Your data">
+        <label class="file-btn">Add a CSV…<input id="csvInput" type="file" accept=".csv,text/csv,.txt" /></label>
+        <button type="button" id="drawPoint">Sketch a point</button>
+      </div>
+      <div class="group" role="group" aria-label="This device">
+        <button type="button" id="save">Save</button>
+        <button type="button" id="saveAs">Save as…</button>
+        <button type="button" id="openFile">Open a saved map…</button>
+      </div>
+    </header>
+    <p id="status" role="status" aria-live="polite">Loading the map…</p>
+    <main>
+      <div id="viewDiv"></div>
+      <div class="corner"><span id="versions"></span><span>Created by Jason Sawle</span></div>
+    </main>
+  </div>
+  <script type="module" src="./example.js"></script>
+</body>
+</html>
