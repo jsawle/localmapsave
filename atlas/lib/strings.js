@@ -186,6 +186,8 @@ export const DEFAULT_STRINGS = {
   clear: "Clear",
   measureHint: "Choose a tool, then click on the map. Double-click to finish.",
   elevationProfile: "Elevation profile",
+  profileLine: "Land and sea floor",
+  profileSource: "Elevation data. {src}",
   showTools: "Show map tools",
   hideTools: "Hide map tools",
   profileHint: "Draw a line on the map, or select a line you've sketched, to see how the height of the land changes along it.",
