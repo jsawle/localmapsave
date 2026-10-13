@@ -9,9 +9,9 @@ import { DEFAULT_STRINGS } from "./lib/strings.js";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
   filterEntries, pageList } from "./lib/catalog.js";
 
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.5.0";
 const COMPASS_VERSION = "1.0";
-const PROFILE_VERSION = "1.0";
+const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.0";
 const CONFIG_SCHEMA = 1;
 const SDK_VERSION = "5.1";
@@ -216,12 +216,12 @@ paintIcons();
 
 // ============================================================ ArcGIS SDK
 const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel, Basemap, BasemapGallery,
-  PortalBasemapsSource, Measurement, ElevationProfile, CoordinateConversion, ScaleBar, Search, Expand, Home, Legend, Layer,
+  PortalBasemapsSource, Measurement, ElevationProfile, ElevationLayer, CoordinateConversion, ScaleBar, Search, Expand, Home, Legend, Layer,
   Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils] = await $arcgis.import([
   "@arcgis/core/Map.js", "@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js", "@arcgis/core/views/SceneView.js",
   "@arcgis/core/layers/GraphicsLayer.js", "@arcgis/core/layers/FeatureLayer.js", "@arcgis/core/Graphic.js",
   "@arcgis/core/widgets/Sketch/SketchViewModel.js", "@arcgis/core/Basemap.js", "@arcgis/core/widgets/BasemapGallery.js",
-  "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js",
+  "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js", "@arcgis/core/layers/ElevationLayer.js",
   "@arcgis/core/widgets/CoordinateConversion.js", "@arcgis/core/widgets/ScaleBar.js", "@arcgis/core/widgets/Search.js",
   "@arcgis/core/widgets/Expand.js", "@arcgis/core/widgets/Home.js",
   "@arcgis/core/widgets/Legend.js", "@arcgis/core/layers/Layer.js",
@@ -687,14 +687,40 @@ $("mCoord").addEventListener("click", () => {
 $("mClear").addEventListener("click", stopMeasuring);
 
 // Elevation profile: the land's height along a line drawn on the map (or a sketched line), from Esri's world elevation.
-let elevationProfile = null;
+// Esri's World Elevation TopoBathy 3D: land and the sea floor (the service behind the SDK's "world-topobathymetry" ground).
+// Sampled directly, so the profile dips below sea level in 2D and 3D alike, whatever the map's ground.
+const TOPOBATHY_URL = "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/TopoBathy3D/ImageServer";
+let elevationProfile = null, topoBathy = null, profileWatch = null;
 function ensureProfile() {
-  const m = activeMap();
-  if (!m.ground || !m.ground.layers || !m.ground.layers.length) m.ground = "world-elevation";
-  if (!elevationProfile) elevationProfile = new ElevationProfile({ view, container: "profileBody", unit: units, profiles: [{ type: "ground" }] });
+  if (!topoBathy) {
+    topoBathy = new ElevationLayer({ url: TOPOBATHY_URL });
+    topoBathy.load().then(() => {   // credit the data, as the map's attribution would if it were on the map
+      const src = topoBathy.copyright || "";
+      $("profileSource").textContent = src ? t("profileSource", { src }) : ""; $("profileSource").title = src;
+    }).catch(() => {});
+  }
+  if (!elevationProfile) elevationProfile = new ElevationProfile({ view, container: "profileBody", unit: units,
+    profiles: [{ type: "query", source: topoBathy, title: S.profileLine, color: "#ff7f00" }] });
   else elevationProfile.view = view;
+  startProfileSketch();
+}
+// Ready to draw as soon as the tool opens: the next click on the map starts the line (no "New profile" first).
+function startProfileSketch() {
+  if (!elevationProfile) return;
+  const vm = elevationProfile.viewModel;
+  if (profileWatch) { profileWatch.remove(); profileWatch = null; }
+  let done = false;
+  const go = (state) => {
+    if (done || state === "disabled") return;   // "disabled" until the view is ready
+    done = true;
+    if (profileWatch) { profileWatch.remove(); profileWatch = null; }
+    if (state === "ready" && openPanelName === "profile") { try { vm.start({ mode: "sketch" }); } catch (e) { console.error(e); } }
+  };
+  profileWatch = reactiveUtils.watch(() => vm.state, go, { initial: true });
+  if (done && profileWatch) { profileWatch.remove(); profileWatch = null; }
 }
 function stopProfile() {
+  if (profileWatch) { profileWatch.remove(); profileWatch = null; }
   if (!elevationProfile) return;
   try { elevationProfile.viewModel.cancel(); elevationProfile.viewModel.clear(); } catch (e) { /* idle */ }
 }
@@ -774,7 +800,7 @@ async function setMode(m, opts) {
   sketchVM.view = view;
   if (basemapGallery) basemapGallery.view = view;
   if (measurement) measurement.view = view;
-  if (elevationProfile) { stopProfile(); elevationProfile.view = view; }
+  if (elevationProfile) { stopProfile(); elevationProfile.view = view; if (openPanelName === "profile") startProfileSketch(); }
   if (coordWidget) coordWidget.view = view;
   if (legend) legend.view = view;
   updatePopupEnabled();
@@ -1799,7 +1825,7 @@ $("printTile").addEventListener("click", async () => {
     const shown = []; eachToggleableLayer((l, id, title) => { if (l.visible !== false && (l !== graphicsLayer || graphicsLayer.graphics.length)) shown.push(title); });
     const credits = [...document.querySelectorAll(".esri-attribution__sources")].map((e) => e.textContent.trim()).filter(Boolean)[0] || "";
     const lines = [S.printLayers + ": " + (shown.join(", ") || "—"), credits ? S.printCredits + ": " + credits : "",
-      cfg.disclaimer || "", cfg.appName + " · " + new Date().toLocaleDateString(cfg.locale || undefined) + " · Created by Jason Sawle"];
+      cfg.disclaimer || "", cfg.appName + " · " + new Date().toLocaleDateString(cfg.locale || undefined)];
     for (const line of lines.filter(Boolean)) { const p = document.createElement("p"); p.style.margin = "0 0 3pt"; p.textContent = line; meta.appendChild(p); }
     sheet.append(h1, img, meta);
     await new Promise((res) => { if (img.complete) res(); else { img.onload = res; img.onerror = res; } });
@@ -2004,7 +2030,7 @@ function renderVersions() {
   const rows = [
     [cfg.appName + " (app)", APP_VERSION, "White-label build of the MapMaker app: every MapMaker tool, local save, CSV data, ArcGIS Online sign-in. Created by Jason Sawle."],
     ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
-    ["Elevation profile", PROFILE_VERSION, "Esri's Elevation Profile widget, opened from Measure: the ground's height along a drawn or sketched line, from Esri's world elevation."],
+    ["Elevation profile", PROFILE_VERSION, "Esri's Elevation Profile widget, opened from Measure and ready to draw: the height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.mmap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers, basemap, view and bookmarks. The same JSON is stored in ArcGIS Online."],
     ["Older .mmap files (open only)", String(DOC_VERSION), "MapMakerLocalDocument versions 2 to 4, from earlier versions of this app, the local-save concept and Map Studio."],

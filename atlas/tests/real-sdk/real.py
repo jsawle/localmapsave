@@ -12,6 +12,7 @@ and plain tiles, and checks the things the stand-in can't:
   - switching back to 2D works;
   - opening a map shaped like MapMaker's Revolutionary Battles shows 6 on Map layers and a dot on Bookmarks, and the count
     follows layers being removed and added;
+  - Elevation profile is ready to draw on opening, samples TopoBathy 3D, and fits with every control on screen;
   - no uncaught errors.
 Atlas 1.3.1 broke the first 3D check (an id the SDK doesn't know in view.ui.components) and the stand-in didn't notice.
 """
@@ -45,7 +46,9 @@ def build(d):
               # Record each view the app makes, so the test can ask the SDK about it (the app keeps its views private).
               "const track = (C) => new Proxy(C, { construct(t, a, nt) { const v = Reflect.construct(t, a, nt); window.__views.push(v); return v; } });",
               "const one = (p) => { const m = M[p]; if (!m) throw new Error('Not in the test bundle: ' + p);",
-              "  const x = 'default' in m ? m.default : m; return /\\/views\\/(Map|Scene)View\\.js$/.test(p) ? track(x) : x; };",
+              "  const x = 'default' in m ? m.default : m; if (/\\/views\\/(Map|Scene)View\\.js$/.test(p)) return track(x);",
+              "  if (/\\/widgets\\/ElevationProfile\\.js$/.test(p)) return new Proxy(x, { construct(t, a, nt) { return (window.__profile = Reflect.construct(t, a, nt)); } });",
+              "  return x; };",
               # The SDK makes $arcgis itself (a read-only global); the CDN adds import() to it.
               "Object.assign(globalThis.$arcgis, { import: async (s) => (Array.isArray(s) ? s.map(one) : one(s)) });"]
     (d / "entry.js").write_text("\n".join(lines) + "\n")
@@ -78,6 +81,13 @@ BATTLES_MAP = {"operationalLayers": [FL(1, "1763 Proclamation Line"),
     FL(6, "Revolutionary War Battles"), FL(7, "Key Port Cities"), FL(8, "Turning Points")],
   "baseMap": smoke.BASEMAP_DATA["baseMap"], "spatialReference": {"wkid": 102100}, "version": "2.31", "authoringApp": "ArcGIS Online", "authoringAppVersion": "2026.3",
   "bookmarks": [{"name": "Pennsylvania/New Jersey", "extent": {"xmin": -8.5e6, "ymin": 4.7e6, "xmax": -8.1e6, "ymax": 5.1e6, "spatialReference": {"wkid": 102100}}}]}
+# Enough of Esri's TopoBathy 3D service for the layer to load (the build machine can't reach it): its credits show in the dock.
+TOPOBATHY = {"currentVersion": 10.81, "serviceDescription": "TopoBathy 3D provides global elevation and bathymetry", "name": "WorldElevation3D/TopoBathy3D",
+             "copyrightText": "Sources: Esri, GEBCO", "capabilities": "Image,Tilemap,Mensuration", "singleFusedMapCache": True, "bandCount": 1, "pixelType": "F32",
+             "minValues": [-11000], "maxValues": [8700], "spatialReference": {"wkid": 102100, "latestWkid": 3857},
+             "extent": {"xmin": -20037508.342787, "ymin": -20037508.342787, "xmax": 20037508.342787, "ymax": 20037508.342787, "spatialReference": {"wkid": 102100}},
+             "tileInfo": {"rows": 257, "cols": 257, "dpi": 96, "format": "LERC", "compressionQuality": 0, "origin": {"x": -20037508.342787, "y": 20037508.342787},
+                          "spatialReference": {"wkid": 102100, "latestWkid": 3857}, "lods": [{"level": z, "resolution": R0 / 2 ** z, "scale": S0 / 2 ** z} for z in range(17)]}}
 PORTAL_SELF = {"id": "0123456789ABCDEF", "name": "ArcGIS Online", "isPortal": False, "portalHostname": "www.arcgis.com", "urlKey": None,
                "customBaseUrl": "maps.arcgis.com", "units": "metric", "helperServices": {}, "supportsHostedServices": True}
 
@@ -135,6 +145,7 @@ def main():
             elif re.search(r"/content/items/\w+$", p): body = {"id": p.rsplit("/", 1)[1], "type": "Web Map", "title": "Map", "owner": "mpmkr", "access": "public"}
             else: unanswered.add(p); body = {"error": {"code": 400, "message": "not in fixture"}}
             return r.fulfill(status=200, content_type="application/json", headers=cors, body=json.dumps(body))
+        if u.path.endswith("/TopoBathy3D/ImageServer"): return r.fulfill(status=200, content_type="application/json", headers=cors, body=json.dumps(TOPOBATHY))
         if "/MapServer/tile/" in u.path: return r.fulfill(status=200, content_type="image/png", headers=cors, body=TILE)
         if u.path.endswith("/MapServer"): return r.fulfill(status=200, content_type="application/json", headers=cors, body=json.dumps(MAPSERVER))
         unanswered.add(u.netloc + u.path)
@@ -192,6 +203,25 @@ def main():
         page.screenshot(path=str(shots / "real-3d-tilted.png"))
         page.click("#tg2d"); page.wait_for_timeout(1500)
         check(page.get_attribute("#tg2d", "aria-pressed") == "true", "back to 2D again")
+        # Elevation profile: ready to draw at once, from TopoBathy 3D, every control on screen without scrolling (desktop and phone)
+        page.click("#tool-measure"); page.click("#menuProfile")
+        check(wait("window.__profile && window.__profile.viewModel.state === 'creating'", label="profile drawing starts"), "Elevation profile: ready to draw as soon as it opens")
+        line = page.evaluate("(() => { const l = window.__profile.viewModel.profiles.getItemAt(0); return { type: l.type, url: l.source && l.source.url, title: l.title }; })()")
+        check(line["type"] == "query" and "/TopoBathy3D/ImageServer" in (line["url"] or ""), f"profile samples TopoBathy 3D (land and sea floor) {line}")
+        check(wait("document.querySelector('#profileSource').textContent.includes('GEBCO')", label="profile data credit"), "elevation data credited in the dock")
+        DOCK_FIT = """() => { const d = document.querySelector('#profilePanel').getBoundingClientRect(), b = document.querySelector('#profileBody');
+          const ctl = [...document.querySelectorAll('#profileBody .esri-elevation-profile__footer calcite-button, #profileBody .esri-elevation-profile-settings calcite-action')].filter(e => e.offsetParent);
+          const inside = ctl.map(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.top >= d.top && r.bottom <= d.bottom + 0.5 && r.left >= d.left && r.right <= d.right + 0.5; });
+          const chart = document.querySelector('#profileBody .esri-elevation-profile__main-container').getBoundingClientRect();
+          return { dockH: Math.round(d.height), share: +(d.height / innerHeight).toFixed(2), scroll: b.scrollHeight - b.clientHeight, controls: ctl.length, inside, chartH: Math.round(chart.height), mapH: Math.round(document.querySelector('#mapWrap').getBoundingClientRect().height) }; }"""
+        for w, h in ((1400, 860), (390, 844)):
+            page.set_viewport_size({"width": w, "height": h}); page.wait_for_timeout(1500)
+            fit = page.evaluate(DOCK_FIT)
+            check(fit["controls"] >= 2 and all(fit["inside"]) and fit["scroll"] <= 1 and fit["share"] <= 0.36 and fit["chartH"] >= 90, f"{w}x{h}: dock fits, every control on screen, no scrolling {fit}")
+            page.screenshot(path=str(shots / f"real-profile-{w}.png"))
+        page.set_viewport_size({"width": 1400, "height": 860}); page.wait_for_timeout(500)
+        page.click("#profilePanel [data-close]"); page.wait_for_timeout(500)
+
         # Open a map: Map layers shows its top-level layer count (groups count once), Bookmarks a dot
         check(page.is_hidden("#logoLink") and page.is_hidden("#layersBadge") and page.is_hidden("#bookmarksDot"), "header has no app name; no badge or dot on the new map")
         page.click("#tool-open"); page.wait_for_selector("#omList .cat-act", timeout=30000)

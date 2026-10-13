@@ -72,8 +72,14 @@ class Legend extends Widget { constructor(p) { super(p, "esri-legend", "<p>Legen
 class BasemapGallery extends Widget { constructor(p) { super(p, "esri-basemap-gallery", "<p>Basemaps</p>"); this.activeBasemap = null; } }
 class Measurement extends Widget { constructor(p) { super(p, "esri-measurement", ""); } clear() {} }
 class ElevationProfile extends Widget {
-  constructor(p) { super(p, "esri-elevation-profile", "<p>Elevation profile chart</p>"); window.__stub.profile = { unit: p.unit, profiles: p.profiles }; this.viewModel = { cancel() {}, clear() { window.__stub.profileCleared = (window.__stub.profileCleared || 0) + 1; } }; }
+  constructor(p) {
+    super(p, "esri-elevation-profile", "<p>Elevation profile chart</p>"); window.__stub.profile = { unit: p.unit, profiles: p.profiles, starts: [] };
+    // state as in the SDK: "ready" (nothing drawn), "creating" (drawing), "created" (a profile shows)
+    this.viewModel = { state: "ready", start(o) { this.state = "creating"; window.__stub.profile.starts.push((o && o.mode) || "sketch"); },
+      cancel() { this.state = "ready"; }, clear() { this.state = "ready"; window.__stub.profileCleared = (window.__stub.profileCleared || 0) + 1; } };
+  }
 }
+class ElevationLayer extends Accessor { load() { this.copyright = "Sources: Esri, GEBCO"; return Promise.resolve(this); } }
 class CoordinateConversion extends Widget { constructor(p) { super(p, "esri-coordinate-conversion", ""); } }
 class PortalBasemapsSource extends Accessor {}
 
@@ -193,7 +199,7 @@ const MODULES = {
   "@arcgis/core/layers/GraphicsLayer.js": GraphicsLayer, "@arcgis/core/layers/FeatureLayer.js": FeatureLayer, "@arcgis/core/Graphic.js": Graphic,
   "@arcgis/core/widgets/Sketch/SketchViewModel.js": SketchViewModel, "@arcgis/core/Basemap.js": Basemap, "@arcgis/core/widgets/BasemapGallery.js": BasemapGallery,
   "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js": PortalBasemapsSource, "@arcgis/core/widgets/Measurement.js": Measurement,
-  "@arcgis/core/widgets/ElevationProfile.js": ElevationProfile,
+  "@arcgis/core/widgets/ElevationProfile.js": ElevationProfile, "@arcgis/core/layers/ElevationLayer.js": ElevationLayer,
   "@arcgis/core/widgets/CoordinateConversion.js": CoordinateConversion, "@arcgis/core/widgets/ScaleBar.js": ScaleBar, "@arcgis/core/widgets/Search.js": Search,
   "@arcgis/core/widgets/Expand.js": Expand, "@arcgis/core/widgets/Home.js": Home, "@arcgis/core/widgets/NavigationToggle.js": NavigationToggle,
   "@arcgis/core/widgets/Legend.js": Legend, "@arcgis/core/layers/Layer.js": Layer, "@arcgis/core/layers/support/Field.js": Field,

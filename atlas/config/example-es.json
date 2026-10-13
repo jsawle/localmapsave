@@ -1,5 +1,5 @@
 {
-  "configVersion": 5,
+  "configVersion": 6,
   "appName": "Mapas Escolares",
   "locale": "es",
   "dir": "ltr",
@@ -290,6 +290,8 @@
     "whatItIs": "Qué es",
     "configLabel": "Configuración",
     "elevationProfile": "Perfil de elevación",
+    "profileLine": "Tierra y fondo marino",
+    "profileSource": "Datos de elevación. {src}",
     "categories": "Categorías",
     "resetCategories": "Mostrar todas las categorías",
     "subCategoriesOf": "Subcategorías de {topic}",
