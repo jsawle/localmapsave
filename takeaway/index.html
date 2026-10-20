@@ -86,6 +86,7 @@ input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; accent-
 
 .who { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; border-bottom: 1px solid var(--line-2); padding-bottom: 12px; margin-bottom: 16px; }
 .who p { margin: 0; }
+.who .shared-note { flex-basis: 100%; font-size: 0.88rem; }
 
 /* Choosing items: a packing list */
 .toolbar { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; margin: 6px 0 14px; }
@@ -185,9 +186,9 @@ table.versions td:last-child { font-variant-numeric: tabular-nums; }
     <details class="more" id="adminSetup">
       <summary>I'm setting this up for my school</summary>
       <ol class="admin-steps">
-        <li>In your ArcGIS Online organization, go to <strong>Content → New item → Application → Other application</strong> and give it a title, such as "Take My Work". Use an account that will last, such as a team account.</li>
-        <li>Under <strong>Redirect URIs</strong>, add both of these addresses: <code id="redirect1"></code> and <code id="redirect2"></code></li>
-        <li>Copy the <strong>Client ID</strong> and enter it below with your organization's address.</li>
+        <li>In ArcGIS Online, go to <strong>Content → My content → New item → Developer credentials</strong> and choose <strong>OAuth 2.0 credentials</strong>. Use an account that will last, such as a team account.</li>
+        <li>Under <strong>Redirect URLs</strong>, add both of these addresses: <code id="redirect1"></code> and <code id="redirect2"></code></li>
+        <li>Give it a title, such as "Take My Work", and create it. Copy the <strong>Client ID</strong> from its item page, under Credentials, and enter it below with your organization's address.</li>
       </ol>
       <form id="setupForm" novalidate>
         <div class="field">
@@ -205,7 +206,11 @@ table.versions td:last-child { font-variant-numeric: tabular-nums; }
       <div id="linkOut" hidden>
         <p>Share this link with students who are leaving:</p>
         <div class="copyrow"><input id="studentLink" type="text" readonly aria-label="Student link"><button type="button" id="copyLinkBtn">Copy link</button></div>
-        <p class="hint">If your organization limits which apps members can sign in to, allow this one.</p>
+        <ul class="hint">
+          <li>If your organization's security settings limit <strong>Allow origins</strong> to a list, add <code id="originShown"></code>.</li>
+          <li>If your organization limits which apps members can sign in to, allow this one.</li>
+          <li>Filtered school networks also need Esri's file storage addresses, from Esri's list of ArcGIS Online domains.</li>
+        </ul>
         <p><a id="tryLink" href="#">Open the student link</a></p>
       </div>
       <p class="hint">Hosting your own copy: this page is a single file. Put it on any https web server you run and register that address instead.</p>
@@ -216,6 +221,7 @@ table.versions td:last-child { font-variant-numeric: tabular-nums; }
     <h2 id="signinTitle" tabindex="-1"><span class="sr-only">Step 1: </span>Sign in with your school account</h2>
     <p>You'll sign in on your school's ArcGIS page, then come straight back here.</p>
     <p class="org-line">Organization: <strong id="orgShown"></strong></p>
+    <p id="portalWarn" class="alert warn" hidden></p>
     <button id="signInBtn" class="primary" type="button">Sign in</button>
     <div id="signinError" class="alert error" role="alert" hidden></div>
     <ul class="facts">
@@ -229,6 +235,7 @@ table.versions td:last-child { font-variant-numeric: tabular-nums; }
     <div class="who">
       <p>Signed in as <strong id="whoName"></strong> <span id="whoUser" class="hint"></span><span id="whoOrg"></span></p>
       <button id="signOutBtn" class="link" type="button">Sign out</button>
+      <p class="hint shared-note">On a shared computer, also sign out of ArcGIS Online when you're done.</p>
     </div>
     <h2 id="chooseTitle" tabindex="-1"><span class="sr-only">Step 2: </span>Choose your work</h2>
     <p id="loadingNote" role="status">Finding your items…</p>
@@ -286,7 +293,7 @@ table.versions td:last-child { font-variant-numeric: tabular-nums; }
     <p>Keep this tab open until it's finished. Large layers and photos take longer.</p>
     <label for="progressBar" class="sr-only">Progress</label>
     <progress id="progressBar" max="100" value="0"></progress>
-    <p id="progressText" role="status" aria-live="polite"></p>
+    <p id="progressText"></p>
     <ul class="phase-list" id="phaseList"></ul>
     <button id="cancelBtn" type="button">Stop</button>
     <details class="more"><summary>Details</summary><ol class="log" id="logList"></ol></details>
@@ -295,7 +302,7 @@ table.versions td:last-child { font-variant-numeric: tabular-nums; }
   <section class="panel" id="doneSection" hidden aria-labelledby="doneTitle">
     <h2 id="doneTitle" tabindex="-1">Your work is saved</h2>
     <p id="doneSummary"></p>
-    <p><button id="downloadBtn" class="primary" type="button">Save the .zip file again</button></p>
+    <p><button id="downloadBtn" class="primary" type="button">Download another copy</button></p>
     <div id="problemsBox" hidden>
       <h3>Things to check</h3>
       <ul class="problems" id="problemList"></ul>
@@ -306,6 +313,7 @@ table.versions td:last-child { font-variant-numeric: tabular-nums; }
       <li><strong>Keep working on a map without an account.</strong> Open <a id="atlasLink" href="#" target="_blank" rel="noopener">Atlas</a>, choose Open map, and pick a <code>.mmap</code> file from the <code>maps</code> folder.</li>
       <li><strong>Show it on a CV.</strong> Put the unzipped folder on a website, such as GitHub Pages, and link to it. Check first: the copy includes items you kept private and the data in them.</li>
     </ul>
+    <p class="hint">On a shared computer, sign out here and in ArcGIS Online when you're done.</p>
     <p><button id="againBtn" type="button">Choose different items</button></p>
   </section>
 
@@ -314,7 +322,7 @@ table.versions td:last-child { font-variant-numeric: tabular-nums; }
     <h3>Cost to your school</h3>
     <p>None. This page only reads your items. It doesn't run exports, analysis or geocoding, and it doesn't create anything in ArcGIS Online, so no credits are used.</p>
     <h3>Privacy</h3>
-    <p>The page talks only to your ArcGIS organization, using your sign-in. Your copy is put together in this browser tab and saved straight to your device; it isn't sent anywhere else. Your sign-in is kept in this tab only and is forgotten when you close it or sign out. The page loads one code library, JSZip, from cdnjs.cloudflare.com.</p>
+    <p>The page talks only to ArcGIS Online, including Esri's file storage, using your sign-in. Your copy is put together in this browser tab and saved straight to your device; it isn't sent anywhere else, and the page loads no code from anywhere else. Your sign-in is kept in this tab only; signing out cancels it.</p>
     <h3>Accessibility</h3>
     <p>Built to WCAG 2.1 AA (Section 508): every control works by keyboard, progress is read out by screen readers, and the page follows your light or dark setting.</p>
     <h3>Versions</h3>
@@ -337,25 +345,29 @@ const COMPONENTS = [
   { id: "layers",    label: "Layer data: features and tables as GeoJSON, CSV and ArcGIS JSON, plus attachments", version: "1.0.0" },
   { id: "maps",      label: "Maps you can reopen: self-contained web maps (.mmap)", version: "1.0.0" },
   { id: "stories",   label: "StoryMap reading copies: text and pictures", version: "1.0.0" },
-  { id: "portfolio", label: "Portfolio page that lists everything", version: "1.0.0" }
+  { id: "portfolio", label: "Portfolio page that lists everything", version: "1.0.0" },
+  { id: "zip",       label: "Zip writer (streams to your device; large archives supported)", version: "1.0.0" }
 ];
 const V = Object.fromEntries(COMPONENTS.map((c) => [c.id, c.version]));
-const LIMITS = {
+const TEST = (typeof window !== "undefined" && window.__TMW_TEST__) || {};   // set only by the automated tests
+const BASE_LIMITS = {
   fileBytes: 500e6,          // one file or resource
   attachmentBytes: 1e9,      // all attachments together
-  warnBytes: 1.2e9,          // whole archive: warn
-  maxBytes: 1.9e9,           // whole archive: too big for one browser download
+  warnBytes: 1.5e9,          // whole archive, when it's held in the browser: warn
+  memoryBytes: 1.9e9,        // whole archive, when it's held in the browser: stop
+  streamBytes: 20e9,         // whole archive, when it streams into a file you chose
   featuresPerLayer: 250000,
   atlasFeatureCap: 5000,     // Atlas opens up to this many features per map file
   perFeatureAttachmentLookups: 2000
 };
-const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+const LIM = () => ({ ...BASE_LIMITS, ...(TEST.limits || {}) });
 const SDK_VERSION = "5.1";
 const ATLAS_URL = "https://jsawle.github.io/localmapsave/atlas/";
 const DEFAULT_PORTAL = "https://www.arcgis.com";
 const DEFAULT_CLIENT_ID = "";
 const OAUTH_KEY = "takeMyWork.oauth";
 const CONFIG_KEY = "takeMyWork.config";
+const REFRESH_MINUTES = 240;   // how long the sign-in can be refreshed (the export can take a while)
 
 // ===================================================================== small helpers
 const $ = (id) => document.getElementById(id);
@@ -373,6 +385,8 @@ function plural(n, one, many) { return n + " " + (n === 1 ? one : (many || one +
 function announce(msg) { const a = $("announcer"); a.textContent = ""; setTimeout(() => { a.textContent = msg; }, 60); }
 function safeStorage(kind) { try { const s = window[kind]; const k = "__t"; s.setItem(k, "1"); s.removeItem(k); return s; } catch { return null; } }
 const session = safeStorage("sessionStorage"), local = safeStorage("localStorage");
+const stopped = () => new DOMException("Stopped", "AbortError");
+const isAbort = (e) => !!e && e.name === "AbortError";
 
 function normalizePortal(u) {
   try {
@@ -383,20 +397,26 @@ function normalizePortal(u) {
     return url.origin + path;
   } catch { return null; }
 }
+const isArcGISOnline = (portal) => { try { const h = new URL(portal).hostname; return h === "arcgis.com" || h.endsWith(".arcgis.com"); } catch { return false; } };
 const cleanClientId = (s) => (/^[A-Za-z0-9_-]{8,64}$/.test(String(s || "").trim()) ? String(s).trim() : "");
 function normalizeUrl(u) { return String(u || "").trim().replace(/^http:/i, "https:").replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase(); }
 function slugify(t, max) {
   const s = String(t || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
   return s.slice(0, max || 48).replace(/-+$/, "") || "item";
 }
-function safeFileName(s) {
+function safeFileName(s, max) {
+  max = max || 120;
   let n = String(s || "").normalize("NFC").replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, "_").replace(/^[.\s]+/, "").trim();
   if (!n) n = "file";
-  if (n.length > 120) { const m = n.match(/(\.[A-Za-z0-9]{1,8})$/); n = n.slice(0, 120 - (m ? m[1].length : 0)) + (m ? m[1] : ""); }
+  if (n.length > max) { const m = n.match(/(\.[A-Za-z0-9]{1,8})$/); n = n.slice(0, max - (m ? m[1].length : 0)) + (m ? m[1] : ""); }
   return n;
 }
-const safePath = (p) => String(p || "").split("/").map(safeFileName).filter((s) => s && s !== "." && s !== "..").join("/") || "file";
+const safePath = (p) => String(p || "").split("/").map((x) => safeFileName(x)).filter((s) => s && s !== "." && s !== "..").join("/") || "file";
 const encodePath = (p) => String(p).split("/").map(encodeURIComponent).join("/");
+/** Map files: letters, numbers, underscores and hyphens only, so the viewer link and Atlas's title both work. */
+function mapFileBase(title) {
+  return String(title || "").normalize("NFC").replace(/[^\p{L}\p{M}\p{N}-]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 80).replace(/_+$/, "") || "Map";
+}
 function extFor(name, mime, fallback) {
   const m = String(name || "").match(/\.([A-Za-z0-9]{1,8})$/);
   if (m) return m[1].toLowerCase();
@@ -407,6 +427,8 @@ function extFor(name, mime, fallback) {
 function blobToBase64(blob) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).replace(/^data:[^,]*,/, "")); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
 }
+const R_EARTH = 6378137;
+const toLonLat = (x, y) => [x / R_EARTH * 180 / Math.PI, (2 * Math.atan(Math.exp(y / R_EARTH)) - Math.PI / 2) * 180 / Math.PI];
 
 // ===================================================================== configuration
 const pendingAuth = (() => { try { return JSON.parse((session && session.getItem(OAUTH_KEY)) || "null"); } catch { return null; } })();
@@ -435,7 +457,7 @@ async function beginSignIn() {
   const challenge = await pkceChallenge(verifier);
   session.setItem(OAUTH_KEY, JSON.stringify({ verifier, state, portal: cfg.portal, clientId: cfg.clientId, redirect: redirectUri(), back: location.search, t: Date.now() }));
   const p = new URLSearchParams({ client_id: cfg.clientId, response_type: "code", redirect_uri: redirectUri(), state,
-    code_challenge: challenge, code_challenge_method: "S256", expiration: "20160" });
+    code_challenge: challenge, code_challenge_method: "S256", expiration: String(REFRESH_MINUTES) });
   location.assign(`${SR()}/oauth2/authorize?${p}`);
 }
 function setAuth(j) {
@@ -470,92 +492,214 @@ async function completeSignInIfReturning() {
 async function refreshAccess() {
   if (!auth.refresh) throw new ArcError("Your sign-in has ended. Sign in again to carry on.", "auth");
   if (!refreshing) refreshing = tokenRequest({ client_id: cfg.clientId, grant_type: "refresh_token", refresh_token: auth.refresh })
-    .then(setAuth).finally(() => { refreshing = null; });
+    .then(setAuth)
+    .catch(() => { throw new ArcError("Your sign-in has ended. Sign in again and save your work again.", "auth"); })
+    .finally(() => { refreshing = null; });
   return refreshing;
 }
 async function currentToken() {
   if (auth.refresh && auth.expires - Date.now() < 120000) await refreshAccess();
   return auth.token;
 }
-function signOut() { auth.token = ""; auth.refresh = ""; auth.expires = 0; auth.username = ""; location.replace(redirectUri() + location.search); }
+function revokeBody() { return new URLSearchParams({ auth_token: auth.refresh, token_type_hint: "refresh_token", client_id: cfg.clientId, f: "json" }); }
+async function signOut() {
+  if (auth.refresh) { try { await fetch(`${SR()}/oauth2/revokeToken`, { method: "POST", body: revokeBody(), credentials: "omit" }); } catch { /* best effort */ } }
+  auth.token = ""; auth.refresh = ""; auth.expires = 0; auth.username = "";
+  location.replace(redirectUri() + location.search);
+}
+// Closing the tab cancels the sign-in too (best effort), so it can't be reused on a shared computer.
+addEventListener("pagehide", () => { if (auth.refresh && navigator.sendBeacon) { try { navigator.sendBeacon(`${SR()}/oauth2/revokeToken`, revokeBody()); } catch { /* ignore */ } } });
 
 // ===================================================================== requests
 class ArcError extends Error { constructor(message, code, details) { super(message); this.code = code; this.details = details; } }
 let abortCtl = null;
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
+/** The token only goes to your organization and ArcGIS Online's own servers, never to a web address an item happens to name. */
+function tokenAllowed(url) {
+  try {
+    const h = new URL(url).hostname, ph = new URL(cfg.portal).hostname;
+    if (h === ph) return true;
+    if (isArcGISOnline(cfg.portal)) return h === "arcgis.com" || h.endsWith(".arcgis.com");
+    const base = ph.split(".").slice(-2).join(".");
+    return h.endsWith("." + base);
+  } catch { return false; }
+}
 function errorFromJson(j, status) {
   const e = j && j.error;
   if (!e) return null;
   const msg = (typeof e === "string" ? e : e.message) || "ArcGIS returned an error";
   return new ArcError(msg + (e.details && e.details.length ? " (" + e.details.join("; ") + ")" : ""), Number(e.code) || status || 0, e.details);
 }
+const backoff = (attempt, status) => (status === 429 ? Math.min(30000, 2000 * 2 ** (attempt - 1)) : 700 * attempt * attempt);
 /**
  * One ArcGIS REST request. as: "json" (adds f=json unless params.f is set) or "blob".
- * Adds the token, retries throttling and server errors, refreshes an expired token once.
+ * Adds the token, times out stalled requests, retries throttling and server errors, refreshes an expired token once.
  */
 async function request(url, opts = {}) {
-  const { method = "GET", params = {}, as = "json", authenticated = true, tries = 4 } = opts;
-  let refreshed = false;
+  const { method = "GET", params = {}, as = "json", authenticated = true } = opts;
+  let tries = opts.tries || 4, refreshed = false;
   for (let attempt = 1; ; attempt++) {
+    if (abortCtl && abortCtl.signal.aborted) throw stopped();
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null) p.set(k, typeof v === "object" ? JSON.stringify(v) : String(v));
     if (as === "json" && !p.has("f")) p.set("f", "json");
-    if (authenticated && auth.token) p.set("token", await currentToken());
-    let res;
+    if (authenticated && auth.token && tokenAllowed(url)) p.set("token", await currentToken());
+    const ctl = new AbortController();
+    const outer = abortCtl;
+    const onStop = () => ctl.abort();
+    if (outer) outer.signal.addEventListener("abort", onStop, { once: true });
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; ctl.abort(); }, as === "json" ? 90000 : 600000);
+    let res, body;
     try {
-      const signal = abortCtl ? abortCtl.signal : undefined;
       res = method === "POST"
-        ? await fetch(url, { method: "POST", body: p, signal, credentials: "omit" })
-        : await fetch(url + (p.toString() ? (url.includes("?") ? "&" : "?") + p : ""), { signal, credentials: "omit" });
+        ? await fetch(url, { method: "POST", body: p, signal: ctl.signal, credentials: "omit" })
+        : await fetch(url + (p.toString() ? (url.includes("?") ? "&" : "?") + p : ""), { signal: ctl.signal, credentials: "omit" });
+      if (RETRY_STATUS.has(res.status) && attempt < (res.status === 429 ? Math.max(tries, 6) : tries)) {
+        clearTimeout(timer); await sleep(backoff(attempt, res.status)); continue;
+      }
+      body = as === "json" ? await res.text() : await res.blob();
     } catch (e) {
-      if (e && e.name === "AbortError") throw e;
-      if (attempt < tries) { await sleep(600 * attempt * attempt); continue; }
+      if (outer && outer.signal.aborted) throw stopped();
+      if (attempt < tries) { await sleep(backoff(attempt)); continue; }
       let host = url; try { host = new URL(url).host; } catch { /* keep */ }
-      throw new ArcError("Couldn't reach " + host + ". Check your internet connection and try again.", "network");
+      throw new ArcError((timedOut ? "ArcGIS stopped answering (" + host + "). " : "Couldn't reach " + host + ". ") +
+        "Check your internet connection and try again. If it keeps happening, your school's ArcGIS or network settings may need to allow this page.", "network");
+    } finally {
+      clearTimeout(timer);
+      if (outer) outer.signal.removeEventListener("abort", onStop);
     }
-    if (RETRY_STATUS.has(res.status) && attempt < tries) {
-      const ra = Number(res.headers.get("Retry-After"));
-      await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(ra, 30) * 1000 : 800 * attempt * attempt);
-      continue;
-    }
-    const ct = (res.headers.get("content-type") || "").toLowerCase();
-    if (as === "json") {
-      let j = null;
-      try { j = await res.json(); } catch { throw new ArcError("ArcGIS sent a reply this page couldn't read (HTTP " + res.status + ").", res.status); }
-      const err = errorFromJson(j, res.status);
-      if (err) {
-        if ((err.code === 498 || err.code === 499) && !refreshed && auth.refresh) { refreshed = true; await refreshAccess(); continue; }
-        if (RETRY_STATUS.has(err.code) && attempt < tries) { await sleep(800 * attempt * attempt); continue; }
-        throw err;
-      }
-      if (!res.ok) throw new ArcError("ArcGIS replied with HTTP " + res.status + ".", res.status);
-      return j;
-    }
-    // Binary or file content. A small JSON reply may be an error instead of the file.
-    const blob = await res.blob();
-    if (ct.includes("json") && blob.size < 20000) {
-      let j = null; try { j = JSON.parse(await blob.text()); } catch { /* a real file */ }
-      const err = errorFromJson(j, res.status);
-      if (err) {
-        if ((err.code === 498 || err.code === 499) && !refreshed && auth.refresh) { refreshed = true; await refreshAccess(); continue; }
-        throw err;
-      }
+    // An error can arrive as a small JSON reply with any content type.
+    let j = null;
+    if (as === "json") { try { j = JSON.parse(body); } catch { throw new ArcError("ArcGIS sent a reply this page couldn't read (HTTP " + res.status + ").", res.status); } }
+    else if (body.size < 20000) { const t = await body.slice(0, 20000).text(); if (/^\s*\{\s*"error"/.test(t)) { try { j = JSON.parse(t); } catch { /* a real file */ } } }
+    const err = errorFromJson(j, res.status);
+    if (err) {
+      if ((err.code === 498 || err.code === 499) && !refreshed && auth.refresh) { refreshed = true; await refreshAccess(); continue; }
+      if (RETRY_STATUS.has(err.code) && attempt < tries) { await sleep(backoff(attempt, err.code)); continue; }
+      throw err;
     }
     if (!res.ok) throw new ArcError("ArcGIS replied with HTTP " + res.status + ".", res.status);
-    return blob;
+    return as === "json" ? j : body;
   }
 }
+/** Runs tasks n at a time. On the first error it stops the run, waits for every task already started, then throws. */
 async function runPool(tasks, n) {
-  let i = 0;
-  const worker = async () => { while (i < tasks.length) { const t = tasks[i++]; await t(); } };
+  let i = 0, first = null;
+  const worker = async () => {
+    while (i < tasks.length && !first) {
+      const t = tasks[i++];
+      try { await t(); } catch (e) { if (!first) { first = e; stopRun(); } }
+    }
+  };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(n, tasks.length)) }, worker));
+  if (first) throw first;
 }
-function loadScript(src) {
-  return new Promise((res, rej) => {
-    const s = document.createElement("script"); s.src = src; s.async = true; s.crossOrigin = "anonymous";
-    s.onload = res; s.onerror = () => rej(new Error("Couldn't load " + new URL(src).host));
-    document.head.appendChild(s);
-  });
+function stopRun() { if (ctx) ctx.cancelled = true; if (abortCtl) abortCtl.abort(); }
+function checkStop() { if (ctx && ctx.cancelled) throw stopped(); }
+
+// ===================================================================== zip writer
+// Writes each file into the archive as soon as it's ready, so nothing has to be held in memory twice. Text is
+// compressed with the browser's own deflate; pictures and other files are stored as they are. ZIP64 is used
+// automatically for files or archives over 4 GB and for more than 65,535 files.
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crcUpdate(crc, bytes) { let c = (crc ^ 0xFFFFFFFF) >>> 0; for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+async function crcOfBlob(blob) {
+  let crc = 0;
+  const reader = blob.stream().getReader();
+  for (;;) { const { done, value } = await reader.read(); if (done) break; crc = crcUpdate(crc, value); checkStop(); }
+  return crc;
+}
+const canDeflate = (() => { try { new CompressionStream("deflate-raw"); return true; } catch { return false; } })();
+async function deflateBlob(blob) { return new Response(blob.stream().pipeThrough(new CompressionStream("deflate-raw"))).blob(); }
+function dosDateTime(d) {
+  return { time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() };
+}
+function zip64Extra(values) {
+  const v = new DataView(new ArrayBuffer(4 + 8 * values.length));
+  v.setUint16(0, 0x0001, true); v.setUint16(2, 8 * values.length, true);
+  values.forEach((x, i) => v.setBigUint64(4 + 8 * i, BigInt(x), true));
+  return new Uint8Array(v.buffer);
+}
+class ZipWriter {
+  constructor(sink) {
+    this.sink = sink; this.offset = 0; this.entries = []; this.names = new Set(); this.chain = Promise.resolve();
+    this.big = TEST.zip64At || 0xFFFFFFFF; this.when = dosDateTime(new Date()); this.enc = new TextEncoder();
+  }
+  /** Adds one file. data: a string, a Blob, or an array of strings and Blobs. Files are written one after another. */
+  add(name, data, compress) {
+    const run = this.chain.then(() => this._add(name, data, compress));
+    this.chain = run.catch(() => {});
+    return run;
+  }
+  async _add(name, data, compress) {
+    checkStop();
+    if (this.names.has(name)) throw new Error("Two files were given the same name: " + name);
+    this.names.add(name);
+    const blob = data instanceof Blob ? data : new Blob(Array.isArray(data) ? data : [data]);
+    const size = blob.size, crc = await crcOfBlob(blob);
+    let method = 0, body = blob;
+    if (compress && canDeflate && size > 100) { const d = await deflateBlob(blob); if (d.size < size) { method = 8; body = d; } }
+    const csize = body.size, nameBytes = this.enc.encode(name), offset = this.offset;
+    const big = size >= this.big || csize >= this.big;
+    const extra = big ? zip64Extra([size, csize]) : new Uint8Array(0);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, big ? 45 : 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, method, true);
+    h.setUint16(10, this.when.time, true); h.setUint16(12, this.when.date, true); h.setUint32(14, crc, true);
+    h.setUint32(18, big ? 0xFFFFFFFF : csize, true); h.setUint32(22, big ? 0xFFFFFFFF : size, true);
+    h.setUint16(26, nameBytes.length, true); h.setUint16(28, extra.length, true);
+    await this._write(new Blob([h.buffer, nameBytes, extra, body]));
+    this.entries.push({ nameBytes, crc, size, csize, method, offset });
+  }
+  async _write(blob) { checkStop(); await this.sink.write(blob); this.offset += blob.size; }
+  async finish() {
+    await this.chain;
+    const B = this.big, cdStart = this.offset, parts = [];
+    for (const e of this.entries) {
+      const over = [];
+      if (e.size >= B) over.push(e.size);
+      if (e.csize >= B) over.push(e.csize);
+      if (e.offset >= B) over.push(e.offset);
+      const extra = over.length ? zip64Extra(over) : new Uint8Array(0);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, over.length ? 45 : 20, true); c.setUint16(6, over.length ? 45 : 20, true);
+      c.setUint16(8, 0x0800, true); c.setUint16(10, e.method, true); c.setUint16(12, this.when.time, true); c.setUint16(14, this.when.date, true);
+      c.setUint32(16, e.crc, true); c.setUint32(20, e.csize >= B ? 0xFFFFFFFF : e.csize, true); c.setUint32(24, e.size >= B ? 0xFFFFFFFF : e.size, true);
+      c.setUint16(28, e.nameBytes.length, true); c.setUint16(30, extra.length, true);
+      c.setUint32(42, e.offset >= B ? 0xFFFFFFFF : e.offset, true);
+      parts.push(c.buffer, e.nameBytes, extra);
+    }
+    const cd = new Blob(parts);
+    await this._write(cd);
+    const count = this.entries.length, cdSize = cd.size;
+    const z64 = count >= 0xFFFF || cdSize >= B || cdStart >= B;
+    const tail = [];
+    if (z64) {
+      const zOff = this.offset;
+      const z = new DataView(new ArrayBuffer(56));
+      z.setUint32(0, 0x06064b50, true); z.setBigUint64(4, 44n, true); z.setUint16(12, 45, true); z.setUint16(14, 45, true);
+      z.setBigUint64(24, BigInt(count), true); z.setBigUint64(32, BigInt(count), true); z.setBigUint64(40, BigInt(cdSize), true); z.setBigUint64(48, BigInt(cdStart), true);
+      const loc = new DataView(new ArrayBuffer(20));
+      loc.setUint32(0, 0x07064b50, true); loc.setBigUint64(8, BigInt(zOff), true); loc.setUint32(16, 1, true);
+      tail.push(z.buffer, loc.buffer);
+    }
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, z64 && count >= 0xFFFF ? 0xFFFF : count, true); end.setUint16(10, z64 && count >= 0xFFFF ? 0xFFFF : count, true);
+    end.setUint32(12, z64 && cdSize >= B ? 0xFFFFFFFF : cdSize, true); end.setUint32(16, z64 && cdStart >= B ? 0xFFFFFFFF : cdStart, true);
+    tail.push(end.buffer);
+    await this._write(new Blob(tail));
+    return this.sink.close();
+  }
+}
+/** Where the archive goes: straight into a file you picked (Chrome, Edge, Chromebooks), or into a download. */
+async function fileSink(handle) {
+  const w = await handle.createWritable();
+  return { streaming: true, write: (b) => w.write(b), close: async () => { await w.close(); return null; }, abort: async () => { try { await w.abort(); } catch { /* already closed */ } } };
+}
+function memorySink() {
+  let parts = [];
+  return { streaming: false, write: async (b) => { parts.push(b); }, close: async () => { const b = new Blob(parts, { type: "application/zip" }); parts = []; return b; }, abort: async () => { parts = []; } };
 }
 
 // ===================================================================== what each item type gets
@@ -596,7 +740,7 @@ const LINKISH_TYPES = new Set(["Document Link"]);
 const CONTAINER_TYPES = new Set(["Web Map", "Web Scene", "StoryMap", "Dashboard", "Web Mapping Application", "Web Experience", "Web Experience Template",
   "Hub Site Application", "Hub Page", "Site Application", "Site Page", "Collection", "Story Map", "Operation View", "Mission"]);
 function isHostedFeatureService(it) {
-  return it.type === "Feature Service" && !!it.url && (it.typeKeywords || []).includes("Hosted Service");
+  return it.type === "Feature Service" && !!it.url && (it.typeKeywords || []).includes("Hosted Service") && tokenAllowed(it.url);
 }
 function classify(it) {
   const t = it.type;
@@ -610,14 +754,14 @@ function classify(it) {
   if (APP_TYPES.has(t)) return { group: "app", plan: "app" };
   if (LINKISH_TYPES.has(t)) return { group: "other", plan: "link" };
   const looksLikeFile = FILE_TYPES.has(t) || (!it.url && /\.[A-Za-z0-9]{1,8}$/.test(it.name || ""));
-  if (looksLikeFile) return { group: "file", plan: (it.size || 0) > LIMITS.fileBytes ? "tooBig" : "file" };
+  if (looksLikeFile) return { group: "file", plan: (it.size || 0) > LIM().fileBytes ? "tooBig" : "file" };
   return { group: "other", plan: "other" };
 }
 const ACCESS_TEXT = { private: "Private", shared: "Shared with groups", org: "Shared with your organization", public: "Public" };
 
 // ===================================================================== state
 const st = { user: null, org: null, items: [], byId: new Map(), selected: new Set(), filter: "all", query: "", running: false,
-  blob: null, fileName: "", fileHandle: null, lastResult: null };
+  blob: null, fileName: "", fileHandle: null };
 
 // ===================================================================== finding items
 async function listMyContent() {
@@ -644,29 +788,39 @@ async function listMyContent() {
 const SKIP_FIELD_TYPES = new Set(["esriFieldTypeBlob", "esriFieldTypeRaster", "esriFieldTypeGeometry", "esriFieldTypeXML"]);
 function csvCell(v) {
   if (v === null || v === undefined) return "";
-  const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+  let s = typeof v === "object" ? JSON.stringify(v) : String(v);
+  // Text that a spreadsheet would run as a formula gets a leading apostrophe (numbers are left alone).
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = "'" + s;
   return /[",\r\n]|^\s|\s$/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
-/** Attribute table as CSV (UTF-8 with BOM for Excel). Points also get longitude and latitude columns from the GeoJSON copy. */
-function toCsv(fields, features, geojsonFeatures, geometryType, oidField) {
+/** Attribute table as CSV (UTF-8 with BOM for Excel). Points also get longitude and latitude. Returns an array of strings. */
+function toCsvParts(fields, features, geometryType) {
   const cols = (fields || []).filter((f) => f && f.name && !SKIP_FIELD_TYPES.has(f.type));
   const dateCols = new Set(cols.filter((f) => f.type === "esriFieldTypeDate").map((f) => f.name));
-  const points = geometryType === "esriGeometryPoint" && Array.isArray(geojsonFeatures);
-  const byId = new Map();
-  if (points) for (const g of geojsonFeatures) { const id = g.id ?? (g.properties && g.properties[oidField]); if (id !== undefined) byId.set(String(id), g); }
-  const head = cols.map((f) => csvCell(f.name)).concat(points ? ["longitude", "latitude"] : []);
-  const lines = [head.join(",")];
+  const points = geometryType === "esriGeometryPoint";
+  const out = ["﻿" + cols.map((f) => csvCell(f.name)).concat(points ? ["longitude", "latitude"] : []).join(",") + "\r\n"];
+  let buf = [];
   for (const f of features || []) {
     const a = f.attributes || {};
     const row = cols.map((c) => { const v = a[c.name]; return csvCell(dateCols.has(c.name) && Number.isFinite(v) ? new Date(v).toISOString() : v); });
     if (points) {
-      const g = byId.get(String(a[oidField]));
-      const c = g && g.geometry && g.geometry.type === "Point" ? g.geometry.coordinates : null;
-      row.push(c ? csvCell(c[0]) : "", c ? csvCell(c[1]) : "");
+      const g = f.geometry;
+      if (g && Number.isFinite(g.x) && Number.isFinite(g.y)) { const [lon, lat] = toLonLat(g.x, g.y); row.push(lon.toFixed(7), lat.toFixed(7)); } else row.push("", "");
     }
-    lines.push(row.join(","));
+    buf.push(row.join(","));
+    if (buf.length >= 5000) { out.push(buf.join("\r\n") + "\r\n"); buf = []; }
   }
-  return "﻿" + lines.join("\r\n") + "\r\n";
+  if (buf.length) out.push(buf.join("\r\n") + "\r\n");
+  return out;
+}
+/** JSON with a long "features" array, written in pieces so very large layers don't hit the browser's string limit. */
+function jsonWithFeatures(head, features, key) {
+  const k = key || "features";
+  const start = JSON.stringify({ ...head, [k]: [] });
+  const parts = [start.slice(0, -2)];      // drop the closing "]}"
+  for (let i = 0; i < features.length; i += 5000) parts.push((i ? "," : "") + features.slice(i, i + 5000).map((f) => JSON.stringify(f)).join(","));
+  parts.push("]}");
+  return parts;
 }
 /** Ids of items you own that this item's data refers to (by item id or service address). */
 function findRefs(data, selfId, ownedIds, ownedByUrl) {
@@ -707,7 +861,7 @@ async function fixPictureSymbols(o, layerUrl, fetchImage, depth = 0) {
     if (o.imageData) { if (!absolute) delete o.url; return o; }
     if (!absolute && typeof o.url === "string" && o.url && layerUrl && fetchImage) {
       try { const img = await fetchImage(`${layerUrl}/images/${encodePath(o.url)}`); o.imageData = img.data; o.contentType = img.type || "image/png"; delete o.url; return o; }
-      catch { /* fall through to a plain symbol */ }
+      catch (e) { if (isAbort(e)) throw e; /* fall through to a plain symbol */ }
     }
     if (!absolute) {
       return o.type === "esriPMS"
@@ -728,50 +882,64 @@ function findStoreEntry(store, url) {
   }
   return null;
 }
+const clone = (o) => (o === undefined ? undefined : JSON.parse(JSON.stringify(o)));
 function toFeatureCollectionLayer(op, entry) {
   const def = entry.def;
-  const opDef = op.layerDefinition || {};
+  const opDef = clone(op.layerDefinition) || {};
   const settingsDef = (entry.settings && entry.settings.layerDefinition) || {};
-  const drawingInfo = JSON.parse(JSON.stringify(opDef.drawingInfo || settingsDef.drawingInfo || def.drawingInfo || {}));
+  const drawingInfo = clone(opDef.drawingInfo || settingsDef.drawingInfo || def.drawingInfo || {});
   const fields = (def.fields || []).filter((f) => !SKIP_FIELD_TYPES.has(f.type));
-  const layerDefinition = { name: def.name || op.title || "Layer", type: "Feature Layer", geometryType: def.geometryType, objectIdField: def.objectIdField || "OBJECTID",
-    fields, drawingInfo, spatialReference: SR_WM };
-  for (const k of ["displayField", "typeIdField", "types", "minScale", "maxScale"]) if (def[k] !== undefined) layerDefinition[k] = def[k];
-  for (const k of ["minScale", "maxScale", "definitionExpression"]) if (opDef[k] !== undefined) layerDefinition[k] = opDef[k];
+  const layerDefinition = { ...opDef, name: def.name || op.title || "Layer", type: "Feature Layer", geometryType: def.geometryType,
+    objectIdField: def.objectIdField || "OBJECTID", fields, drawingInfo, spatialReference: SR_WM };
+  delete layerDefinition.source;
+  for (const k of ["displayField", "typeIdField", "types", "minScale", "maxScale", "timeInfo", "hasZ"]) if (def[k] !== undefined && layerDefinition[k] === undefined) layerDefinition[k] = clone(def[k]);
+  for (const k of ["featureReduction", "timeInfo"]) if (layerDefinition[k] === undefined && settingsDef[k] !== undefined) layerDefinition[k] = clone(settingsDef[k]);
+  if (layerDefinition.featureReduction === undefined && op.featureReduction !== undefined) layerDefinition.featureReduction = clone(op.featureReduction);
   const features = entry.features.map((f) => ({ attributes: f.attributes, geometry: f.geometry ? { ...f.geometry, spatialReference: SR_WM } : undefined }));
   const popupInfo = popupWithoutAttachments(op.popupInfo || (entry.settings && entry.settings.popupInfo) || defaultPopup(def));
   const out = { id: op.id || ("layer" + Math.random().toString(36).slice(2, 9)), title: op.title || def.name || "Layer", layerType: "ArcGISFeatureLayer",
     visibility: op.visibility !== false, opacity: Number.isFinite(op.opacity) ? op.opacity : 1,
     featureCollection: { layers: [{ layerDefinition, featureSet: { geometryType: def.geometryType, features }, popupInfo,
       nextObjectId: entry.features.reduce((m, f) => Math.max(m, Number(f.attributes && f.attributes[layerDefinition.objectIdField]) || 0), 0) + 1 }] } };
-  for (const k of ["minScale", "maxScale", "showLabels", "showLegend", "disablePopup", "featureReduction", "refreshInterval", "blendMode", "effect", "listMode", "timeAnimation"]) if (op[k] !== undefined) out[k] = op[k];
+  for (const k of ["minScale", "maxScale", "showLabels", "showLegend", "disablePopup", "refreshInterval", "blendMode", "effect", "listMode", "timeAnimation"]) if (op[k] !== undefined) out[k] = op[k];
   return out;
 }
 /**
- * Turn a web map into one that doesn't depend on your account: layers from your own hosted services are replaced by
- * the data itself (feature collections), with the map's styles and pop-ups. Everything else is kept as it was.
+ * Turn a web map into one that doesn't depend on your account: layers from your own hosted services and feature
+ * collection items are replaced by the data itself, with the map's styles and pop-ups. Tables from your own services
+ * are left out (their data is in the layer files). Everything else is kept as it was.
+ * ctx: { store, itemData(id) -> feature collection item data or null, fetchImage(url) }
  */
-async function packWebMap(webmap, store, fetchImage) {
+async function packWebMap(webmap, pctx) {
   const wm = JSON.parse(JSON.stringify(webmap || {}));
-  const stats = { inlined: 0, linked: 0, features: 0, attachmentsDropped: false, layers: [] };
+  const stats = { inlined: 0, linked: 0, features: 0, attachmentsDropped: false, tablesDropped: 0, layers: [] };
+  const countFc = (fc) => ((fc && fc.layers) || []).reduce((n, l) => n + (((l.featureSet || {}).features || []).length), 0);
   async function walk(list) {
     if (!Array.isArray(list)) return list;
     const out = [];
     for (const op of list) {
+      checkStop();
       if (!op || typeof op !== "object") continue;
       if (op.layerType === "GroupLayer" && Array.isArray(op.layers)) { op.layers = await walk(op.layers); out.push(op); continue; }
       if (typeof op.id === "string" && OWN_ID.test(op.id)) { out.push(op); stats.layers.push({ title: op.title, kept: "data" }); continue; }
-      const entry = op.layerType === "ArcGISFeatureLayer" && op.url ? findStoreEntry(store, op.url) : null;
+      const entry = op.layerType === "ArcGISFeatureLayer" && op.url ? findStoreEntry(pctx.store, op.url) : null;
+      const fcData = !entry && !op.url && !op.featureCollection && op.itemId ? pctx.itemData(op.itemId) : null;
       if (entry && entry.def && entry.def.geometryType && entry.def.geometryType !== "esriGeometryMultiPatch") {
         const fc = toFeatureCollectionLayer(op, entry);
         const ld = fc.featureCollection.layers[0];
-        await fixPictureSymbols(ld.layerDefinition.drawingInfo, entry.layerUrl, fetchImage);
+        await fixPictureSymbols(ld.layerDefinition.drawingInfo, entry.layerUrl, pctx.fetchImage);
         if (op.popupInfo && op.popupInfo.showAttachments) stats.attachmentsDropped = true;
         stats.inlined++; stats.features += entry.features.length;
         stats.layers.push({ title: fc.title, kept: "data", features: entry.features.length });
         out.push(fc);
+      } else if (fcData && Array.isArray(fcData.layers)) {
+        const copy = { ...op, featureCollection: clone(fcData) };
+        delete copy.itemId;
+        stats.inlined++; stats.features += countFc(copy.featureCollection);
+        stats.layers.push({ title: op.title, kept: "data", features: countFc(copy.featureCollection) });
+        out.push(copy);
       } else {
-        if (op.featureCollection) { stats.layers.push({ title: op.title, kept: "data" }); stats.features += ((op.featureCollection.layers || []).reduce((n, l) => n + (((l.featureSet || {}).features || []).length), 0)); }
+        if (op.featureCollection) { stats.layers.push({ title: op.title, kept: "data" }); stats.features += countFc(op.featureCollection); }
         else { stats.linked++; stats.layers.push({ title: op.title, kept: "link", url: op.url || null }); }
         if (typeof op.url === "string" && /^http:\/\//i.test(op.url)) op.url = op.url.replace(/^http:/i, "https:");
         out.push(op);
@@ -780,6 +948,12 @@ async function packWebMap(webmap, store, fetchImage) {
     return out;
   }
   wm.operationalLayers = await walk(wm.operationalLayers || []);
+  if (Array.isArray(wm.tables)) {
+    const before = wm.tables.length;
+    wm.tables = wm.tables.filter((t) => !(t && t.url && findStoreEntry(pctx.store, t.url)));
+    stats.tablesDropped = before - wm.tables.length;
+    if (!wm.tables.length) delete wm.tables;
+  }
   wm.authoringApp = "TakeMyWork";
   wm.authoringAppVersion = APP_VERSION;
   if (!wm.version) wm.version = "2.31";
@@ -791,12 +965,12 @@ async function packWebMap(webmap, store, fetchImage) {
 const KEEP_TAGS = new Set(["B", "STRONG", "I", "EM", "U", "S", "BR", "A", "SUB", "SUP", "LI", "UL", "OL", "P", "MARK", "CODE", "SMALL", "DEL", "STRIKE", "BLOCKQUOTE"]);
 const BLOCK_TO_P = new Set(["DIV", "H1", "H2", "H3", "H4", "H5", "H6", "SECTION", "ARTICLE", "HEADER", "FOOTER", "TABLE", "TR", "FIGURE", "FIGCAPTION"]);
 const DROP_TAGS = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "SVG", "MATH", "TEMPLATE", "NOSCRIPT", "FORM", "INPUT", "BUTTON", "TEXTAREA",
-  "SELECT", "LINK", "META", "IMG", "VIDEO", "AUDIO", "SOURCE", "TRACK", "CANVAS", "PICTURE", "BASE", "FRAME", "FRAMESET", "APPLET"]);
+  "SELECT", "LINK", "META", "IMG", "VIDEO", "AUDIO", "SOURCE", "TRACK", "CANVAS", "PICTURE", "BASE", "FRAME", "FRAMESET", "APPLET", "XMP", "PLAINTEXT", "TITLE"]);
 /** Keeps simple formatting and https/mailto links; removes everything that could run or load. */
 function sanitizeHtml(html) {
   if (!html) return "";
-  const doc = new DOMParser().parseFromString("<div>" + String(html) + "</div>", "text/html");
-  const root = doc.body.firstElementChild;
+  const doc = new DOMParser().parseFromString(String(html), "text/html");
+  const root = doc.body;
   if (!root) return "";
   (function clean(node) {
     for (const child of [...node.childNodes]) {
@@ -820,12 +994,12 @@ function sanitizeHtml(html) {
   root.querySelectorAll("p").forEach((p) => { if (!p.textContent.trim() && !p.querySelector("br")) p.remove(); });
   return root.innerHTML.trim();
 }
-const textOnly = (html) => { if (!html) return ""; const d = new DOMParser().parseFromString("<div>" + html + "</div>", "text/html"); return (d.body.textContent || "").replace(/\s+/g, " ").trim(); };
+const textOnly = (html) => { if (!html) return ""; const d = new DOMParser().parseFromString(String(html), "text/html"); return (d.body.textContent || "").replace(/\s+/g, " ").trim(); };
 
 // ---------------------------------------------------------------- StoryMap reading copy
 /**
- * Renders a StoryMap's JSON (nodes and resources) as plain reading HTML: headings, text, pictures, captions and
- * links to its maps. Layout, animation and embedded apps aren't reproduced.
+ * Renders a StoryMap's JSON (nodes and resources) as plain reading HTML: headings, text, pictures, captions, map tour
+ * places, swipe sides, and links to its maps. Layout, animation and embedded apps aren't reproduced.
  * ctx: { resourceHref(resourceId) -> relative path or null, mapHref(itemId) -> relative path or null, mapTitle(itemId) }
  */
 function storyToHtml(story, ctx) {
@@ -833,6 +1007,7 @@ function storyToHtml(story, ctx) {
   const seen = new Set();
   let title = "";
   const res = (rid) => (rid && resources[rid]) || null;
+  const isNode = (v) => typeof v === "string" && !!nodes[v];
   function imgSrc(rid) {
     const r = res(rid); if (!r || !r.data) return null;
     if (r.data.resourceId && (!r.data.provider || r.data.provider === "item-resource")) return ctx.resourceHref(r.data.resourceId);
@@ -848,6 +1023,13 @@ function storyToHtml(story, ctx) {
     const label = word + (name ? ": " + name : "");
     return `<figure class="mapref"><p class="maplink">${href ? `<a href="${esc(href)}">${esc(label)}</a>` : esc(label) + (itemId ? " (not in this copy)" : "")}</p>${caption(d)}</figure>`;
   }
+  // Node ids held in a node's data rather than its children (swipe sides, map tour places, media).
+  function refs(v, depth) {
+    if (isNode(v)) return render(v, depth + 1);
+    if (Array.isArray(v)) return v.map((x) => refs(x, depth)).join("");
+    if (v && typeof v === "object") return Object.keys(v).sort().map((k) => refs(v[k], depth)).join("");
+    return "";
+  }
   function render(id, depth) {
     if (!id || seen.has(id) || depth > 60) return "";
     seen.add(id);
@@ -858,7 +1040,7 @@ function storyToHtml(story, ctx) {
       case "story": return kids();
       case "storycover": {
         title = textOnly(d.title) || title;
-        return `<header class="cover"><h1>${esc(textOnly(d.title))}</h1>${d.summary ? `<p class="summary">${esc(textOnly(d.summary))}</p>` : ""}${d.byline ? `<p class="byline">${esc(textOnly(d.byline))}</p>` : ""}</header>${kids()}`;
+        return `<header class="cover"><h1>${esc(textOnly(d.title))}</h1>${d.summary ? `<p class="summary">${esc(textOnly(d.summary))}</p>` : ""}${d.byline ? `<p class="byline">${esc(textOnly(d.byline))}</p>` : ""}</header>${refs(d.media, depth)}${kids()}`;
       }
       case "navigation": return "";
       case "text": {
@@ -886,18 +1068,30 @@ function storyToHtml(story, ctx) {
       case "separator": return "<hr>";
       case "credits": return `<section class="credits"><h2>Credits</h2>${kids()}</section>`;
       case "attribution": return `<p class="attribution">${esc(textOnly(d.content))}${d.attribution ? " — " + esc(textOnly(d.attribution)) : ""}</p>`;
+      case "swipe": return `<div class="swipe">${refs(d.contents, depth)}</div>${kids()}`;
+      case "tour": {
+        const places = Array.isArray(d.places) ? d.places : [];
+        const html = places.map((p) => {
+          if (!p || typeof p !== "object") return "";
+          const head = isNode(p.title) ? render(p.title, depth + 1) : (typeof p.title === "string" && p.title ? `<h3>${esc(textOnly(p.title))}</h3>` : "");
+          return `<section class="place">${head}${refs(p.media, depth)}${refs(p.contents, depth)}</section>`;
+        }).join("");
+        return `<section class="tour"><h2>Map tour</h2>${html}</section>${kids()}`;
+      }
       default: {
         let extra = "";
         if (typeof d.text === "string") extra += `<p>${sanitizeHtml(d.text)}</p>`;
         if (d.image) { const src = imgSrc(d.image); if (src) extra += `<figure><img src="${esc(src)}" alt="${esc(textOnly(d.alt))}" loading="lazy">${caption(d)}</figure>`; }
         else if (d.caption) extra += caption(d);
-        if (typeof d.title === "string" && n.type && /slide|tour|place|timeline-event/.test(n.type)) extra = `<h3>${esc(textOnly(d.title))}</h3>` + extra;
-        return extra + kids();
+        if (typeof d.title === "string" && n.type && /slide|place|timeline-event/.test(n.type)) extra = `<h3>${esc(textOnly(d.title))}</h3>` + extra;
+        return extra + refs(d.contents, depth) + refs(d.media, depth) + kids();
       }
     }
   }
-  const body = render(story && story.root, 0);
-  return { title, body };
+  const root = story && story.root;
+  const body = render(root, 0);
+  const locale = nodes[root] && nodes[root].config && nodes[root].config.storyLocale;
+  return { title, body, locale: typeof locale === "string" && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/i.test(locale) ? locale : "" };
 }
 
 // ---------------------------------------------------------------- pages written into the archive
@@ -910,8 +1104,12 @@ const PAGE_CSS = `
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 img{max-width:100%;height:auto}code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.92em}
 `;
-function pageShell(title, css, body, extraHead) {
-  return `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<meta name="referrer" content="no-referrer">\n<title>${esc(title)}</title>\n${extraHead || ""}<style>${PAGE_CSS}${css}</style>\n</head>\n<body>\n<a class="skip" href="#main">Skip to content</a>\n${body}\n</body>\n</html>\n`;
+// No scripts can run in the portfolio and story pages, whatever the text in them says.
+const NO_SCRIPT_CSP = `<meta http-equiv="Content-Security-Policy" content="script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">\n`;
+const RTL = /^(ar|he|fa|ur|ps|sd|yi|dv|ug|ckb)(-|$)/i;
+function pageShell(title, css, body, lang) {
+  const l = lang || "en";
+  return `<!doctype html>\n<html lang="${esc(l)}"${RTL.test(l) ? ' dir="rtl"' : ""}>\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n${NO_SCRIPT_CSP}<meta name="referrer" content="no-referrer">\n<title>${esc(title)}</title>\n<style>${PAGE_CSS}${css}</style>\n</head>\n<body>\n<a class="skip" href="#main">Skip to content</a>\n${body}\n</body>\n</html>\n`;
 }
 const STORY_CSS = `
 main{max-width:720px;margin:0 auto;padding:24px 18px 64px;font-family:Charter,"Iowan Old Style","Palatino Linotype",Georgia,serif;font-size:1.12rem;line-height:1.7}
@@ -920,6 +1118,7 @@ main{max-width:720px;margin:0 auto;padding:24px 18px 64px;font-family:Charter,"I
 h2,h3,h4{font-family:system-ui,sans-serif;line-height:1.25}figure{margin:28px 0}figcaption{font-family:system-ui,sans-serif;font-size:.9rem;color:var(--ink-2);margin-top:6px}
 blockquote{border-left:4px solid var(--line);margin:24px 0;padding:4px 18px;font-style:italic}.large{font-size:1.3rem}
 .mapref{border:1px solid var(--line);background:var(--surface);padding:14px 16px;border-radius:8px}.maplink{margin:0;font-family:system-ui,sans-serif;font-weight:650}
+.place{border-top:1px solid var(--line);padding-top:6px}.swipe{display:grid;gap:12px}
 .credits{border-top:1px solid var(--line);margin-top:48px;font-size:.95rem}hr{border:0;border-top:1px solid var(--line);margin:36px 0}
 `;
 const PORTFOLIO_CSS = `
@@ -956,19 +1155,20 @@ header a{color:#a8e3cd}header h1{font-size:1.1rem;margin:0}#view{position:absolu
 </head>
 <body>
 <header><a href="../index.html">Back to the portfolio</a><h1 id="title">Map</h1></header>
-<main><div id="view" role="application" aria-label="Interactive map"></div><div id="msg" role="status" hidden></div></main>
+<main><div id="view" aria-label="Interactive map"></div><div id="msg" role="status" hidden></div></main>
 <script type="module">
 const q = new URLSearchParams(location.search);
 const file = q.get("m") || "";
 const msg = document.getElementById("msg");
 const show = (html) => { msg.innerHTML = html; msg.hidden = false; };
-const title = file.replace(/\\.mmap$/, "").replace(/_/g, " ");
+const safe = /^[\\p{L}\\p{M}\\p{N}_-]+\\.mmap$/u.test(file);
+const title = safe ? file.replace(/\\.mmap$/, "").replace(/_/g, " ") : "";
 document.getElementById("title").textContent = title || "Map";
 document.title = (title || "Map") + " (map)";
 const atlas = ${JSON.stringify(ATLAS_URL)};
-const offline = "<p>Maps open here when this folder is on a website, for example GitHub Pages.</p><p>To look at this map now, open <a href='" + atlas + "' target='_blank' rel='noopener'>Atlas</a>, choose Open map, and pick <code>maps/" + file.replace(/[<>&'"]/g, "") + "</code> from this folder.</p>";
+const offline = "<p>Maps open here when this folder is on a website, for example GitHub Pages.</p><p>To look at this map now, open <a href='" + atlas + "' target='_blank' rel='noopener'>Atlas</a>, choose Open map, and pick <code>maps/" + (safe ? file : "") + "</code> from this folder.</p>";
 async function main() {
-  if (!/^[\\p{L}\\p{N}_.-]+\\.mmap$/u.test(file)) { show("<p>No map was chosen. Go back to the portfolio and choose one.</p>"); return; }
+  if (!safe) { show("<p>No map was chosen. Go back to the portfolio and choose one.</p>"); return; }
   if (location.protocol === "file:") { show(offline); return; }
   if (typeof $arcgis === "undefined") { show("<p>The map viewer couldn't load from js.arcgis.com.</p>" + offline); return; }
   const [WebMap, MapView, Legend, Expand, Basemap, esriConfig] = await $arcgis.import(["@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js",
@@ -1000,29 +1200,36 @@ const PHASES = [
   { id: "maps", label: "Making maps you can reopen" },
   { id: "stories", label: "Making StoryMap reading copies" },
   { id: "page", label: "Writing your portfolio page" },
-  { id: "zip", label: "Packing the .zip file" }
+  { id: "zip", label: "Finishing the .zip file" }
 ];
 let ctx = null;
 function setPhase(id) {
   const i = PHASES.findIndex((p) => p.id === id);
-  $("phaseList").querySelectorAll("li").forEach((li, j) => { li.className = j < i ? "done" : j === i ? "now" : ""; li.setAttribute("aria-current", j === i ? "step" : "false"); });
+  $("phaseList").querySelectorAll("li").forEach((li, j) => { li.className = j < i ? "done" : j === i ? "now" : ""; if (j === i) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current"); });
+  announce(PHASES[i].label);
 }
-let lastSpoken = 0;
+let lastQuarter = 0;
 function progress(frac, text) {
-  if (Number.isFinite(frac)) $("progressBar").value = Math.max($("progressBar").value, Math.min(100, Math.round(frac * 100)));
-  if (text) {
-    const now = Date.now();
-    if (now - lastSpoken > 1500) { $("progressText").textContent = text; lastSpoken = now; }
+  if (Number.isFinite(frac)) {
+    const v = Math.max($("progressBar").value, Math.min(100, Math.round(frac * 100)));
+    $("progressBar").value = v;
+    const q = Math.floor(v / 25);
+    if (q > lastQuarter && q < 4) { lastQuarter = q; announce(`${q * 25}% done`); }
   }
+  if (text) $("progressText").textContent = text;
 }
 function logLine(text, bad) { const li = document.createElement("li"); li.textContent = text; if (bad) li.className = "bad"; $("logList").appendChild(li); }
 
-function put(path, data) {
-  const isBlob = typeof Blob !== "undefined" && data instanceof Blob;
-  const textual = !isBlob || /^(text\/|application\/(json|xml|geo\+json|javascript|x-ipynb))/i.test(data.type || "") || /\.(json|geojson|csv|txt|xml|html|mmap|ipynb)$/i.test(path);
-  ctx.zip.file(path, data, textual ? { compression: "DEFLATE" } : { compression: "STORE", binary: true });
-  ctx.bytes += isBlob ? data.size : (typeof data === "string" ? data.length : 0);
-  if (ctx.bytes > LIMITS.maxBytes) throw new ArcError("This copy has grown past " + fmtBytes(LIMITS.maxBytes) + ", more than a browser can save as one file. Choose fewer items and save them in two or more parts.", "toobig");
+/** Adds a file to the archive. data: string, Blob or array of strings/Blobs. */
+async function put(path, data) {
+  checkStop();
+  const blobType = data instanceof Blob ? data.type || "" : "";
+  const textual = !(data instanceof Blob) || /^(text\/|application\/(json|xml|geo\+json|javascript|x-ipynb))/i.test(blobType) || /\.(json|geojson|csv|txt|xml|html|mmap|ipynb)$/i.test(path);
+  const size = data instanceof Blob ? data.size : Array.isArray(data) ? data.reduce((n, x) => n + (x instanceof Blob ? x.size : String(x).length), 0) : String(data).length;
+  ctx.bytes += size;
+  const L = LIM(), cap = ctx.streaming ? L.streamBytes : L.memoryBytes;
+  if (ctx.bytes > cap) throw new ArcError("This copy has grown past " + fmtBytes(cap) + ", more than " + (ctx.streaming ? "this page will save at once" : "a browser can download as one file") + ". Choose fewer items and save them in two or more parts.", "toobig");
+  await ctx.zip.add(path, data, textual);
 }
 function uniqueDir(it) {
   let d = `items/${slugify(it.title, 40)}-${it.id.slice(0, 8)}`;
@@ -1030,7 +1237,7 @@ function uniqueDir(it) {
   ctx.dirs.add(d); return d;
 }
 function uniqueMapFile(title) {
-  const base = safeFileName(String(title || "Map").replace(/\s+/g, "_")).replace(/\.+$/, "").slice(0, 80) || "Map";
+  const base = mapFileBase(title);
   let name = base + ".mmap", n = 2;
   while (ctx.mapFiles.has(name.toLowerCase())) name = `${base}_${n++}.mmap`;
   ctx.mapFiles.add(name.toLowerCase()); return name;
@@ -1050,49 +1257,50 @@ async function getData(rec) {
     rec.dataBlob = blob;
     if (blob && blob.size && blob.size < 200e6) { try { rec.data = JSON.parse(await blob.text()); } catch { rec.data = null; } }
   } catch (e) {
-    if (e && e.name === "AbortError") throw e;
+    if (isAbort(e) || e.code === "auth") throw e;
     if (![400, 403, 404, 500].includes(e.code)) rec.notes.push("Its data couldn't be read: " + e.message);
   }
   return rec.data;
 }
+const fatal = (e) => isAbort(e) || (e && (e.code === "toobig" || e.code === "auth"));
 async function copyItem(rec) {
   const it = rec.item;
   rec.dir = uniqueDir(it);
   const details = { ...it }; delete details.folderTitle; delete details._group; delete details._plan;
-  put(`${rec.dir}/item.json`, JSON.stringify({ ...details, folder: it.folderTitle || null }, null, 2));
+  await put(`${rec.dir}/item.json`, JSON.stringify({ ...details, folder: it.folderTitle || null }, null, 2));
   rec.files.item = `${rec.dir}/item.json`;
   if (it.thumbnail) {
     try {
       const b = await request(`${SR()}/content/items/${it.id}/info/${encodePath(it.thumbnail)}`, { as: "blob" });
-      const p = `${rec.dir}/thumbnail.${extFor(it.thumbnail, b.type, "png")}`; put(p, b); rec.files.thumbnail = p;
-    } catch (e) { if (e && e.name === "AbortError") throw e; rec.notes.push("Its thumbnail couldn't be copied."); }
+      const p = `${rec.dir}/thumbnail.${extFor(it.thumbnail, b.type, "png")}`; await put(p, b); rec.files.thumbnail = p;
+    } catch (e) { if (fatal(e)) throw e; rec.notes.push("Its thumbnail couldn't be copied."); }
   }
   try {
     const b = await request(`${SR()}/content/items/${it.id}/info/metadata/metadata.xml`, { as: "blob", tries: 1 });
-    if (b && b.size && b.size < 20e6 && /xml|text\/plain|octet/i.test(b.type || "xml")) { put(`${rec.dir}/metadata.xml`, b); rec.files.metadata = `${rec.dir}/metadata.xml`; }
-  } catch (e) { if (e && e.name === "AbortError") throw e; /* most items have no metadata */ }
-  // The item's data: a file, or JSON settings
+    if (b && b.size && b.size < 20e6 && /xml|text\/plain|octet/i.test(b.type || "xml")) { await put(`${rec.dir}/metadata.xml`, b); rec.files.metadata = `${rec.dir}/metadata.xml`; }
+  } catch (e) { if (fatal(e)) throw e; /* most items have no metadata */ }
+  // The item's data: a file (in its own folder, so its name can't clash), or JSON settings
   if (rec.plan === "tooBig") rec.notes.push(`The file is ${fmtBytes(it.size)}, too big to copy here. Download it from ArcGIS Online before your account closes.`);
   else if (rec.plan === "file") {
     try {
       const b = await request(`${SR()}/content/items/${it.id}/data`, { as: "blob" });
-      const name = safeFileName(it.name || `${slugify(it.title)}.${extFor("", b.type, "bin")}`);
-      const p = `${rec.dir}/${name === "item.json" || name === "thumbnail.png" ? "file-" + name : name}`; put(p, b); rec.files.data = p;
-    } catch (e) { if (e && e.name === "AbortError") throw e; rec.problems.push("The file couldn't be copied: " + e.message); }
+      const p = `${rec.dir}/file/${safeFileName(it.name || `${slugify(it.title)}.${extFor("", b.type, "bin")}`)}`; await put(p, b); rec.files.data = p;
+    } catch (e) { if (fatal(e)) throw e; rec.problems.push("The file couldn't be copied: " + e.message); }
   } else if (rec.plan !== "link") {
     await getData(rec);
     if (rec.data !== null && rec.data !== undefined) {
       const p = `${rec.dir}/${it.type === "Notebook" ? "notebook.ipynb" : "data.json"}`;
-      put(p, JSON.stringify(rec.data, null, 2)); rec.files.data = p;
+      await put(p, JSON.stringify(rec.data, null, 2)); rec.files.data = p;
     } else if (rec.dataBlob && rec.dataBlob.size) {
-      if (rec.dataBlob.size > LIMITS.fileBytes) rec.notes.push("Its data is too big to copy here.");
-      else { const p = `${rec.dir}/data.${extFor("", rec.dataBlob.type, "bin")}`; put(p, rec.dataBlob); rec.files.data = p; }
+      if (rec.dataBlob.size > LIM().fileBytes) rec.notes.push("Its data is too big to copy here.");
+      else { const p = `${rec.dir}/data.${extFor("", rec.dataBlob.type, "bin")}`; await put(p, rec.dataBlob); rec.files.data = p; }
     }
   }
   rec.dataBlob = null;
   await copyResources(rec);
   if (rec.plan === "layerData") await exportService(rec);
 }
+const DRAFT = /^draft(_\d{13})?\.json$/i;
 async function copyResources(rec) {
   const it = rec.item;
   const list = [];
@@ -1103,14 +1311,15 @@ async function copyResources(rec) {
       list.push(...(r.resources || []));
       const n = Number(r.nextStart); start = Number.isFinite(n) && n > start ? n : -1;
     }
-  } catch (e) { if (e && e.name === "AbortError") throw e; return; }   // many item types have no resources
+  } catch (e) { if (fatal(e)) throw e; return; }   // many item types have no resources
   const tasks = list.filter((r) => r && r.resource).map((r) => async () => {
-    if (ctx.cancelled) return;
-    if ((r.size || 0) > LIMITS.fileBytes) { rec.notes.push(`${r.resource} is too big to copy here.`); return; }
+    checkStop();
+    if ((r.size || 0) > LIM().fileBytes) { rec.notes.push(`${r.resource} is too big to copy here.`); return; }
     try {
       const b = await request(`${SR()}/content/items/${it.id}/resources/${encodePath(r.resource)}`, { as: "blob" });
-      const p = `${rec.dir}/resources/${safePath(r.resource)}`; put(p, b); rec.resources.set(r.resource, p);
-    } catch (e) { if (e && e.name === "AbortError") throw e; if (e.code === "toobig") throw e; rec.problems.push(`${r.resource} couldn't be copied: ${e.message}`); }
+      const p = `${rec.dir}/resources/${safePath(r.resource)}`; await put(p, b); rec.resources.set(r.resource, p);
+      if (DRAFT.test(r.resource) && b.size < 50e6) rec.drafts.set(r.resource, b);
+    } catch (e) { if (fatal(e)) throw e; rec.problems.push(`${r.resource} couldn't be copied: ${e.message}`); }
   });
   await runPool(tasks, 3);
 }
@@ -1120,103 +1329,133 @@ async function exportService(rec) {
   let all;
   try { all = await request(base + "/layers"); if (!Array.isArray(all.layers)) throw new Error("no layers"); }
   catch (e) {
-    if (e && e.name === "AbortError") throw e;
+    if (fatal(e)) throw e;
     all = { layers: [], tables: [] };
     for (const l of svc.layers || []) all.layers.push(await request(`${base}/${l.id}`));
     for (const t of svc.tables || []) all.tables.push(await request(`${base}/${t.id}`));
   }
-  put(`${rec.dir}/layers/service.json`, JSON.stringify({ service: svc, layers: all.layers, tables: all.tables || [] }, null, 2));
+  await put(`${rec.dir}/layers/service.json`, JSON.stringify({ service: svc, layers: all.layers, tables: all.tables || [] }, null, 2));
   const settings = rec.data && typeof rec.data === "object" ? rec.data : {};
   const entries = [...(all.layers || []).map((def) => ({ def, table: false })), ...(all.tables || []).map((def) => ({ def, table: true }))];
   rec.service = { url: base, layers: [] };
   for (const { def, table } of entries) {
-    if (ctx.cancelled) return;
+    checkStop();
     const lid = def.id, lurl = `${base}/${lid}`, slug = `${lid}-${slugify(def.name || "layer", 40)}`;
     const out = { id: lid, name: def.name || "Layer " + lid, table, geometryType: table ? null : def.geometryType || null, count: 0, files: {} };
+    let ids = [];
     try {
       progress(NaN, `${it.title}: reading ${out.name}`);
       const idsRes = await request(`${lurl}/query`, { method: "POST", params: { where: "1=1", returnIdsOnly: true } });
       const oidField = idsRes.objectIdFieldName || def.objectIdField || "OBJECTID";
-      let ids = (idsRes.objectIds || []).slice().sort((a, b) => a - b);
-      if (ids.length > LIMITS.featuresPerLayer) { rec.notes.push(`${out.name} has ${ids.length.toLocaleString()} features; the first ${LIMITS.featuresPerLayer.toLocaleString()} were copied.`); ids = ids.slice(0, LIMITS.featuresPerLayer); out.truncated = true; }
+      ids = (idsRes.objectIds || []).slice().sort((a, b) => a - b);
+      const cap = LIM().featuresPerLayer;
+      if (ids.length > cap) { rec.notes.push(`${out.name} has ${ids.length.toLocaleString()} features; the first ${cap.toLocaleString()} were copied.`); ids = ids.slice(0, cap); out.truncated = true; }
       const chunk = Math.max(1, Math.min(Number(def.maxRecordCount) || 1000, 1000));   // never more than the service allows
-      const features = [], gj = [];
       const geo = !table && !!def.geometryType;
+      const z = def.hasZ ? true : undefined;
+      const features = [];
       for (let i = 0; i < ids.length; i += chunk) {
-        if (ctx.cancelled) return;
-        const part = ids.slice(i, i + chunk).join(",");
-        const r = await request(`${lurl}/query`, { method: "POST", params: { objectIds: part, outFields: "*", returnGeometry: geo, outSR: 102100 } });
+        checkStop();
+        const r = await request(`${lurl}/query`, { method: "POST", params: { objectIds: ids.slice(i, i + chunk).join(","), outFields: "*", returnGeometry: geo, returnZ: z, outSR: 102100 } });
         features.push(...(r.features || []));
-        if (geo) { const g = await request(`${lurl}/query`, { method: "POST", params: { objectIds: part, outFields: "*", returnGeometry: true, outSR: 4326, f: "geojson" } }); gj.push(...(g.features || [])); }
         if (ids.length > chunk) progress(NaN, `${it.title}: ${out.name}, ${Math.min(i + chunk, ids.length).toLocaleString()} of ${ids.length.toLocaleString()}`);
       }
-      const fset = { objectIdFieldName: oidField, geometryType: def.geometryType || null, spatialReference: SR_WM, fields: def.fields || [], features };
-      const pJson = `${rec.dir}/layers/${slug}.json`; put(pJson, JSON.stringify(fset)); out.files.esriJson = pJson;
-      if (geo) { const pGeo = `${rec.dir}/layers/${slug}.geojson`; put(pGeo, JSON.stringify({ type: "FeatureCollection", features: gj })); out.files.geojson = pGeo; }
-      const pCsv = `${rec.dir}/layers/${slug}.csv`; put(pCsv, toCsv(def.fields, features, geo ? gj : null, def.geometryType, oidField)); out.files.csv = pCsv;
+      const fset = { objectIdFieldName: oidField, geometryType: def.geometryType || null, spatialReference: SR_WM, fields: def.fields || [], features: [] };
+      const pJson = `${rec.dir}/layers/${slug}.json`; await put(pJson, jsonWithFeatures(fset, features)); out.files.esriJson = pJson;
+      const pCsv = `${rec.dir}/layers/${slug}.csv`; await put(pCsv, toCsvParts(def.fields, features, def.geometryType)); out.files.csv = pCsv;
       out.count = features.length;
       const settingsList = (table ? settings.tables : settings.layers) || [];
       ctx.layerStore.set(normalizeUrl(lurl), { def: { ...def, objectIdField: def.objectIdField || oidField }, features, table, layerUrl: lurl,
         settings: Array.isArray(settingsList) ? settingsList.find((l) => l && Number(l.id) === Number(lid)) || null : null });
-      if (geo && ctx.opts.attachments && def.hasAttachments && features.length) await exportAttachments(rec, def, lurl, ids, slug, out);
+      // GeoJSON is a convenience copy: if the service can't give it, the other files still stand.
+      const formats = String(def.supportedQueryFormats || "geoJSON").toLowerCase();
+      if (geo && formats.includes("geojson")) {
+        try {
+          const gj = [];
+          for (let i = 0; i < ids.length; i += chunk) {
+            checkStop();
+            const g = await request(`${lurl}/query`, { method: "POST", params: { objectIds: ids.slice(i, i + chunk).join(","), outFields: "*", returnGeometry: true, returnZ: z, outSR: 4326, f: "geojson" } });
+            gj.push(...(g.features || []));
+          }
+          const pGeo = `${rec.dir}/layers/${slug}.geojson`; await put(pGeo, jsonWithFeatures({ type: "FeatureCollection" }, gj)); out.files.geojson = pGeo;
+        } catch (e) { if (fatal(e)) throw e; rec.notes.push(`${out.name}: the GeoJSON copy couldn't be made; the CSV and ArcGIS JSON files have all the data.`); }
+      }
     } catch (e) {
-      if (e && e.name === "AbortError") throw e;
-      if (e.code === "toobig") throw e;
+      if (fatal(e)) throw e;
       rec.problems.push(`${out.name}: ${e.message}`); out.error = e.message;
     }
+    if (!out.error && ctx.opts.attachments && def.hasAttachments && ids.length) await exportAttachments(rec, def, lurl, ids, slug, out);
     rec.service.layers.push(out);
   }
 }
 async function exportAttachments(rec, def, lurl, ids, slug, out) {
   let infos = null;
   const qa = def.advancedQueryCapabilities && def.advancedQueryCapabilities.supportsQueryAttachments;
+  const page = Math.max(1, Math.min(Number(def.maxRecordCount) || 1000, 1000));
   if (qa !== false) {
     try {
-      infos = [];
-      for (let i = 0; i < ids.length; i += 200) {
-        const r = await request(`${lurl}/queryAttachments`, { method: "POST", params: { objectIds: ids.slice(i, i + 200).join(","), returnUrl: false } });
-        for (const g of r.attachmentGroups || []) for (const a of g.attachmentInfos || []) infos.push({ oid: g.parentObjectId, a });
+      const seen = new Set(); infos = [];
+      for (let i = 0; i < ids.length; i += 50) {
+        // A page holds at most maxRecordCount attachments, so keep asking until a page comes back short.
+        for (let offset = 0, guard = 0; guard < 1000; guard++) {
+          checkStop();
+          const r = await request(`${lurl}/queryAttachments`, { method: "POST", params: { objectIds: ids.slice(i, i + 50).join(","), returnUrl: false, resultOffset: offset, resultRecordCount: page } });
+          let n = 0;
+          for (const g of r.attachmentGroups || []) for (const a of g.attachmentInfos || []) {
+            n++; const key = g.parentObjectId + "/" + a.id;
+            if (!seen.has(key)) { seen.add(key); infos.push({ oid: g.parentObjectId, a }); }
+          }
+          if (n < page) break;
+          offset += n;
+        }
       }
-    } catch (e) { if (e && e.name === "AbortError") throw e; infos = null; }
+    } catch (e) { if (fatal(e)) throw e; infos = null; }
   }
   if (!infos) {
     infos = [];
-    if (ids.length > LIMITS.perFeatureAttachmentLookups) { rec.notes.push(`${out.name}: attachments weren't copied (too many features to check one by one).`); return; }
+    if (ids.length > LIM().perFeatureAttachmentLookups) { rec.notes.push(`${out.name}: attachments weren't copied (too many features to check one by one).`); return; }
     for (const oid of ids) {
-      if (ctx.cancelled) return;
+      checkStop();
       try { const r = await request(`${lurl}/${oid}/attachments`); for (const a of r.attachmentInfos || []) infos.push({ oid, a }); }
-      catch (e) { if (e && e.name === "AbortError") throw e; }
+      catch (e) { if (fatal(e)) throw e; }
     }
   }
   if (!infos.length) return;
   const dir = `${rec.dir}/layers/${slug}-attachments`;
   const index = [["objectId", "attachmentId", "name", "contentType", "size", "file"]];
   let copied = 0, skipped = 0;
+  const L = LIM();
   await runPool(infos.map(({ oid, a }) => async () => {
-    if (ctx.cancelled) return;
-    if (ctx.attachBytes + (a.size || 0) > LIMITS.attachmentBytes) { skipped++; return; }
+    checkStop();
+    if (ctx.attachBytes + (a.size || 0) > L.attachmentBytes) { skipped++; return; }
     try {
       const b = await request(`${lurl}/${oid}/attachments/${a.id}`, { as: "blob" });
       ctx.attachBytes += b.size;
-      const p = `${dir}/${oid}/${a.id}-${safeFileName(a.name || "attachment")}`; put(p, b); copied++;
-      index.push([oid, a.id, a.name || "", a.contentType || b.type || "", b.size, p.slice(rec.dir.length + "/layers/".length)]);
-    } catch (e) { if (e && e.name === "AbortError") throw e; if (e.code === "toobig") throw e; skipped++; }
+      const name = `${oid}-${a.id}-${safeFileName(a.name || "attachment", 80)}`;
+      await put(`${dir}/${name}`, b); copied++;
+      index.push([oid, a.id, a.name || "", a.contentType || b.type || "", b.size, name]);
+    } catch (e) { if (fatal(e)) throw e; skipped++; }
   }), 3);
-  put(`${dir}/index.csv`, "﻿" + index.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n");
+  await put(`${dir}/index.csv`, "﻿" + index.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n");
   out.attachments = copied; out.files.attachments = dir;
-  if (skipped) rec.notes.push(`${out.name}: ${plural(skipped, "attachment")} couldn't be copied${ctx.attachBytes >= LIMITS.attachmentBytes * 0.95 ? " (the 1 GB limit for attachments was reached)" : ""}.`);
+  if (skipped) rec.notes.push(`${out.name}: ${plural(skipped, "attachment")} couldn't be copied${ctx.attachBytes >= L.attachmentBytes * 0.95 ? " (the 1 GB limit for attachments was reached)" : ""}.`);
 }
 
-async function runExport(chosen, opts) {
-  ctx = { zip: null, opts, records: new Map(), layerStore: new Map(), dirs: new Set(), mapFiles: new Set(), bytes: 0, attachBytes: 0, cancelled: false, startedAt: new Date() };
+async function runExport(chosen, opts, sink) {
+  ctx = { zip: new ZipWriter(sink), sink, streaming: sink.streaming, opts, records: new Map(), layerStore: new Map(), dirs: new Set(), mapFiles: new Set(),
+    bytes: 0, attachBytes: 0, cancelled: false, startedAt: new Date() };
   abortCtl = new AbortController();
-  // 0. the zip library
-  setPhase("prep"); progress(0.01, "Getting ready…");
-  if (!window.JSZip) {
-    try { await loadScript(JSZIP_URL); } catch { throw new ArcError("Couldn't load the zip library from cdnjs.cloudflare.com. Your network may block it; try another network.", "jszip"); }
+  try {
+    return await exportAll(chosen, opts);
+  } catch (e) {
+    stopRun();                       // anything still running stops now
+    await sink.abort();
+    throw e;
   }
-  ctx.zip = new window.JSZip();
-  const newRec = (item, reason) => ({ item, reason, ...classify(item), dir: "", files: {}, resources: new Map(), notes: [], problems: [], data: undefined, dataLoaded: false });
+}
+async function exportAll(chosen, opts) {
+  setPhase("prep"); progress(0.01, "Getting ready…");
+  const newRec = (item, reason) => ({ item, reason, ...classify(item), dir: "", files: {}, resources: new Map(), drafts: new Map(), notes: [], problems: [], data: undefined, dataLoaded: false });
   for (const it of chosen) ctx.records.set(it.id, newRec(it, "chosen"));
   // 1. what the chosen items use
   if (opts.deps) {
@@ -1225,7 +1464,7 @@ async function runExport(chosen, opts) {
     const queue = [...ctx.records.values()];
     let checked = 0;
     while (queue.length) {
-      if (ctx.cancelled) throw new DOMException("Stopped", "AbortError");
+      checkStop();
       const rec = queue.shift();
       if (!CONTAINER_TYPES.has(rec.item.type)) continue;
       progress(0.01 + 0.04 * Math.min(1, ++checked / Math.max(1, ctx.records.size)), `Checking ${rec.item.title}`);
@@ -1240,75 +1479,83 @@ async function runExport(chosen, opts) {
   const recs = [...ctx.records.values()];
   const added = recs.filter((r) => r.reason !== "chosen").length;
   if (added) logLine(`Also saving ${plural(added, "item")} that your chosen items use.`);
-  const estimate = recs.reduce((n, r) => n + (r.plan === "tooBig" ? 0 : (r.item.size || 0)), 0);
-  if (estimate > LIMITS.maxBytes) throw new ArcError(`These items add up to about ${fmtBytes(estimate)}, more than a browser can save as one file. Choose fewer items and save them in two or more parts.`, "toobig");
-  if (estimate > LIMITS.warnBytes) logLine(`This is a big copy (about ${fmtBytes(estimate)}). If your browser runs out of memory, save in two or more parts.`, true);
+  const L = LIM(), estimate = recs.reduce((n, r) => n + (r.plan === "tooBig" ? 0 : (r.item.size || 0)), 0);
+  const cap = ctx.streaming ? L.streamBytes : L.memoryBytes;
+  if (estimate > cap) throw new ArcError(`These items add up to about ${fmtBytes(estimate)}, more than ${ctx.streaming ? "this page will save at once" : "a browser can download as one file"}. Choose fewer items and save them in two or more parts.`, "toobig");
+  if (!ctx.streaming && estimate > L.warnBytes) logLine(`This is a big copy (about ${fmtBytes(estimate)}). If your browser runs out of memory, save in two or more parts.`, true);
   // 2. copy items: layers first, so maps can use their data
   setPhase("copy");
   const order = { layerData: 0, layerCollection: 1 };
   recs.sort((a, b) => (order[a.plan] ?? 5) - (order[b.plan] ?? 5));
   let done = 0;
   await runPool(recs.map((rec) => async () => {
-    if (ctx.cancelled) return;
+    checkStop();
     progress(NaN, `Copying ${rec.item.title}`);
     try { await copyItem(rec); }
-    catch (e) {
-      if (e && (e.name === "AbortError" || e.code === "toobig" || e.code === "auth")) throw e;
-      rec.problems.push(e.message || String(e));
-    }
+    catch (e) { if (fatal(e)) throw e; rec.problems.push(e.message || String(e)); }
     done++;
-    progress(0.05 + 0.7 * done / recs.length, `Copied ${done} of ${recs.length}: ${rec.item.title}`);
+    progress(0.05 + 0.8 * done / recs.length, `Copied ${done} of ${recs.length}: ${rec.item.title}`);
     logLine(`${rec.item.title}: ${rec.problems.length ? "copied, with problems" : "copied"}`, rec.problems.length > 0);
   }), 2);
-  if (ctx.cancelled) throw new DOMException("Stopped", "AbortError");
+  checkStop();
   // 3. maps
   setPhase("maps");
   const mapRecs = recs.filter((r) => r.item.type === "Web Map" && r.data && typeof r.data === "object");
+  const pctx = { store: ctx.layerStore, fetchImage: fetchImageForSymbol,
+    itemData: (id) => { const r = ctx.records.get(String(id).toLowerCase()); return r && r.plan === "layerCollection" && r.data && typeof r.data === "object" ? r.data : null; } };
   for (const [i, rec] of mapRecs.entries()) {
-    progress(0.75 + 0.05 * i / Math.max(1, mapRecs.length), `Making a map you can reopen: ${rec.item.title}`);
+    checkStop();
+    progress(0.85 + 0.05 * i / Math.max(1, mapRecs.length), `Making a map you can reopen: ${rec.item.title}`);
     try {
-      const { webmap, stats } = await packWebMap(rec.data, ctx.layerStore, fetchImageForSymbol);
+      const { webmap, stats } = await packWebMap(rec.data, pctx);
+      let text;
+      try { text = JSON.stringify(webmap); } catch { throw new Error("it holds too much data for one file; the data is in the layer files"); }
       const name = uniqueMapFile(rec.item.title);
-      put(`maps/${name}`, JSON.stringify(webmap));
+      await put(`maps/${name}`, text);
       rec.map = { file: `maps/${name}`, ...stats };
-      if (stats.features > LIMITS.atlasFeatureCap) rec.notes.push(`The map holds ${stats.features.toLocaleString()} features; Atlas opens the first ${LIMITS.atlasFeatureCap.toLocaleString()}. All the data is in the layer files.`);
+      if (stats.features > L.atlasFeatureCap) rec.notes.push(`The map holds ${stats.features.toLocaleString()} features; Atlas opens the first ${L.atlasFeatureCap.toLocaleString()}. All the data is in the layer files.`);
       if (stats.attachmentsDropped) rec.notes.push("Pop-ups in the map file don't show attachments; they're saved with the layer.");
-    } catch (e) { if (e && (e.name === "AbortError" || e.code === "toobig")) throw e; rec.problems.push("The map file couldn't be made: " + e.message); }
+      if (stats.tablesDropped) rec.notes.push(`The map file leaves out ${plural(stats.tablesDropped, "table")} from your layers; the data is in the layer files.`);
+    } catch (e) { if (fatal(e)) throw e; rec.problems.push("The map file couldn't be made: " + e.message); }
   }
   // 4. stories
   setPhase("stories");
   const storyRecs = recs.filter((r) => r.item.type === "StoryMap");
   const mapHrefFor = (prefix) => (id) => { const r = ctx.records.get(id); return r && r.map ? `${prefix}portfolio/viewer.html?m=${encodeURIComponent(r.map.file.slice(5))}` : null; };
   for (const [i, rec] of storyRecs.entries()) {
-    progress(0.8 + 0.05 * i / Math.max(1, storyRecs.length), `Making a reading copy: ${rec.item.title}`);
+    checkStop();
+    progress(0.9 + 0.04 * i / Math.max(1, storyRecs.length), `Making a reading copy: ${rec.item.title}`);
     try {
       let story = rec.data, source = "published";
       if (!story || !story.nodes) {
-        const drafts = [...rec.resources.keys()].filter((n) => /^draft[^/]*\.json$/i.test(n)).sort();
-        if (drafts.length) { story = JSON.parse(await ctx.zip.file(rec.resources.get(drafts[drafts.length - 1])).async("string")); source = "draft"; }
+        const drafts = [...rec.drafts.keys()].sort((a, b) => Number((a.match(/\d{13}/) || [0])[0]) - Number((b.match(/\d{13}/) || [0])[0]));
+        if (drafts.length) { story = JSON.parse(await rec.drafts.get(drafts[drafts.length - 1]).text()); source = "draft"; }
       }
       if (!story || !story.nodes) { rec.notes.push("No story content was found, so there's no reading copy."); continue; }
       const resourceHref = (rid) => { const p = rec.resources.get(rid) || rec.resources.get("images/" + rid); return p ? "../" + p.split("/").map(encodeURIComponent).join("/") : null; };
       const mapTitle = (id) => (st.byId.get(id) || {}).title || "";
-      const { title, body } = storyToHtml(story, { resourceHref, mapHref: mapHrefFor("../"), mapTitle });
+      const { title, body, locale } = storyToHtml(story, { resourceHref, mapHref: mapHrefFor("../"), mapTitle });
       const file = `stories/${slugify(rec.item.title, 60)}-${rec.item.id.slice(0, 8)}.html`;
-      const note = `<p class="note">A reading copy of the StoryMap "${esc(rec.item.title)}"${source === "draft" ? ", from its last saved draft" : ""}. The text, pictures and links are here; layout, animation and embedded maps aren't. <a href="../index.html">Back to the portfolio</a></p>`;
-      put(file, pageShell(title || rec.item.title, STORY_CSS, `<main id="main">${note}${body}</main>`));
+      const note = `<p class="note" lang="en" dir="ltr">A reading copy of the StoryMap "${esc(rec.item.title)}"${source === "draft" ? ", from its last saved draft" : ""}. The text, pictures and links are here; layout, animation and embedded maps aren't. <a href="../index.html">Back to the portfolio</a></p>`;
+      await put(file, pageShell(title || rec.item.title, STORY_CSS, `<main id="main">${note}${body}</main>`, locale));
       rec.story = { file, source };
-    } catch (e) { if (e && (e.name === "AbortError" || e.code === "toobig")) throw e; rec.problems.push("The reading copy couldn't be made: " + e.message); }
+    } catch (e) { if (fatal(e)) throw e; rec.problems.push("The reading copy couldn't be made: " + e.message); }
+    rec.drafts.clear();
   }
   // 5. portfolio, viewer, manifest, README
-  setPhase("page"); progress(0.86, "Writing your portfolio page");
-  put("portfolio/viewer.html", VIEWER_HTML(SDK_VERSION));
-  put("index.html", buildPortfolio(recs));
+  checkStop();
+  setPhase("page"); progress(0.95, "Writing your portfolio page");
+  await put("portfolio/viewer.html", VIEWER_HTML(SDK_VERSION));
+  await put("index.html", buildPortfolio(recs));
   const manifest = buildManifest(recs);
-  put("manifest.json", JSON.stringify(manifest, null, 2));
-  put("README.txt", buildReadme(recs));
-  // 6. zip
-  setPhase("zip"); progress(0.88, "Packing the .zip file");
-  const blob = await ctx.zip.generateAsync({ type: "blob", mimeType: "application/zip", streamFiles: true },
-    (m) => progress(0.88 + 0.12 * (m.percent / 100), `Packing the .zip file: ${Math.round(m.percent)}%`));
-  return { blob, recs, manifest };
+  await put("manifest.json", JSON.stringify(manifest, null, 2));
+  await put("README.txt", buildReadme(recs));
+  // 6. finish the zip
+  setPhase("zip"); progress(0.98, "Finishing the .zip file");
+  const blob = await ctx.zip.finish();
+  checkStop();
+  ctx.layerStore.clear();
+  return { blob, recs, manifest, bytes: ctx.zip.offset };
 }
 
 function originalLink(it) {
@@ -1323,16 +1570,17 @@ function buildPortfolio(recs) {
     { id: "story", title: "StoryMaps" }, { id: "map", title: "Maps" }, { id: "layer", title: "Layers and data" },
     { id: "app", title: "Apps, dashboards and notebooks" }, { id: "file", title: "Files" }, { id: "other", title: "Other items" }
   ];
-  const chosen = recs.filter((r) => r.reason === "chosen" || r.group === "layer");
+  const listed = (r) => r.reason === "chosen" || r.group === "layer" || r.group === "map";
   const sorted = (list) => list.slice().sort((a, b) => (b.item.modified || 0) - (a.item.modified || 0));
-  const sections = [];
+  const sections = [], shown = [];
   for (const g of groups) {
-    const list = sorted(recs.filter((r) => r.group === g.id && (r.reason === "chosen" || g.id === "layer" || g.id === "map")));
+    const list = sorted(recs.filter((r) => r.group === g.id && listed(r)));
     if (!list.length) continue;
+    shown.push(g);
     sections.push(`<section aria-labelledby="g-${g.id}"><h2 id="g-${g.id}">${esc(g.title)} (${list.length})</h2>${list.map((r) => entryHtml(r, g.id === "story")).join("")}</section>`);
   }
-  const omitted = recs.filter((r) => !chosen.includes(r) && !["map", "layer"].includes(r.group));
-  const toc = sections.length > 1 ? `<nav class="toc" aria-label="Sections"><ul>${groups.filter((g) => sections.some((s) => s.includes(`id="g-${g.id}"`))).map((g) => `<li><a href="#g-${g.id}">${esc(g.title)}</a></li>`).join("")}<li><a href="#about">About this copy</a></li></ul></nav>` : "";
+  const omitted = recs.filter((r) => !listed(r));
+  const toc = shown.length > 1 ? `<nav class="toc" aria-label="Sections"><ul>${shown.map((g) => `<li><a href="#g-${g.id}">${esc(g.title)}</a></li>`).join("")}<li><a href="#about">About this copy</a></li></ul></nav>` : "";
   const versions = [["Take My Work", APP_VERSION], ...COMPONENTS.map((c) => [c.label, c.version])];
   const about = `<section aria-labelledby="about"><h2 id="about">About this copy</h2>
 <p>Made on ${esc(ctx.startedAt.toLocaleString())} from ${esc(orgName || cfg.portal)}, for the ArcGIS account ${esc(st.user.username)}. It holds ${plural(recs.length, "item")}.</p>
@@ -1363,6 +1611,7 @@ function entryHtml(r, feature) {
       if (l.files.geojson) f.push(`<a href="${relHref(l.files.geojson)}">GeoJSON</a>`);
       if (l.files.csv) f.push(`<a href="${relHref(l.files.csv)}">CSV</a>`);
       if (l.files.esriJson) f.push(`<a href="${relHref(l.files.esriJson)}">ArcGIS JSON</a>`);
+      if (l.files.attachments) f.push(`<a href="${relHref(l.files.attachments + "/index.csv")}">attachments list</a>`);
       const count = l.error ? "couldn't be copied" : `${l.count.toLocaleString()} ${l.table ? "rows" : "features"}${l.attachments ? ", " + plural(l.attachments, "attachment") : ""}`;
       return `<li>${esc(l.name)} (${count})${f.length ? ": " + f.join(", ") : ""}</li>`;
     }).join("")}</ul>`;
@@ -1440,7 +1689,7 @@ function buildReadme(recs) {
 function show(id) {
   for (const s of ["setupSection", "signinSection", "chooseSection", "saveSection", "doneSection"]) $(s).hidden = s !== id;
   const step = { setupSection: 1, signinSection: 1, chooseSection: 2, saveSection: 3, doneSection: 3 }[id];
-  [1, 2, 3].forEach((n) => { const li = $("step" + n); li.toggleAttribute("aria-current", n === step); if (n === step) li.setAttribute("aria-current", "step"); li.classList.toggle("done", n < step); });
+  [1, 2, 3].forEach((n) => { const li = $("step" + n); if (n === step) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current"); li.classList.toggle("done", n < step); });
 }
 function focusHeading(id) { const h = $(id); if (h) h.focus({ preventScroll: false }); }
 
@@ -1450,6 +1699,7 @@ function renderStatic() {
   $("versionsTable").querySelector("tbody").innerHTML = [["Take My Work (app)", APP_VERSION], ...COMPONENTS.map((c) => [c.label, c.version])].map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("");
   $("redirect1").textContent = redirectUri().replace(/index\.html$/, "");
   $("redirect2").textContent = redirectUri().replace(/\/?(index\.html)?$/, "/index.html");
+  $("originShown").textContent = location.origin;
   $("atlasLink").href = ATLAS_URL;
   drawContours();
 }
@@ -1562,44 +1812,43 @@ async function afterSignIn() {
   }
 }
 
+async function pickFile() {
+  if (TEST.picker) return TEST.picker(st.fileName);                 // the automated tests stand in for the file picker
+  if (typeof window.showSaveFilePicker !== "function") return null;
+  return window.showSaveFilePicker({ suggestedName: st.fileName, types: [{ description: "Zip file", accept: { "application/zip": [".zip"] } }] });
+}
 async function onSave() {
   if (st.running) return;
   const chosen = st.items.filter((it) => st.selected.has(it.id));
   if (!chosen.length) return;
   st.fileName = `ArcGIS-work-${slugify(st.user.username, 40)}-${isoDate()}.zip`;
-  st.fileHandle = null;
-  if (typeof window.showSaveFilePicker === "function") {
-    try { st.fileHandle = await window.showSaveFilePicker({ suggestedName: st.fileName, types: [{ description: "Zip file", accept: { "application/zip": [".zip"] } }] }); }
-    catch (e) { if (e && e.name === "AbortError") return; st.fileHandle = null; }
-  }
+  st.fileHandle = null; st.blob = null;                  // let the previous copy go before making a new one
+  try { st.fileHandle = await pickFile(); }
+  catch (e) { if (isAbort(e)) return; st.fileHandle = null; }
+  let sink;
+  try { sink = st.fileHandle ? await fileSink(st.fileHandle) : memorySink(); }
+  catch { st.fileHandle = null; sink = memorySink(); }
   st.running = true; renderSummary();
-  $("logList").textContent = ""; $("progressBar").value = 0; $("progressText").textContent = ""; lastSpoken = 0;
+  $("logList").textContent = ""; $("progressBar").value = 0; $("progressText").textContent = ""; lastQuarter = 0;
   $("phaseList").innerHTML = PHASES.map((p) => `<li>${esc(p.label)}</li>`).join("");
   show("saveSection"); focusHeading("saveTitle");
   const guard = (e) => { e.preventDefault(); e.returnValue = ""; };
   window.addEventListener("beforeunload", guard);
   try {
-    const result = await runExport(chosen, { deps: $("optDeps").checked, attachments: $("optAttach").checked });
-    st.blob = result.blob; st.lastResult = result;
-    const saved = await saveBlob(result.blob);
+    const result = await runExport(chosen, { deps: $("optDeps").checked, attachments: $("optAttach").checked }, sink);
+    let saved = "picked";
+    if (result.blob) { st.blob = result.blob; downloadBlob(result.blob, st.fileName); saved = "download"; }
     showDone(result, saved);
   } catch (e) {
     console.error(e);
     show("chooseSection");
-    $("loadError").hidden = false; $("loadError").className = e && e.name === "AbortError" ? "alert warn" : "alert error";
-    $("loadError").textContent = e && e.name === "AbortError" ? "Stopped. Nothing was saved." : "Your work couldn't be saved: " + (e.message || e);
+    $("loadError").hidden = false; $("loadError").className = isAbort(e) ? "alert warn" : "alert error";
+    $("loadError").textContent = isAbort(e) ? "Stopped. Nothing was saved." : "Your work couldn't be saved: " + (e.message || e);
     focusHeading("chooseTitle");
   } finally {
     window.removeEventListener("beforeunload", guard);
-    st.running = false; abortCtl = null; renderSummary();
+    st.running = false; abortCtl = null; ctx = null; renderSummary();
   }
-}
-async function saveBlob(blob) {
-  if (st.fileHandle) {
-    try { const w = await st.fileHandle.createWritable(); await w.write(blob); await w.close(); return "picked"; }
-    catch (e) { console.warn("Writing the picked file failed; downloading instead", e); }
-  }
-  try { downloadBlob(blob, st.fileName); return "download"; } catch { return ""; }
 }
 function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
@@ -1614,7 +1863,7 @@ function showDone(result, saved) {
   if (stories) parts.push(plural(stories, "StoryMap reading copy", "StoryMap reading copies"));
   if (layers) parts.push(plural(layers, "layer with its data", "layers with their data"));
   const where = saved === "picked" ? `It's in the file you chose, ${st.fileHandle && st.fileHandle.name ? st.fileHandle.name : st.fileName}.` : `Your browser is downloading ${st.fileName}. If it didn't start, use the button below.`;
-  $("doneSummary").textContent = `${parts.join(", ")}, ${fmtBytes(result.blob.size)} in all. ${where}`;
+  $("doneSummary").textContent = `${parts.join(", ")}, ${fmtBytes(result.bytes)} in all. ${where}`;
   const issues = recs.flatMap((r) => [...r.problems, ...r.notes].map((n) => `${r.item.title}: ${n}`));
   $("problemsBox").hidden = !issues.length;
   $("problemList").innerHTML = issues.slice(0, 200).map((t) => `<li>${esc(t)}</li>`).join("") + (issues.length > 200 ? `<li>…and ${issues.length - 200} more, listed in README.txt</li>` : "");
@@ -1643,8 +1892,11 @@ function wire() {
     renderRows();
   });
   $("saveBtn").addEventListener("click", onSave);
-  $("cancelBtn").addEventListener("click", () => { if (ctx) ctx.cancelled = true; if (abortCtl) abortCtl.abort(); $("progressText").textContent = "Stopping…"; });
-  $("downloadBtn").addEventListener("click", () => { if (st.blob) downloadBlob(st.blob, st.fileName); });
+  $("cancelBtn").addEventListener("click", () => { stopRun(); $("progressText").textContent = "Stopping…"; });
+  $("downloadBtn").addEventListener("click", async () => {
+    if (st.blob) downloadBlob(st.blob, st.fileName);
+    else if (st.fileHandle && st.fileHandle.getFile) { try { downloadBlob(await st.fileHandle.getFile(), st.fileName); } catch { announce("That copy is in the file you chose."); } }
+  });
   $("againBtn").addEventListener("click", () => { show("chooseSection"); $("loadError").hidden = true; renderRows(); focusHeading("chooseTitle"); });
   $("showSetupBtn").addEventListener("click", () => { $("about").open = false; show("setupSection"); $("setupTitle").textContent = "Make a link for your school"; $("setupLead").hidden = true; $("adminSetup").open = true; $("portalInput").value = cfg.portal || ""; $("clientInput").value = cfg.clientId || ""; focusHeading("setupTitle"); });
   $("setupForm").addEventListener("submit", (e) => {
@@ -1652,7 +1904,7 @@ function wire() {
     const portal = normalizePortal($("portalInput").value), clientId = cleanClientId($("clientInput").value);
     const err = $("setupError");
     if (!portal) { err.hidden = false; err.textContent = "Enter your organization's address, starting with https://, for example https://yourschool.maps.arcgis.com"; $("portalInput").focus(); return; }
-    if (!clientId) { err.hidden = false; err.textContent = "Enter the Client ID from the application item (letters and numbers, at least 8)."; $("clientInput").focus(); return; }
+    if (!clientId) { err.hidden = false; err.textContent = "Enter the Client ID from the credentials item (letters and numbers, at least 8)."; $("clientInput").focus(); return; }
     err.hidden = true;
     const link = `${redirectUri()}?${new URLSearchParams({ portal, clientId })}`;
     $("studentLink").value = link; $("tryLink").href = link; $("linkOut").hidden = false;
@@ -1667,11 +1919,19 @@ function wire() {
 
 async function start() {
   renderStatic(); wire();
-  window.TakeMyWork = { version: APP_VERSION, components: V, packWebMap, storyToHtml, sanitizeHtml, toCsv, findRefs, classify, normalizePortal, normalizeUrl, slugify, safeFileName };
+  if (TEST.expose) window.TakeMyWork = { version: APP_VERSION, components: V, packWebMap, storyToHtml, sanitizeHtml, toCsvParts, findRefs, classify, normalizePortal, normalizeUrl, slugify, safeFileName, mapFileBase, ZipWriter, memorySink };
+  const showPortal = () => {
+    const host = cfg.portal ? new URL(cfg.portal).host : "";
+    $("orgShown").textContent = host;
+    if (cfg.portal && !isArcGISOnline(cfg.portal)) {
+      $("portalWarn").hidden = false;
+      $("portalWarn").textContent = `This link signs you in at ${host}, which isn't an arcgis.com address. Only carry on if your school runs its own ArcGIS portal there.`;
+    }
+  };
   try {
     if (await completeSignInIfReturning()) { await afterSignIn(); return; }
   } catch (e) {
-    show("signinSection"); $("orgShown").textContent = cfg.portal ? new URL(cfg.portal).host : "";
+    show("signinSection"); showPortal();
     $("signinError").hidden = false; $("signinError").textContent = e.message; return;
   }
   if (!cfg.clientId || !cfg.portal) {
@@ -1680,8 +1940,7 @@ async function start() {
     if (!cfg.portal) { $("setupError").hidden = false; $("setupError").textContent = "The organization address in this link isn't a valid https address."; }
     return;
   }
-  show("signinSection");
-  $("orgShown").textContent = new URL(cfg.portal).host;
+  show("signinSection"); showPortal();
 }
 start();
 </script>
