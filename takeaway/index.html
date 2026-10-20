@@ -1,0 +1,1948 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Take My Work</title>
+<meta name="description" content="Save a copy of your ArcGIS Online work to your own device before your school account closes.">
+<style>
+:root {
+  --ink: #16243a; --ink-2: #4a586b; --paper: #f2f5f7; --surface: #ffffff; --line: #cfd8df; --line-2: #e3e9ee;
+  --contour: #2b6b57; --contour-ink: #ffffff; --contour-soft: #e2efe9; --contour-line: rgba(132, 205, 177, 0.42);
+  --night: #142338; --night-ink: #f3f7fa; --night-2: #b9c7d4;
+  --warn: #7a4300; --warn-bg: #fff3dc; --err: #9e1f27; --err-bg: #fdebec; --focus: #1a5fb4;
+  --r-s: 4px; --r-m: 10px;
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 100%; line-height: 1.5; color: var(--ink); background: var(--paper);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e7edf2; --ink-2: #aebccb; --paper: #0e1824; --surface: #152231; --line: #34485b; --line-2: #22344a;
+    --contour: #63c3a2; --contour-ink: #06241b; --contour-soft: #183a30; --contour-line: rgba(99, 195, 162, 0.32);
+    --night: #0a1420; --night-ink: #f3f7fa; --night-2: #a9b8c7;
+    --warn: #ffd18c; --warn-bg: #3a2a0e; --err: #ffa3a8; --err-bg: #3c1518; --focus: #8ab4ff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); }
+a { color: var(--contour); text-underline-offset: 2px; }
+@media (prefers-color-scheme: dark) { a { color: #8fd9bf; } }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+h2[tabindex="-1"]:focus { outline: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip { position: absolute; left: 12px; top: -48px; background: var(--surface); color: var(--ink); padding: 8px 14px; border-radius: var(--r-s); z-index: 10; }
+.skip:focus { top: 12px; }
+.wrap { max-width: 1060px; margin: 0 auto; padding: 0 16px; }
+code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em; background: var(--line-2); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+
+/* Masthead: index contours every fourth line, as on a topographic map */
+.masthead { position: relative; overflow: hidden; background: var(--night); color: var(--night-ink); }
+.contours { position: absolute; inset: 0; width: 100%; height: 100%; }
+.contours path { fill: none; stroke: var(--contour-line); stroke-width: 1; }
+.contours path.index { stroke-width: 2.2; }
+.masthead-inner { position: relative; padding-top: 22px; padding-bottom: 44px; }
+.brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.app-name { margin: 0; font-weight: 700; letter-spacing: 0.01em; font-size: 1.05rem; }
+.version { font-size: 0.8rem; color: var(--night-2); border: 1px solid rgba(255,255,255,0.28); border-radius: 999px; padding: 2px 10px; font-variant-numeric: tabular-nums; }
+.masthead h1 { font-size: clamp(2rem, 5.2vw, 3.4rem); line-height: 1.04; letter-spacing: -0.02em; font-weight: 760; margin: 40px 0 14px; max-width: 15ch; }
+.lede { font-size: 1.15rem; max-width: 56ch; margin: 0; color: #dfe7ee; }
+
+/* Steps: a real sequence */
+.steps { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 28px; padding: 0; margin: 28px 0 8px; color: var(--ink-2); }
+.steps li { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.steps .num { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line); font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+.steps li[aria-current="step"] { color: var(--ink); }
+.steps li[aria-current="step"] .num { background: var(--contour); border-color: var(--contour); color: var(--contour-ink); }
+.steps li.done .num { border-color: var(--contour); color: var(--contour); }
+
+section.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); padding: 24px clamp(16px, 3vw, 32px); margin: 18px 0; }
+section.panel h2 { font-size: 1.55rem; line-height: 1.2; margin: 0 0 10px; letter-spacing: -0.01em; }
+section.panel h3 { font-size: 1.1rem; margin: 22px 0 8px; }
+p { max-width: 70ch; }
+.hint { color: var(--ink-2); font-size: 0.95rem; }
+
+button { font: inherit; cursor: pointer; border-radius: var(--r-s); border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 9px 16px; min-height: 44px; }
+button:hover { border-color: var(--ink-2); }
+button.primary { background: var(--contour); border-color: var(--contour); color: var(--contour-ink); font-weight: 650; padding: 11px 22px; }
+button.primary:hover { filter: brightness(1.08); }
+button:disabled { cursor: not-allowed; opacity: 0.55; filter: none; }
+button.link { border: 0; background: none; color: var(--contour); text-decoration: underline; text-underline-offset: 2px; padding: 4px 6px; min-height: 0; }
+@media (prefers-color-scheme: dark) { button.link { color: #8fd9bf; } }
+
+label { font-weight: 600; }
+input[type="url"], input[type="text"], input[type="search"] { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--ink-2); border-radius: var(--r-s); padding: 9px 12px; min-height: 44px; width: 100%; max-width: 520px; }
+input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; accent-color: var(--contour); vertical-align: middle; }
+.field { display: grid; gap: 6px; margin: 14px 0; }
+
+.facts { padding-left: 1.2em; margin: 18px 0 0; color: var(--ink-2); }
+.facts li { margin: 4px 0; max-width: 70ch; }
+.alert { border-radius: var(--r-s); padding: 12px 14px; margin: 14px 0; max-width: 75ch; }
+.alert.error { background: var(--err-bg); color: var(--err); border: 1px solid currentColor; }
+.alert.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid currentColor; }
+.org-line { color: var(--ink-2); }
+.org-line strong { color: var(--ink); overflow-wrap: anywhere; }
+
+.who { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; border-bottom: 1px solid var(--line-2); padding-bottom: 12px; margin-bottom: 16px; }
+.who p { margin: 0; }
+.who .shared-note { flex-basis: 100%; font-size: 0.88rem; }
+
+/* Choosing items: a packing list */
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; margin: 6px 0 14px; }
+.filters { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.filters label { font-weight: 500; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px 6px 10px; cursor: pointer; min-height: 40px; }
+.filters input { width: 16px; height: 16px; }
+.filters label:has(input:checked) { border-color: var(--contour); background: var(--contour-soft); }
+.filters .count { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.search { display: grid; gap: 4px; flex: 1 1 220px; }
+.search input { max-width: none; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-s); }
+table.items { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+table.items th, table.items td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+table.items thead th { background: var(--paper); font-size: 0.85rem; color: var(--ink-2); font-weight: 650; position: sticky; top: 0; }
+table.items tbody tr:last-child td { border-bottom: 0; }
+table.items tbody tr.off { background: var(--paper); }
+table.items tbody tr.off td, table.items tbody tr.off .title-cell label { color: var(--ink-2); }
+table.items tbody tr.off .title-cell label { font-weight: 500; }
+table.items .c-check { width: 44px; }
+table.items .c-size, table.items .c-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.items .c-size { text-align: right; }
+.title-cell label { font-weight: 650; cursor: pointer; overflow-wrap: anywhere; }
+.title-cell .sub { display: block; color: var(--ink-2); font-size: 0.86rem; margin-top: 2px; }
+.get-cell { color: var(--ink-2); max-width: 26ch; }
+.get-cell.limited, .plan-sub.limited { color: var(--warn); }
+.title-cell .plan-sub { display: none; }
+@media (max-width: 760px) { table.items .c-folder, table.items .c-date { display: none; } }
+@media (max-width: 560px) { table.items .c-type { display: none; } table.items .c-get { display: none; } .title-cell .plan-sub { display: block; } }
+
+.options { border: 1px solid var(--line-2); border-radius: var(--r-s); padding: 10px 16px 14px; margin: 18px 0; }
+.options legend { font-weight: 700; padding: 0 6px; }
+.options label { display: flex; gap: 10px; align-items: flex-start; font-weight: 500; margin: 8px 0; max-width: 75ch; }
+.options input { margin-top: 2px; flex: none; }
+details.more { margin: 10px 0; }
+details.more > summary { cursor: pointer; font-weight: 650; padding: 6px 0; }
+.comp-list { list-style: none; padding: 0; margin: 6px 0; }
+.comp-list li { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px dashed var(--line-2); max-width: 75ch; }
+.chip { flex: none; font-size: 0.78rem; border: 1px solid var(--contour); color: var(--contour); border-radius: 999px; padding: 0 8px; font-variant-numeric: tabular-nums; }
+@media (prefers-color-scheme: dark) { .chip { color: #8fd9bf; border-color: #8fd9bf; } }
+.savebar { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; background: var(--surface); border-top: 2px solid var(--contour); padding: 12px 0; margin-top: 12px; }
+.savebar p { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+progress { width: 100%; max-width: 640px; height: 14px; accent-color: var(--contour); }
+.phase-list { list-style: none; padding: 0; margin: 14px 0; }
+.phase-list li { padding: 3px 0 3px 26px; position: relative; color: var(--ink-2); }
+.phase-list li::before { content: ""; position: absolute; left: 4px; top: 10px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--line); }
+.phase-list li.now { color: var(--ink); font-weight: 650; }
+.phase-list li.now::before { border-color: var(--contour); }
+.phase-list li.done { color: var(--ink); }
+.phase-list li.done::before { background: var(--contour); border-color: var(--contour); }
+.log { max-height: 280px; overflow: auto; font-size: 0.9rem; padding-left: 1.4em; }
+.log li { margin: 2px 0; }
+.log .bad { color: var(--err); }
+.problems li { margin: 4px 0; max-width: 80ch; }
+.next li { margin: 8px 0; max-width: 75ch; }
+
+details.about { margin: 28px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); padding: 6px 20px; }
+details.about > summary { cursor: pointer; font-weight: 700; padding: 10px 0; }
+details.about h3 { font-size: 1.05rem; margin: 18px 0 6px; }
+table.versions { border-collapse: collapse; font-size: 0.92rem; margin: 8px 0 16px; }
+table.versions th, table.versions td { text-align: left; padding: 6px 14px 6px 0; border-bottom: 1px solid var(--line-2); }
+table.versions td:last-child { font-variant-numeric: tabular-nums; }
+.copyrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.copyrow input { flex: 1 1 320px; max-width: none; }
+.admin-steps li { margin: 8px 0; max-width: 75ch; }
+.pagefoot { display: flex; justify-content: flex-end; padding-bottom: 24px; }
+.credit { font-size: 0.82rem; color: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-s); padding: 6px 10px; background: var(--surface); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+@media (forced-colors: active) { .steps li[aria-current="step"] .num { border: 3px solid CanvasText; } .chip, .version { border: 1px solid CanvasText; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="masthead">
+  <svg class="contours" aria-hidden="true" focusable="false" viewBox="0 0 1200 360" preserveAspectRatio="xMidYMid slice"></svg>
+  <div class="wrap masthead-inner">
+    <div class="brand-row">
+      <p class="app-name">Take My Work</p>
+      <span class="version" id="versionBadge" title="App version">v1.0.0</span>
+    </div>
+    <h1>Keep your ArcGIS work after you leave</h1>
+    <p class="lede">Save a copy of the maps, StoryMaps, layers and files you made in ArcGIS Online to your own device before your school account closes.</p>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <ol class="steps" aria-label="Steps">
+    <li id="step1" aria-current="step"><span class="num" aria-hidden="true">1</span>Sign in</li>
+    <li id="step2"><span class="num" aria-hidden="true">2</span>Choose your work</li>
+    <li id="step3"><span class="num" aria-hidden="true">3</span>Save to your device</li>
+  </ol>
+
+  <!-- Shown when the link has no client ID -->
+  <section class="panel" id="setupSection" hidden aria-labelledby="setupTitle">
+    <h2 id="setupTitle" tabindex="-1">This link isn't set up for a school yet</h2>
+    <p id="setupLead">Ask your teacher or IT team for your school's link to this page.</p>
+    <details class="more" id="adminSetup">
+      <summary>I'm setting this up for my school</summary>
+      <ol class="admin-steps">
+        <li>In ArcGIS Online, go to <strong>Content → My content → New item → Developer credentials</strong> and choose <strong>OAuth 2.0 credentials</strong>. Use an account that will last, such as a team account.</li>
+        <li>Under <strong>Redirect URLs</strong>, add both of these addresses: <code id="redirect1"></code> and <code id="redirect2"></code></li>
+        <li>Give it a title, such as "Take My Work", and create it. Copy the <strong>Client ID</strong> from its item page, under Credentials, and enter it below with your organization's address.</li>
+      </ol>
+      <form id="setupForm" novalidate>
+        <div class="field">
+          <label for="portalInput">Your organization's ArcGIS address</label>
+          <input id="portalInput" type="url" inputmode="url" placeholder="https://yourschool.maps.arcgis.com" autocomplete="off" spellcheck="false" aria-describedby="portalHint">
+          <span class="hint" id="portalHint">Use your organization's own address if students sign in with your school's single sign-on.</span>
+        </div>
+        <div class="field">
+          <label for="clientInput">Client ID</label>
+          <input id="clientInput" type="text" autocomplete="off" spellcheck="false">
+        </div>
+        <p id="setupError" class="alert error" role="alert" hidden></p>
+        <button type="submit" class="primary">Make the student link</button>
+      </form>
+      <div id="linkOut" hidden>
+        <p>Share this link with students who are leaving:</p>
+        <div class="copyrow"><input id="studentLink" type="text" readonly aria-label="Student link"><button type="button" id="copyLinkBtn">Copy link</button></div>
+        <ul class="hint">
+          <li>If your organization's security settings limit <strong>Allow origins</strong> to a list, add <code id="originShown"></code>.</li>
+          <li>If your organization limits which apps members can sign in to, allow this one.</li>
+          <li>Filtered school networks also need Esri's file storage addresses, from Esri's list of ArcGIS Online domains.</li>
+        </ul>
+        <p><a id="tryLink" href="#">Open the student link</a></p>
+      </div>
+      <p class="hint">Hosting your own copy: this page is a single file. Put it on any https web server you run and register that address instead.</p>
+    </details>
+  </section>
+
+  <section class="panel" id="signinSection" hidden aria-labelledby="signinTitle">
+    <h2 id="signinTitle" tabindex="-1"><span class="sr-only">Step 1: </span>Sign in with your school account</h2>
+    <p>You'll sign in on your school's ArcGIS page, then come straight back here.</p>
+    <p class="org-line">Organization: <strong id="orgShown"></strong></p>
+    <p id="portalWarn" class="alert warn" hidden></p>
+    <button id="signInBtn" class="primary" type="button">Sign in</button>
+    <div id="signinError" class="alert error" role="alert" hidden></div>
+    <ul class="facts">
+      <li>Only items you own are read. Nothing in your account is changed, shared or deleted.</li>
+      <li>Your copy is put together in this browser tab and saved as one .zip file on your device.</li>
+      <li>It uses none of your school's ArcGIS credits.</li>
+    </ul>
+  </section>
+
+  <section class="panel" id="chooseSection" hidden aria-labelledby="chooseTitle">
+    <div class="who">
+      <p>Signed in as <strong id="whoName"></strong> <span id="whoUser" class="hint"></span><span id="whoOrg"></span></p>
+      <button id="signOutBtn" class="link" type="button">Sign out</button>
+      <p class="hint shared-note">On a shared computer, also sign out of ArcGIS Online when you're done.</p>
+    </div>
+    <h2 id="chooseTitle" tabindex="-1"><span class="sr-only">Step 2: </span>Choose your work</h2>
+    <p id="loadingNote" role="status">Finding your items…</p>
+    <div id="loadError" class="alert error" role="alert" hidden></div>
+    <div id="chooser" hidden>
+      <p class="hint" id="chooserIntro">Everything you own is ticked. Untick anything you don't need.</p>
+      <div class="toolbar">
+        <fieldset class="filters" id="filters"><legend class="sr-only">Show</legend></fieldset>
+        <div class="search"><label for="searchBox">Search your items</label><input id="searchBox" type="search" autocomplete="off"></div>
+      </div>
+      <p id="shownCount" class="sr-only" role="status" aria-live="polite"></p>
+      <div class="tablewrap">
+        <table class="items">
+          <caption class="sr-only">Your items. Tick the ones to save.</caption>
+          <thead><tr>
+            <th scope="col" class="c-check"><input type="checkbox" id="checkAll" aria-label="Tick all items shown"></th>
+            <th scope="col">Item</th>
+            <th scope="col" class="c-type">Type</th>
+            <th scope="col" class="c-folder">Folder</th>
+            <th scope="col" class="c-date">Updated</th>
+            <th scope="col" class="c-size">Size</th>
+            <th scope="col" class="c-get">What you'll get</th>
+          </tr></thead>
+          <tbody id="itemRows"></tbody>
+        </table>
+      </div>
+      <p id="emptyNote" class="hint" hidden></p>
+      <fieldset class="options">
+        <legend>Options</legend>
+        <label><input type="checkbox" id="optDeps" checked> <span>Also save the layers and maps your chosen items use, when you own them</span></label>
+        <label><input type="checkbox" id="optAttach" checked> <span>Include photos and other files attached to features in your layers</span></label>
+      </fieldset>
+      <details class="more">
+        <summary>What gets saved</summary>
+        <ul class="comp-list" id="compList"></ul>
+      </details>
+      <details class="more">
+        <summary>What can't be saved</summary>
+        <ul>
+          <li>Items other people own, including ones shared with you. Ask the owner for a copy.</li>
+          <li>Subscriber and premium content, and data your school licenses. Your maps keep links to them.</li>
+          <li>Tile, vector tile, imagery and 3D scene layers. Their settings and links are saved; the data stays in ArcGIS.</li>
+          <li>Apps and dashboards can't run outside ArcGIS. Their settings and pictures are saved so they can be rebuilt.</li>
+        </ul>
+      </details>
+      <div class="savebar">
+        <p id="selSummary" aria-live="polite"></p>
+        <button id="saveBtn" class="primary" type="button" disabled>Save my work</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="saveSection" hidden aria-labelledby="saveTitle">
+    <h2 id="saveTitle" tabindex="-1"><span class="sr-only">Step 3: </span>Saving your work</h2>
+    <p>Keep this tab open until it's finished. Large layers and photos take longer.</p>
+    <label for="progressBar" class="sr-only">Progress</label>
+    <progress id="progressBar" max="100" value="0"></progress>
+    <p id="progressText"></p>
+    <ul class="phase-list" id="phaseList"></ul>
+    <button id="cancelBtn" type="button">Stop</button>
+    <details class="more"><summary>Details</summary><ol class="log" id="logList"></ol></details>
+  </section>
+
+  <section class="panel" id="doneSection" hidden aria-labelledby="doneTitle">
+    <h2 id="doneTitle" tabindex="-1">Your work is saved</h2>
+    <p id="doneSummary"></p>
+    <p><button id="downloadBtn" class="primary" type="button">Download another copy</button></p>
+    <div id="problemsBox" hidden>
+      <h3>Things to check</h3>
+      <ul class="problems" id="problemList"></ul>
+    </div>
+    <h3>What you can do with it</h3>
+    <ul class="next">
+      <li><strong>Look through it.</strong> Unzip the file and open <code>index.html</code>. It lists everything you saved, with links.</li>
+      <li><strong>Keep working on a map without an account.</strong> Open <a id="atlasLink" href="#" target="_blank" rel="noopener">Atlas</a>, choose Open map, and pick a <code>.mmap</code> file from the <code>maps</code> folder.</li>
+      <li><strong>Show it on a CV.</strong> Put the unzipped folder on a website, such as GitHub Pages, and link to it. Check first: the copy includes items you kept private and the data in them.</li>
+    </ul>
+    <p class="hint">On a shared computer, sign out here and in ArcGIS Online when you're done.</p>
+    <p><button id="againBtn" type="button">Choose different items</button></p>
+  </section>
+
+  <details class="about" id="about">
+    <summary>About this app, privacy and versions</summary>
+    <h3>Cost to your school</h3>
+    <p>None. This page only reads your items. It doesn't run exports, analysis or geocoding, and it doesn't create anything in ArcGIS Online, so no credits are used.</p>
+    <h3>Privacy</h3>
+    <p>The page talks only to ArcGIS Online, including Esri's file storage, using your sign-in. Your copy is put together in this browser tab and saved straight to your device; it isn't sent anywhere else, and the page loads no code from anywhere else. Your sign-in is kept in this tab only; signing out cancels it.</p>
+    <h3>Accessibility</h3>
+    <p>Built to WCAG 2.1 AA (Section 508): every control works by keyboard, progress is read out by screen readers, and the page follows your light or dark setting.</p>
+    <h3>Versions</h3>
+    <table class="versions" id="versionsTable"><caption class="sr-only">App and component versions</caption><thead><tr><th scope="col">Part</th><th scope="col">Version</th></tr></thead><tbody></tbody></table>
+    <h3>For IT teams</h3>
+    <p>Students need your school's link, which carries your organization's address and the client ID registered for this page.</p>
+    <p><button type="button" id="showSetupBtn">Make a link for a school</button></p>
+  </details>
+</main>
+<footer class="wrap pagefoot"><div class="credit">Created by Jason Sawle</div></footer>
+<div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
+
+<script type="module">
+// ===================================================================== settings
+const APP_VERSION = "1.0.0";
+const COMPONENTS = [
+  { id: "signin",    label: "Sign-in with your school account", version: "1.0.0" },
+  { id: "finder",    label: "Finding your items", version: "1.0.0" },
+  { id: "items",     label: "Item copies: details, data, thumbnails and resources", version: "1.0.0" },
+  { id: "layers",    label: "Layer data: features and tables as GeoJSON, CSV and ArcGIS JSON, plus attachments", version: "1.0.0" },
+  { id: "maps",      label: "Maps you can reopen: self-contained web maps (.mmap)", version: "1.0.0" },
+  { id: "stories",   label: "StoryMap reading copies: text and pictures", version: "1.0.0" },
+  { id: "portfolio", label: "Portfolio page that lists everything", version: "1.0.0" },
+  { id: "zip",       label: "Zip writer (streams to your device; large archives supported)", version: "1.0.0" }
+];
+const V = Object.fromEntries(COMPONENTS.map((c) => [c.id, c.version]));
+const TEST = (typeof window !== "undefined" && window.__TMW_TEST__) || {};   // set only by the automated tests
+const BASE_LIMITS = {
+  fileBytes: 500e6,          // one file or resource
+  attachmentBytes: 1e9,      // all attachments together
+  warnBytes: 1.5e9,          // whole archive, when it's held in the browser: warn
+  memoryBytes: 1.9e9,        // whole archive, when it's held in the browser: stop
+  streamBytes: 20e9,         // whole archive, when it streams into a file you chose
+  featuresPerLayer: 250000,
+  atlasFeatureCap: 5000,     // Atlas opens up to this many features per map file
+  perFeatureAttachmentLookups: 2000
+};
+const LIM = () => ({ ...BASE_LIMITS, ...(TEST.limits || {}) });
+const SDK_VERSION = "5.1";
+const ATLAS_URL = "https://jsawle.github.io/localmapsave/atlas/";
+const DEFAULT_PORTAL = "https://www.arcgis.com";
+const DEFAULT_CLIENT_ID = "";
+const OAUTH_KEY = "takeMyWork.oauth";
+const CONFIG_KEY = "takeMyWork.config";
+const REFRESH_MINUTES = 240;   // how long the sign-in can be refreshed (the export can take a while)
+
+// ===================================================================== small helpers
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const isoDate = () => new Date().toISOString().slice(0, 10);
+function fmtBytes(n) {
+  if (!Number.isFinite(n) || n <= 0) return "";
+  const u = ["bytes", "KB", "MB", "GB"]; let i = 0;
+  while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
+  return (i === 0 || n >= 100 ? Math.round(n) : n.toFixed(1)) + " " + u[i];
+}
+function fmtDate(ms) { try { return ms ? new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : ""; } catch { return ""; } }
+function plural(n, one, many) { return n + " " + (n === 1 ? one : (many || one + "s")); }
+function announce(msg) { const a = $("announcer"); a.textContent = ""; setTimeout(() => { a.textContent = msg; }, 60); }
+function safeStorage(kind) { try { const s = window[kind]; const k = "__t"; s.setItem(k, "1"); s.removeItem(k); return s; } catch { return null; } }
+const session = safeStorage("sessionStorage"), local = safeStorage("localStorage");
+const stopped = () => new DOMException("Stopped", "AbortError");
+const isAbort = (e) => !!e && e.name === "AbortError";
+
+function normalizePortal(u) {
+  try {
+    const url = new URL(String(u || "").trim());
+    const localHost = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (url.protocol !== "https:" && !(localHost && url.protocol === "http:")) return null;
+    const path = url.pathname.replace(/\/+$/, "").replace(/\/(home|sharing\/rest|sharing|apps)(\/.*)?$/i, "").replace(/\/+$/, "");
+    return url.origin + path;
+  } catch { return null; }
+}
+const isArcGISOnline = (portal) => { try { const h = new URL(portal).hostname; return h === "arcgis.com" || h.endsWith(".arcgis.com"); } catch { return false; } };
+const cleanClientId = (s) => (/^[A-Za-z0-9_-]{8,64}$/.test(String(s || "").trim()) ? String(s).trim() : "");
+function normalizeUrl(u) { return String(u || "").trim().replace(/^http:/i, "https:").replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase(); }
+function slugify(t, max) {
+  const s = String(t || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
+  return s.slice(0, max || 48).replace(/-+$/, "") || "item";
+}
+function safeFileName(s, max) {
+  max = max || 120;
+  let n = String(s || "").normalize("NFC").replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, "_").replace(/^[.\s]+/, "").trim();
+  if (!n) n = "file";
+  if (n.length > max) { const m = n.match(/(\.[A-Za-z0-9]{1,8})$/); n = n.slice(0, max - (m ? m[1].length : 0)) + (m ? m[1] : ""); }
+  return n;
+}
+const safePath = (p) => String(p || "").split("/").map((x) => safeFileName(x)).filter((s) => s && s !== "." && s !== "..").join("/") || "file";
+const encodePath = (p) => String(p).split("/").map(encodeURIComponent).join("/");
+/** Map files: letters, numbers, underscores and hyphens only, so the viewer link and Atlas's title both work. */
+function mapFileBase(title) {
+  return String(title || "").normalize("NFC").replace(/[^\p{L}\p{M}\p{N}-]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 80).replace(/_+$/, "") || "Map";
+}
+function extFor(name, mime, fallback) {
+  const m = String(name || "").match(/\.([A-Za-z0-9]{1,8})$/);
+  if (m) return m[1].toLowerCase();
+  const t = String(mime || "").toLowerCase();
+  const map = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp", "image/svg+xml": "svg", "application/pdf": "pdf", "application/json": "json", "text/csv": "csv", "application/zip": "zip", "video/mp4": "mp4", "audio/mpeg": "mp3" };
+  return map[t.split(";")[0]] || fallback;
+}
+function blobToBase64(blob) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).replace(/^data:[^,]*,/, "")); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+}
+const R_EARTH = 6378137;
+const toLonLat = (x, y) => [x / R_EARTH * 180 / Math.PI, (2 * Math.atan(Math.exp(y / R_EARTH)) - Math.PI / 2) * 180 / Math.PI];
+
+// ===================================================================== configuration
+const pendingAuth = (() => { try { return JSON.parse((session && session.getItem(OAUTH_KEY)) || "null"); } catch { return null; } })();
+function readConfig() {
+  const q = new URLSearchParams(location.search);
+  let saved = {}; try { saved = JSON.parse((local && local.getItem(CONFIG_KEY)) || "{}") || {}; } catch { saved = {}; }
+  const portalRaw = q.get("portal") || (pendingAuth && pendingAuth.portal) || saved.portal || DEFAULT_PORTAL;
+  const clientId = cleanClientId(q.get("clientId") || q.get("appId") || (pendingAuth && pendingAuth.clientId) || saved.clientId || DEFAULT_CLIENT_ID);
+  return { portal: normalizePortal(portalRaw), clientId };
+}
+const cfg = readConfig();
+const redirectUri = () => location.origin + location.pathname;
+const SR = () => cfg.portal + "/sharing/rest";
+
+// ===================================================================== sign-in (OAuth 2.0 authorization code with PKCE)
+const auth = { token: "", expires: 0, refresh: "", username: "" };
+let refreshing = null;
+function b64url(bytes) { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function randomString(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a).slice(0, n); }
+async function pkceChallenge(verifier) { const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)); return b64url(new Uint8Array(d)); }
+
+async function beginSignIn() {
+  if (!session) throw new Error("This browser is blocking the storage needed to sign in. Allow site data for this page, or try another browser.");
+  if (!window.crypto || !crypto.subtle) throw new Error("Sign-in needs a secure (https) page.");
+  const verifier = randomString(64), state = randomString(24);
+  const challenge = await pkceChallenge(verifier);
+  session.setItem(OAUTH_KEY, JSON.stringify({ verifier, state, portal: cfg.portal, clientId: cfg.clientId, redirect: redirectUri(), back: location.search, t: Date.now() }));
+  const p = new URLSearchParams({ client_id: cfg.clientId, response_type: "code", redirect_uri: redirectUri(), state,
+    code_challenge: challenge, code_challenge_method: "S256", expiration: String(REFRESH_MINUTES) });
+  location.assign(`${SR()}/oauth2/authorize?${p}`);
+}
+function setAuth(j) {
+  auth.token = j.access_token;
+  auth.expires = Date.now() + (Number(j.expires_in) || 1800) * 1000;
+  if (j.refresh_token) auth.refresh = j.refresh_token;
+  if (j.username) auth.username = j.username;
+}
+async function tokenRequest(params) {
+  const res = await fetch(`${SR()}/oauth2/token`, { method: "POST", body: new URLSearchParams({ ...params, f: "json" }), credentials: "omit" });
+  let j = null; try { j = await res.json(); } catch { /* handled below */ }
+  if (!j || j.error || !j.access_token) {
+    const msg = (j && j.error && (j.error.message || j.error_description || j.error)) || (j && j.error_description) || ("HTTP " + res.status);
+    throw new Error("Sign-in didn't finish: " + (typeof msg === "string" ? msg : JSON.stringify(msg)));
+  }
+  return j;
+}
+/** Returns true when this page load is the return from the sign-in page. */
+async function completeSignInIfReturning() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has("code") && !q.has("error")) return false;
+  const pending = pendingAuth;
+  try { session && session.removeItem(OAUTH_KEY); } catch { /* ignore */ }
+  history.replaceState(null, "", redirectUri() + ((pending && pending.back) || ""));
+  if (q.has("error")) throw new Error(q.get("error") === "access_denied" ? "Sign-in was cancelled." : "Sign-in didn't finish: " + (q.get("error_description") || q.get("error")));
+  if (!pending || pending.state !== q.get("state")) throw new Error("Sign-in came back to a different browser tab. Try again from this tab.");
+  cfg.portal = pending.portal; cfg.clientId = pending.clientId;
+  const j = await tokenRequest({ client_id: pending.clientId, grant_type: "authorization_code", code: q.get("code"), redirect_uri: pending.redirect, code_verifier: pending.verifier });
+  setAuth(j);
+  return true;
+}
+async function refreshAccess() {
+  if (!auth.refresh) throw new ArcError("Your sign-in has ended. Sign in again to carry on.", "auth");
+  if (!refreshing) refreshing = tokenRequest({ client_id: cfg.clientId, grant_type: "refresh_token", refresh_token: auth.refresh })
+    .then(setAuth)
+    .catch(() => { throw new ArcError("Your sign-in has ended. Sign in again and save your work again.", "auth"); })
+    .finally(() => { refreshing = null; });
+  return refreshing;
+}
+async function currentToken() {
+  if (auth.refresh && auth.expires - Date.now() < 120000) await refreshAccess();
+  return auth.token;
+}
+function revokeBody() { return new URLSearchParams({ auth_token: auth.refresh, token_type_hint: "refresh_token", client_id: cfg.clientId, f: "json" }); }
+async function signOut() {
+  if (auth.refresh) { try { await fetch(`${SR()}/oauth2/revokeToken`, { method: "POST", body: revokeBody(), credentials: "omit" }); } catch { /* best effort */ } }
+  auth.token = ""; auth.refresh = ""; auth.expires = 0; auth.username = "";
+  location.replace(redirectUri() + location.search);
+}
+// Closing the tab cancels the sign-in too (best effort), so it can't be reused on a shared computer.
+addEventListener("pagehide", () => { if (auth.refresh && navigator.sendBeacon) { try { navigator.sendBeacon(`${SR()}/oauth2/revokeToken`, revokeBody()); } catch { /* ignore */ } } });
+
+// ===================================================================== requests
+class ArcError extends Error { constructor(message, code, details) { super(message); this.code = code; this.details = details; } }
+let abortCtl = null;
+const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
+/** The token only goes to your organization and ArcGIS Online's own servers, never to a web address an item happens to name. */
+function tokenAllowed(url) {
+  try {
+    const h = new URL(url).hostname, ph = new URL(cfg.portal).hostname;
+    if (h === ph) return true;
+    if (isArcGISOnline(cfg.portal)) return h === "arcgis.com" || h.endsWith(".arcgis.com");
+    const base = ph.split(".").slice(-2).join(".");
+    return h.endsWith("." + base);
+  } catch { return false; }
+}
+function errorFromJson(j, status) {
+  const e = j && j.error;
+  if (!e) return null;
+  const msg = (typeof e === "string" ? e : e.message) || "ArcGIS returned an error";
+  return new ArcError(msg + (e.details && e.details.length ? " (" + e.details.join("; ") + ")" : ""), Number(e.code) || status || 0, e.details);
+}
+const backoff = (attempt, status) => (status === 429 ? Math.min(30000, 2000 * 2 ** (attempt - 1)) : 700 * attempt * attempt);
+/**
+ * One ArcGIS REST request. as: "json" (adds f=json unless params.f is set) or "blob".
+ * Adds the token, times out stalled requests, retries throttling and server errors, refreshes an expired token once.
+ */
+async function request(url, opts = {}) {
+  const { method = "GET", params = {}, as = "json", authenticated = true } = opts;
+  let tries = opts.tries || 4, refreshed = false;
+  for (let attempt = 1; ; attempt++) {
+    if (abortCtl && abortCtl.signal.aborted) throw stopped();
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null) p.set(k, typeof v === "object" ? JSON.stringify(v) : String(v));
+    if (as === "json" && !p.has("f")) p.set("f", "json");
+    if (authenticated && auth.token && tokenAllowed(url)) p.set("token", await currentToken());
+    const ctl = new AbortController();
+    const outer = abortCtl;
+    const onStop = () => ctl.abort();
+    if (outer) outer.signal.addEventListener("abort", onStop, { once: true });
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; ctl.abort(); }, as === "json" ? 90000 : 600000);
+    let res, body;
+    try {
+      res = method === "POST"
+        ? await fetch(url, { method: "POST", body: p, signal: ctl.signal, credentials: "omit" })
+        : await fetch(url + (p.toString() ? (url.includes("?") ? "&" : "?") + p : ""), { signal: ctl.signal, credentials: "omit" });
+      if (RETRY_STATUS.has(res.status) && attempt < (res.status === 429 ? Math.max(tries, 6) : tries)) {
+        clearTimeout(timer); await sleep(backoff(attempt, res.status)); continue;
+      }
+      body = as === "json" ? await res.text() : await res.blob();
+    } catch (e) {
+      if (outer && outer.signal.aborted) throw stopped();
+      if (attempt < tries) { await sleep(backoff(attempt)); continue; }
+      let host = url; try { host = new URL(url).host; } catch { /* keep */ }
+      throw new ArcError((timedOut ? "ArcGIS stopped answering (" + host + "). " : "Couldn't reach " + host + ". ") +
+        "Check your internet connection and try again. If it keeps happening, your school's ArcGIS or network settings may need to allow this page.", "network");
+    } finally {
+      clearTimeout(timer);
+      if (outer) outer.signal.removeEventListener("abort", onStop);
+    }
+    // An error can arrive as a small JSON reply with any content type.
+    let j = null;
+    if (as === "json") { try { j = JSON.parse(body); } catch { throw new ArcError("ArcGIS sent a reply this page couldn't read (HTTP " + res.status + ").", res.status); } }
+    else if (body.size < 20000) { const t = await body.slice(0, 20000).text(); if (/^\s*\{\s*"error"/.test(t)) { try { j = JSON.parse(t); } catch { /* a real file */ } } }
+    const err = errorFromJson(j, res.status);
+    if (err) {
+      if ((err.code === 498 || err.code === 499) && !refreshed && auth.refresh) { refreshed = true; await refreshAccess(); continue; }
+      if (RETRY_STATUS.has(err.code) && attempt < tries) { await sleep(backoff(attempt, err.code)); continue; }
+      throw err;
+    }
+    if (!res.ok) throw new ArcError("ArcGIS replied with HTTP " + res.status + ".", res.status);
+    return as === "json" ? j : body;
+  }
+}
+/** Runs tasks n at a time. On the first error it stops the run, waits for every task already started, then throws. */
+async function runPool(tasks, n) {
+  let i = 0, first = null;
+  const worker = async () => {
+    while (i < tasks.length && !first) {
+      const t = tasks[i++];
+      try { await t(); } catch (e) { if (!first) { first = e; stopRun(); } }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(n, tasks.length)) }, worker));
+  if (first) throw first;
+}
+function stopRun() { if (ctx) ctx.cancelled = true; if (abortCtl) abortCtl.abort(); }
+function checkStop() { if (ctx && ctx.cancelled) throw stopped(); }
+
+// ===================================================================== zip writer
+// Writes each file into the archive as soon as it's ready, so nothing has to be held in memory twice. Text is
+// compressed with the browser's own deflate; pictures and other files are stored as they are. ZIP64 is used
+// automatically for files or archives over 4 GB and for more than 65,535 files.
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crcUpdate(crc, bytes) { let c = (crc ^ 0xFFFFFFFF) >>> 0; for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+async function crcOfBlob(blob) {
+  let crc = 0;
+  const reader = blob.stream().getReader();
+  for (;;) { const { done, value } = await reader.read(); if (done) break; crc = crcUpdate(crc, value); checkStop(); }
+  return crc;
+}
+const canDeflate = (() => { try { new CompressionStream("deflate-raw"); return true; } catch { return false; } })();
+async function deflateBlob(blob) { return new Response(blob.stream().pipeThrough(new CompressionStream("deflate-raw"))).blob(); }
+function dosDateTime(d) {
+  return { time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() };
+}
+function zip64Extra(values) {
+  const v = new DataView(new ArrayBuffer(4 + 8 * values.length));
+  v.setUint16(0, 0x0001, true); v.setUint16(2, 8 * values.length, true);
+  values.forEach((x, i) => v.setBigUint64(4 + 8 * i, BigInt(x), true));
+  return new Uint8Array(v.buffer);
+}
+class ZipWriter {
+  constructor(sink) {
+    this.sink = sink; this.offset = 0; this.entries = []; this.names = new Set(); this.chain = Promise.resolve();
+    this.big = TEST.zip64At || 0xFFFFFFFF; this.when = dosDateTime(new Date()); this.enc = new TextEncoder();
+  }
+  /** Adds one file. data: a string, a Blob, or an array of strings and Blobs. Files are written one after another. */
+  add(name, data, compress) {
+    const run = this.chain.then(() => this._add(name, data, compress));
+    this.chain = run.catch(() => {});
+    return run;
+  }
+  async _add(name, data, compress) {
+    checkStop();
+    if (this.names.has(name)) throw new Error("Two files were given the same name: " + name);
+    this.names.add(name);
+    const blob = data instanceof Blob ? data : new Blob(Array.isArray(data) ? data : [data]);
+    const size = blob.size, crc = await crcOfBlob(blob);
+    let method = 0, body = blob;
+    if (compress && canDeflate && size > 100) { const d = await deflateBlob(blob); if (d.size < size) { method = 8; body = d; } }
+    const csize = body.size, nameBytes = this.enc.encode(name), offset = this.offset;
+    const big = size >= this.big || csize >= this.big;
+    const extra = big ? zip64Extra([size, csize]) : new Uint8Array(0);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, big ? 45 : 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, method, true);
+    h.setUint16(10, this.when.time, true); h.setUint16(12, this.when.date, true); h.setUint32(14, crc, true);
+    h.setUint32(18, big ? 0xFFFFFFFF : csize, true); h.setUint32(22, big ? 0xFFFFFFFF : size, true);
+    h.setUint16(26, nameBytes.length, true); h.setUint16(28, extra.length, true);
+    await this._write(new Blob([h.buffer, nameBytes, extra, body]));
+    this.entries.push({ nameBytes, crc, size, csize, method, offset });
+  }
+  async _write(blob) { checkStop(); await this.sink.write(blob); this.offset += blob.size; }
+  async finish() {
+    await this.chain;
+    const B = this.big, cdStart = this.offset, parts = [];
+    for (const e of this.entries) {
+      const over = [];
+      if (e.size >= B) over.push(e.size);
+      if (e.csize >= B) over.push(e.csize);
+      if (e.offset >= B) over.push(e.offset);
+      const extra = over.length ? zip64Extra(over) : new Uint8Array(0);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, over.length ? 45 : 20, true); c.setUint16(6, over.length ? 45 : 20, true);
+      c.setUint16(8, 0x0800, true); c.setUint16(10, e.method, true); c.setUint16(12, this.when.time, true); c.setUint16(14, this.when.date, true);
+      c.setUint32(16, e.crc, true); c.setUint32(20, e.csize >= B ? 0xFFFFFFFF : e.csize, true); c.setUint32(24, e.size >= B ? 0xFFFFFFFF : e.size, true);
+      c.setUint16(28, e.nameBytes.length, true); c.setUint16(30, extra.length, true);
+      c.setUint32(42, e.offset >= B ? 0xFFFFFFFF : e.offset, true);
+      parts.push(c.buffer, e.nameBytes, extra);
+    }
+    const cd = new Blob(parts);
+    await this._write(cd);
+    const count = this.entries.length, cdSize = cd.size;
+    const z64 = count >= 0xFFFF || cdSize >= B || cdStart >= B;
+    const tail = [];
+    if (z64) {
+      const zOff = this.offset;
+      const z = new DataView(new ArrayBuffer(56));
+      z.setUint32(0, 0x06064b50, true); z.setBigUint64(4, 44n, true); z.setUint16(12, 45, true); z.setUint16(14, 45, true);
+      z.setBigUint64(24, BigInt(count), true); z.setBigUint64(32, BigInt(count), true); z.setBigUint64(40, BigInt(cdSize), true); z.setBigUint64(48, BigInt(cdStart), true);
+      const loc = new DataView(new ArrayBuffer(20));
+      loc.setUint32(0, 0x07064b50, true); loc.setBigUint64(8, BigInt(zOff), true); loc.setUint32(16, 1, true);
+      tail.push(z.buffer, loc.buffer);
+    }
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, z64 && count >= 0xFFFF ? 0xFFFF : count, true); end.setUint16(10, z64 && count >= 0xFFFF ? 0xFFFF : count, true);
+    end.setUint32(12, z64 && cdSize >= B ? 0xFFFFFFFF : cdSize, true); end.setUint32(16, z64 && cdStart >= B ? 0xFFFFFFFF : cdStart, true);
+    tail.push(end.buffer);
+    await this._write(new Blob(tail));
+    return this.sink.close();
+  }
+}
+/** Where the archive goes: straight into a file you picked (Chrome, Edge, Chromebooks), or into a download. */
+async function fileSink(handle) {
+  const w = await handle.createWritable();
+  return { streaming: true, write: (b) => w.write(b), close: async () => { await w.close(); return null; }, abort: async () => { try { await w.abort(); } catch { /* already closed */ } } };
+}
+function memorySink() {
+  let parts = [];
+  return { streaming: false, write: async (b) => { parts.push(b); }, close: async () => { const b = new Blob(parts, { type: "application/zip" }); parts = []; return b; }, abort: async () => { parts = []; } };
+}
+
+// ===================================================================== what each item type gets
+const GROUPS = [
+  { id: "all", label: "All" }, { id: "story", label: "StoryMaps" }, { id: "map", label: "Maps" }, { id: "layer", label: "Layers" },
+  { id: "app", label: "Apps" }, { id: "file", label: "Files" }, { id: "other", label: "Other" }
+];
+const PLAN_TEXT = {
+  story: "Full copy and a reading copy",
+  map: "Full copy and a map you can reopen",
+  scene: "Scene settings; its layers stay as links",
+  layerData: "All the data, as GeoJSON, CSV and ArcGIS JSON",
+  layerCollection: "All the data, as ArcGIS JSON",
+  layerLink: "Settings and a link; the data stays in ArcGIS",
+  app: "Settings and pictures, to rebuild it",
+  notebook: "The notebook file (.ipynb)",
+  file: "The file itself",
+  tooBig: "Details only: the file is over 500 MB",
+  link: "The link",
+  other: "Details and settings"
+};
+const LIMITED = new Set(["scene", "layerLink", "app", "tooBig", "link", "other"]);
+const APP_TYPES = new Set(["Dashboard", "Web Mapping Application", "Web Experience", "Web Experience Template", "Hub Site Application", "Hub Page",
+  "Site Application", "Site Page", "Form", "QuickCapture Project", "Workforce Project", "Insights Workbook", "Insights Page", "Insights Model",
+  "Mobile Application", "Native Application", "Application", "StoryMap Theme", "Story Map", "Mission", "Operation View", "Web AppBuilder Widget",
+  "Experience Builder Widget", "Hub Initiative", "Hub Project", "Collection", "Urban Model", "Data Pipeline", "Survey123 Add In"]);
+const LINK_LAYER_TYPES = new Set(["Map Service", "Vector Tile Service", "Image Service", "Scene Service", "WMS", "WMTS", "WFS", "OGCFeatureServer",
+  "Stream Service", "Elevation Layer", "KML Collection", "Geocoding Service", "Geoprocessing Service", "Network Analysis Service", "Geometry Service",
+  "Media Layer", "Oriented Imagery Layer", "Group Layer", "Tile Layer", "Map Image Layer", "Knowledge Graph"]);
+const FILE_TYPES = new Set(["PDF", "Image", "Microsoft Word", "Microsoft Excel", "Microsoft Powerpoint", "CSV", "CSV Collection", "Shapefile", "GeoJson",
+  "File Geodatabase", "KML", "Code Attachment", "Visio Document", "GeoPackage", "Layer Package", "Map Package", "Project Package", "Tile Package",
+  "Vector Tile Package", "Scene Package", "Compact Tile Package", "Service Definition", "Layer", "Layer File", "Mobile Map Package", "Desktop Style",
+  "CAD Drawing", "iWork Pages", "iWork Keynote", "iWork Numbers", "Report Template", "Map Template", "Project Template", "Raster function template",
+  "Locator Package", "Geoprocessing Package", "Mobile Scene Package", "Video", "Audio", "Markup", "Pro Map", "Map Document", "Explorer Map",
+  "Windows Mobile Package", "Map Area", "Rule Package", "Workflow Manager Package", "Toolbox Package", "Deep Learning Package", "Esri Classification Schema",
+  "Big Data File Share", "ArcPad Package", "Layout", "Statistical Data Collection"]);
+const LINKISH_TYPES = new Set(["Document Link"]);
+const CONTAINER_TYPES = new Set(["Web Map", "Web Scene", "StoryMap", "Dashboard", "Web Mapping Application", "Web Experience", "Web Experience Template",
+  "Hub Site Application", "Hub Page", "Site Application", "Site Page", "Collection", "Story Map", "Operation View", "Mission"]);
+function isHostedFeatureService(it) {
+  return it.type === "Feature Service" && !!it.url && (it.typeKeywords || []).includes("Hosted Service") && tokenAllowed(it.url);
+}
+function classify(it) {
+  const t = it.type;
+  if (t === "StoryMap") return { group: "story", plan: "story" };
+  if (t === "Web Map") return { group: "map", plan: "map" };
+  if (t === "Web Scene") return { group: "map", plan: "scene" };
+  if (t === "Feature Service") return { group: "layer", plan: isHostedFeatureService(it) ? "layerData" : "layerLink" };
+  if (t === "Feature Collection") return { group: "layer", plan: "layerCollection" };
+  if (LINK_LAYER_TYPES.has(t)) return { group: "layer", plan: "layerLink" };
+  if (t === "Notebook") return { group: "app", plan: "notebook" };
+  if (APP_TYPES.has(t)) return { group: "app", plan: "app" };
+  if (LINKISH_TYPES.has(t)) return { group: "other", plan: "link" };
+  const looksLikeFile = FILE_TYPES.has(t) || (!it.url && /\.[A-Za-z0-9]{1,8}$/.test(it.name || ""));
+  if (looksLikeFile) return { group: "file", plan: (it.size || 0) > LIM().fileBytes ? "tooBig" : "file" };
+  return { group: "other", plan: "other" };
+}
+const ACCESS_TEXT = { private: "Private", shared: "Shared with groups", org: "Shared with your organization", public: "Public" };
+
+// ===================================================================== state
+const st = { user: null, org: null, items: [], byId: new Map(), selected: new Set(), filter: "all", query: "", running: false,
+  blob: null, fileName: "", fileHandle: null };
+
+// ===================================================================== finding items
+async function listMyContent() {
+  const u = encodeURIComponent(st.user.username);
+  const out = [], folders = [];
+  async function pages(path, folderTitle) {
+    let start = 1, guard = 0;
+    while (start > 0 && guard++ < 1000) {
+      const r = await request(`${SR()}/content/users/${u}${path}`, { params: { num: 100, start } });
+      for (const it of r.items || []) out.push({ ...it, folderTitle });
+      if (!path) for (const f of r.folders || []) folders.push(f);
+      const next = Number(r.nextStart);
+      start = Number.isFinite(next) && next > start ? next : -1;
+      $("loadingNote").textContent = `Finding your items… ${out.length} so far`;
+    }
+  }
+  await pages("", "");
+  for (const f of folders) await pages("/" + encodeURIComponent(f.id), f.title || "");
+  const seen = new Set();
+  return out.filter((it) => it && it.id && !seen.has(it.id) && seen.add(it.id));
+}
+
+// ===================================================================== exported data helpers (pure)
+const SKIP_FIELD_TYPES = new Set(["esriFieldTypeBlob", "esriFieldTypeRaster", "esriFieldTypeGeometry", "esriFieldTypeXML"]);
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  let s = typeof v === "object" ? JSON.stringify(v) : String(v);
+  // Text that a spreadsheet would run as a formula gets a leading apostrophe (numbers are left alone).
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = "'" + s;
+  return /[",\r\n]|^\s|\s$/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+/** Attribute table as CSV (UTF-8 with BOM for Excel). Points also get longitude and latitude. Returns an array of strings. */
+function toCsvParts(fields, features, geometryType) {
+  const cols = (fields || []).filter((f) => f && f.name && !SKIP_FIELD_TYPES.has(f.type));
+  const dateCols = new Set(cols.filter((f) => f.type === "esriFieldTypeDate").map((f) => f.name));
+  const points = geometryType === "esriGeometryPoint";
+  const out = ["﻿" + cols.map((f) => csvCell(f.name)).concat(points ? ["longitude", "latitude"] : []).join(",") + "\r\n"];
+  let buf = [];
+  for (const f of features || []) {
+    const a = f.attributes || {};
+    const row = cols.map((c) => { const v = a[c.name]; return csvCell(dateCols.has(c.name) && Number.isFinite(v) ? new Date(v).toISOString() : v); });
+    if (points) {
+      const g = f.geometry;
+      if (g && Number.isFinite(g.x) && Number.isFinite(g.y)) { const [lon, lat] = toLonLat(g.x, g.y); row.push(lon.toFixed(7), lat.toFixed(7)); } else row.push("", "");
+    }
+    buf.push(row.join(","));
+    if (buf.length >= 5000) { out.push(buf.join("\r\n") + "\r\n"); buf = []; }
+  }
+  if (buf.length) out.push(buf.join("\r\n") + "\r\n");
+  return out;
+}
+/** JSON with a long "features" array, written in pieces so very large layers don't hit the browser's string limit. */
+function jsonWithFeatures(head, features, key) {
+  const k = key || "features";
+  const start = JSON.stringify({ ...head, [k]: [] });
+  const parts = [start.slice(0, -2)];      // drop the closing "]}"
+  for (let i = 0; i < features.length; i += 5000) parts.push((i ? "," : "") + features.slice(i, i + 5000).map((f) => JSON.stringify(f)).join(","));
+  parts.push("]}");
+  return parts;
+}
+/** Ids of items you own that this item's data refers to (by item id or service address). */
+function findRefs(data, selfId, ownedIds, ownedByUrl) {
+  const out = new Set();
+  if (data === null || data === undefined) return out;
+  const s = typeof data === "string" ? data : JSON.stringify(data);
+  for (const m of s.matchAll(/(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])/gi)) { const id = m[0].toLowerCase(); if (id !== selfId && ownedIds.has(id)) out.add(id); }
+  for (const m of s.matchAll(/https?:\/\/[^"'\s\\]+?\/(?:FeatureServer|MapServer|VectorTileServer|ImageServer|SceneServer)(?=[\/"'\s\\?]|$)/gi)) {
+    const it = ownedByUrl.get(normalizeUrl(m[0]));
+    if (it && it.id !== selfId) out.add(it.id);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- self-contained web maps
+const SR_WM = { wkid: 102100, latestWkid: 3857 };
+const OWN_ID = /^(__data_|__sketch_)/;     // Atlas's own layers: keep as they are
+function defaultPopup(def) {
+  const skip = new Set([def.objectIdField, "GlobalID", "globalid", "Shape__Area", "Shape__Length", "Shape_Area", "Shape_Length"].filter(Boolean));
+  const fields = (def.fields || []).filter((f) => !skip.has(f.name) && !["esriFieldTypeOID", "esriFieldTypeGlobalID"].includes(f.type) && !SKIP_FIELD_TYPES.has(f.type));
+  return { title: def.displayField ? "{" + def.displayField + "}" : (def.name || ""), fieldInfos: fields.map((f) => ({ fieldName: f.name, label: f.alias || f.name, visible: true })),
+    popupElements: [{ type: "fields" }], showAttachments: false };
+}
+function popupWithoutAttachments(p) {
+  if (!p) return p;
+  const c = JSON.parse(JSON.stringify(p));
+  c.showAttachments = false;
+  if (Array.isArray(c.popupElements)) c.popupElements = c.popupElements.filter((e) => e && e.type !== "attachments");
+  return c;
+}
+/** Picture symbols: keep embedded images, embed ones the service holds, drop web addresses that aren't https. */
+async function fixPictureSymbols(o, layerUrl, fetchImage, depth = 0) {
+  if (!o || typeof o !== "object" || depth > 14) return o;
+  if (Array.isArray(o)) { for (let i = 0; i < o.length; i++) o[i] = await fixPictureSymbols(o[i], layerUrl, fetchImage, depth + 1); return o; }
+  if (o.type === "esriPMS" || o.type === "esriPFS") {
+    if (typeof o.url === "string" && /^http:\/\//i.test(o.url)) o.url = o.url.replace(/^http:/i, "https:");
+    const absolute = typeof o.url === "string" && /^https:\/\//i.test(o.url);
+    if (o.imageData) { if (!absolute) delete o.url; return o; }
+    if (!absolute && typeof o.url === "string" && o.url && layerUrl && fetchImage) {
+      try { const img = await fetchImage(`${layerUrl}/images/${encodePath(o.url)}`); o.imageData = img.data; o.contentType = img.type || "image/png"; delete o.url; return o; }
+      catch (e) { if (isAbort(e)) throw e; /* fall through to a plain symbol */ }
+    }
+    if (!absolute) {
+      return o.type === "esriPMS"
+        ? { type: "esriSMS", style: "esriSMSCircle", color: [0, 122, 194, 230], size: 10, outline: { type: "esriSLS", style: "esriSLSSolid", color: [255, 255, 255, 255], width: 1 } }
+        : { type: "esriSFS", style: "esriSFSSolid", color: [0, 122, 194, 80], outline: { type: "esriSLS", style: "esriSLSSolid", color: [0, 122, 194, 255], width: 1 } };
+    }
+    return o;
+  }
+  for (const k of Object.keys(o)) o[k] = await fixPictureSymbols(o[k], layerUrl, fetchImage, depth + 1);
+  return o;
+}
+function findStoreEntry(store, url) {
+  const key = normalizeUrl(url);
+  if (store.has(key)) return store.get(key);
+  if (/\/featureserver$/.test(key)) {                // a service address with no layer number
+    const layers = [...store.entries()].filter(([k, v]) => k.startsWith(key + "/") && !v.table);
+    if (layers.length === 1) return layers[0][1];
+  }
+  return null;
+}
+const clone = (o) => (o === undefined ? undefined : JSON.parse(JSON.stringify(o)));
+function toFeatureCollectionLayer(op, entry) {
+  const def = entry.def;
+  const opDef = clone(op.layerDefinition) || {};
+  const settingsDef = (entry.settings && entry.settings.layerDefinition) || {};
+  const drawingInfo = clone(opDef.drawingInfo || settingsDef.drawingInfo || def.drawingInfo || {});
+  const fields = (def.fields || []).filter((f) => !SKIP_FIELD_TYPES.has(f.type));
+  const layerDefinition = { ...opDef, name: def.name || op.title || "Layer", type: "Feature Layer", geometryType: def.geometryType,
+    objectIdField: def.objectIdField || "OBJECTID", fields, drawingInfo, spatialReference: SR_WM };
+  delete layerDefinition.source;
+  for (const k of ["displayField", "typeIdField", "types", "minScale", "maxScale", "timeInfo", "hasZ"]) if (def[k] !== undefined && layerDefinition[k] === undefined) layerDefinition[k] = clone(def[k]);
+  for (const k of ["featureReduction", "timeInfo"]) if (layerDefinition[k] === undefined && settingsDef[k] !== undefined) layerDefinition[k] = clone(settingsDef[k]);
+  if (layerDefinition.featureReduction === undefined && op.featureReduction !== undefined) layerDefinition.featureReduction = clone(op.featureReduction);
+  const features = entry.features.map((f) => ({ attributes: f.attributes, geometry: f.geometry ? { ...f.geometry, spatialReference: SR_WM } : undefined }));
+  const popupInfo = popupWithoutAttachments(op.popupInfo || (entry.settings && entry.settings.popupInfo) || defaultPopup(def));
+  const out = { id: op.id || ("layer" + Math.random().toString(36).slice(2, 9)), title: op.title || def.name || "Layer", layerType: "ArcGISFeatureLayer",
+    visibility: op.visibility !== false, opacity: Number.isFinite(op.opacity) ? op.opacity : 1,
+    featureCollection: { layers: [{ layerDefinition, featureSet: { geometryType: def.geometryType, features }, popupInfo,
+      nextObjectId: entry.features.reduce((m, f) => Math.max(m, Number(f.attributes && f.attributes[layerDefinition.objectIdField]) || 0), 0) + 1 }] } };
+  for (const k of ["minScale", "maxScale", "showLabels", "showLegend", "disablePopup", "refreshInterval", "blendMode", "effect", "listMode", "timeAnimation"]) if (op[k] !== undefined) out[k] = op[k];
+  return out;
+}
+/**
+ * Turn a web map into one that doesn't depend on your account: layers from your own hosted services and feature
+ * collection items are replaced by the data itself, with the map's styles and pop-ups. Tables from your own services
+ * are left out (their data is in the layer files). Everything else is kept as it was.
+ * ctx: { store, itemData(id) -> feature collection item data or null, fetchImage(url) }
+ */
+async function packWebMap(webmap, pctx) {
+  const wm = JSON.parse(JSON.stringify(webmap || {}));
+  const stats = { inlined: 0, linked: 0, features: 0, attachmentsDropped: false, tablesDropped: 0, layers: [] };
+  const countFc = (fc) => ((fc && fc.layers) || []).reduce((n, l) => n + (((l.featureSet || {}).features || []).length), 0);
+  async function walk(list) {
+    if (!Array.isArray(list)) return list;
+    const out = [];
+    for (const op of list) {
+      checkStop();
+      if (!op || typeof op !== "object") continue;
+      if (op.layerType === "GroupLayer" && Array.isArray(op.layers)) { op.layers = await walk(op.layers); out.push(op); continue; }
+      if (typeof op.id === "string" && OWN_ID.test(op.id)) { out.push(op); stats.layers.push({ title: op.title, kept: "data" }); continue; }
+      const entry = op.layerType === "ArcGISFeatureLayer" && op.url ? findStoreEntry(pctx.store, op.url) : null;
+      const fcData = !entry && !op.url && !op.featureCollection && op.itemId ? pctx.itemData(op.itemId) : null;
+      if (entry && entry.def && entry.def.geometryType && entry.def.geometryType !== "esriGeometryMultiPatch") {
+        const fc = toFeatureCollectionLayer(op, entry);
+        const ld = fc.featureCollection.layers[0];
+        await fixPictureSymbols(ld.layerDefinition.drawingInfo, entry.layerUrl, pctx.fetchImage);
+        if (op.popupInfo && op.popupInfo.showAttachments) stats.attachmentsDropped = true;
+        stats.inlined++; stats.features += entry.features.length;
+        stats.layers.push({ title: fc.title, kept: "data", features: entry.features.length });
+        out.push(fc);
+      } else if (fcData && Array.isArray(fcData.layers)) {
+        const copy = { ...op, featureCollection: clone(fcData) };
+        delete copy.itemId;
+        stats.inlined++; stats.features += countFc(copy.featureCollection);
+        stats.layers.push({ title: op.title, kept: "data", features: countFc(copy.featureCollection) });
+        out.push(copy);
+      } else {
+        if (op.featureCollection) { stats.layers.push({ title: op.title, kept: "data" }); stats.features += countFc(op.featureCollection); }
+        else { stats.linked++; stats.layers.push({ title: op.title, kept: "link", url: op.url || null }); }
+        if (typeof op.url === "string" && /^http:\/\//i.test(op.url)) op.url = op.url.replace(/^http:/i, "https:");
+        out.push(op);
+      }
+    }
+    return out;
+  }
+  wm.operationalLayers = await walk(wm.operationalLayers || []);
+  if (Array.isArray(wm.tables)) {
+    const before = wm.tables.length;
+    wm.tables = wm.tables.filter((t) => !(t && t.url && findStoreEntry(pctx.store, t.url)));
+    stats.tablesDropped = before - wm.tables.length;
+    if (!wm.tables.length) delete wm.tables;
+  }
+  wm.authoringApp = "TakeMyWork";
+  wm.authoringAppVersion = APP_VERSION;
+  if (!wm.version) wm.version = "2.31";
+  if (!wm.spatialReference) wm.spatialReference = SR_WM;
+  return { webmap: wm, stats };
+}
+
+// ---------------------------------------------------------------- sanitizing text from items and stories
+const KEEP_TAGS = new Set(["B", "STRONG", "I", "EM", "U", "S", "BR", "A", "SUB", "SUP", "LI", "UL", "OL", "P", "MARK", "CODE", "SMALL", "DEL", "STRIKE", "BLOCKQUOTE"]);
+const BLOCK_TO_P = new Set(["DIV", "H1", "H2", "H3", "H4", "H5", "H6", "SECTION", "ARTICLE", "HEADER", "FOOTER", "TABLE", "TR", "FIGURE", "FIGCAPTION"]);
+const DROP_TAGS = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "SVG", "MATH", "TEMPLATE", "NOSCRIPT", "FORM", "INPUT", "BUTTON", "TEXTAREA",
+  "SELECT", "LINK", "META", "IMG", "VIDEO", "AUDIO", "SOURCE", "TRACK", "CANVAS", "PICTURE", "BASE", "FRAME", "FRAMESET", "APPLET", "XMP", "PLAINTEXT", "TITLE"]);
+/** Keeps simple formatting and https/mailto links; removes everything that could run or load. */
+function sanitizeHtml(html) {
+  if (!html) return "";
+  const doc = new DOMParser().parseFromString(String(html), "text/html");
+  const root = doc.body;
+  if (!root) return "";
+  (function clean(node) {
+    for (const child of [...node.childNodes]) {
+      if (child.nodeType === 3) continue;
+      if (child.nodeType !== 1) { child.remove(); continue; }
+      let el = child;
+      if (DROP_TAGS.has(el.tagName)) { el.remove(); continue; }
+      clean(el);
+      if (BLOCK_TO_P.has(el.tagName)) { const p = doc.createElement("p"); p.append(...el.childNodes); el.replaceWith(p); el = p; }
+      else if (!KEEP_TAGS.has(el.tagName)) { el.replaceWith(...el.childNodes); continue; }
+      for (const a of [...el.attributes]) {
+        if (el.tagName === "A" && a.name === "href" && /^(https?:|mailto:)/i.test(a.value.trim())) continue;
+        el.removeAttribute(a.name);
+      }
+      if (el.tagName === "A") {
+        if (!el.hasAttribute("href")) { el.replaceWith(...el.childNodes); continue; }   // a link to somewhere unsafe: keep its text only
+        el.setAttribute("rel", "noopener noreferrer"); el.setAttribute("target", "_blank");
+      }
+    }
+  })(root);
+  root.querySelectorAll("p").forEach((p) => { if (!p.textContent.trim() && !p.querySelector("br")) p.remove(); });
+  return root.innerHTML.trim();
+}
+const textOnly = (html) => { if (!html) return ""; const d = new DOMParser().parseFromString(String(html), "text/html"); return (d.body.textContent || "").replace(/\s+/g, " ").trim(); };
+
+// ---------------------------------------------------------------- StoryMap reading copy
+/**
+ * Renders a StoryMap's JSON (nodes and resources) as plain reading HTML: headings, text, pictures, captions, map tour
+ * places, swipe sides, and links to its maps. Layout, animation and embedded apps aren't reproduced.
+ * ctx: { resourceHref(resourceId) -> relative path or null, mapHref(itemId) -> relative path or null, mapTitle(itemId) }
+ */
+function storyToHtml(story, ctx) {
+  const nodes = (story && story.nodes) || {}, resources = (story && story.resources) || {};
+  const seen = new Set();
+  let title = "";
+  const res = (rid) => (rid && resources[rid]) || null;
+  const isNode = (v) => typeof v === "string" && !!nodes[v];
+  function imgSrc(rid) {
+    const r = res(rid); if (!r || !r.data) return null;
+    if (r.data.resourceId && (!r.data.provider || r.data.provider === "item-resource")) return ctx.resourceHref(r.data.resourceId);
+    const src = r.data.src || r.data.url;
+    return typeof src === "string" && /^https:\/\//i.test(src) ? src : null;
+  }
+  function caption(d) { const c = sanitizeHtml(d && d.caption); return c ? `<figcaption>${c}</figcaption>` : ""; }
+  function link(href, text) { return /^(https?:|mailto:)/i.test(href || "") ? `<a href="${esc(href)}" rel="noopener noreferrer" target="_blank">${esc(text || href)}</a>` : esc(text || ""); }
+  function mapBlock(rid, d, word) {
+    const r = res(rid), itemId = r && r.data && r.data.itemId;
+    const href = itemId ? ctx.mapHref(itemId) : null;
+    const name = (itemId && ctx.mapTitle(itemId)) || (r && r.data && r.data.title) || "";
+    const label = word + (name ? ": " + name : "");
+    return `<figure class="mapref"><p class="maplink">${href ? `<a href="${esc(href)}">${esc(label)}</a>` : esc(label) + (itemId ? " (not in this copy)" : "")}</p>${caption(d)}</figure>`;
+  }
+  // Node ids held in a node's data rather than its children (swipe sides, map tour places, media).
+  function refs(v, depth) {
+    if (isNode(v)) return render(v, depth + 1);
+    if (Array.isArray(v)) return v.map((x) => refs(x, depth)).join("");
+    if (v && typeof v === "object") return Object.keys(v).sort().map((k) => refs(v[k], depth)).join("");
+    return "";
+  }
+  function render(id, depth) {
+    if (!id || seen.has(id) || depth > 60) return "";
+    seen.add(id);
+    const n = nodes[id]; if (!n) return "";
+    const d = n.data || {};
+    const kids = () => (Array.isArray(n.children) ? n.children.map((c) => render(c, depth + 1)).join("") : "");
+    switch (n.type) {
+      case "story": return kids();
+      case "storycover": {
+        title = textOnly(d.title) || title;
+        return `<header class="cover"><h1>${esc(textOnly(d.title))}</h1>${d.summary ? `<p class="summary">${esc(textOnly(d.summary))}</p>` : ""}${d.byline ? `<p class="byline">${esc(textOnly(d.byline))}</p>` : ""}</header>${refs(d.media, depth)}${kids()}`;
+      }
+      case "navigation": return "";
+      case "text": {
+        const html = sanitizeHtml(d.text);
+        if (!html) return "";
+        const t = d.type || "paragraph";
+        if (t === "h2" || t === "h3" || t === "h4") return `<${t}>${html}</${t}>`;
+        if (t === "quote") return `<blockquote>${html}</blockquote>`;
+        if (t === "bullet-list" || t === "numbered-list") { const tag = t === "bullet-list" ? "ul" : "ol"; return `<${tag}>${/<li[\s>]/i.test(html) ? html : `<li>${html}</li>`}</${tag}>`; }
+        return `<p${t === "large-paragraph" ? ' class="large"' : ""}>${html}</p>`;
+      }
+      case "image": { const src = imgSrc(d.image); return src ? `<figure><img src="${esc(src)}" alt="${esc(textOnly(d.alt))}" loading="lazy">${caption(d)}</figure>` : caption(d); }
+      case "video": case "audio": {
+        const src = imgSrc(d.video || d.audio);
+        const word = n.type === "video" ? "Video" : "Audio";
+        const online = !!src && /^https:/i.test(src);
+        const inner = src ? `<a href="${esc(src)}"${online ? ' rel="noopener noreferrer" target="_blank"' : ""}>${word}${online ? " (online)" : " file"}</a>` : `${word} (not in this copy)`;
+        return `<figure><p>${inner}</p>${caption(d)}</figure>`;
+      }
+      case "webmap": return mapBlock(d.map, d, "Map");
+      case "webscene": return mapBlock(d.scene || d.map, d, "3D scene");
+      case "expressmap": return `<figure class="mapref"><p class="maplink">Sketch map (kept in the story's data)</p>${caption(d)}</figure>`;
+      case "embed": return `<figure><p class="embed">${link(d.url, textOnly(d.title) || d.url || "Embedded content")}</p>${d.description ? `<p>${esc(textOnly(d.description))}</p>` : ""}${caption(d)}</figure>`;
+      case "button": return `<p class="button">${link(d.link, textOnly(d.text) || d.link)}</p>`;
+      case "separator": return "<hr>";
+      case "credits": return `<section class="credits"><h2>Credits</h2>${kids()}</section>`;
+      case "attribution": return `<p class="attribution">${esc(textOnly(d.content))}${d.attribution ? " — " + esc(textOnly(d.attribution)) : ""}</p>`;
+      case "swipe": return `<div class="swipe">${refs(d.contents, depth)}</div>${kids()}`;
+      case "tour": {
+        const places = Array.isArray(d.places) ? d.places : [];
+        const html = places.map((p) => {
+          if (!p || typeof p !== "object") return "";
+          const head = isNode(p.title) ? render(p.title, depth + 1) : (typeof p.title === "string" && p.title ? `<h3>${esc(textOnly(p.title))}</h3>` : "");
+          return `<section class="place">${head}${refs(p.media, depth)}${refs(p.contents, depth)}</section>`;
+        }).join("");
+        return `<section class="tour"><h2>Map tour</h2>${html}</section>${kids()}`;
+      }
+      default: {
+        let extra = "";
+        if (typeof d.text === "string") extra += `<p>${sanitizeHtml(d.text)}</p>`;
+        if (d.image) { const src = imgSrc(d.image); if (src) extra += `<figure><img src="${esc(src)}" alt="${esc(textOnly(d.alt))}" loading="lazy">${caption(d)}</figure>`; }
+        else if (d.caption) extra += caption(d);
+        if (typeof d.title === "string" && n.type && /slide|place|timeline-event/.test(n.type)) extra = `<h3>${esc(textOnly(d.title))}</h3>` + extra;
+        return extra + refs(d.contents, depth) + refs(d.media, depth) + kids();
+      }
+    }
+  }
+  const root = story && story.root;
+  const body = render(root, 0);
+  const locale = nodes[root] && nodes[root].config && nodes[root].config.storyLocale;
+  return { title, body, locale: typeof locale === "string" && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/i.test(locale) ? locale : "" };
+}
+
+// ---------------------------------------------------------------- pages written into the archive
+const PAGE_CSS = `
+:root{--ink:#16243a;--ink-2:#4a586b;--paper:#f6f8fa;--surface:#fff;--line:#d5dde4;--accent:#2b6b57;color-scheme:light dark;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.55;color:var(--ink);background:var(--paper)}
+@media (prefers-color-scheme:dark){:root{--ink:#e7edf2;--ink-2:#aebccb;--paper:#0e1824;--surface:#152231;--line:#34485b;--accent:#8fd9bf}}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink)}a{color:var(--accent);text-underline-offset:2px}
+:focus-visible{outline:3px solid #1a5fb4;outline-offset:2px}.wrap{max-width:1000px;margin:0 auto;padding:0 16px}
+.skip{position:absolute;left:12px;top:-48px;background:var(--surface);padding:8px 12px}.skip:focus{top:12px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+img{max-width:100%;height:auto}code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.92em}
+`;
+// No scripts can run in the portfolio and story pages, whatever the text in them says.
+const NO_SCRIPT_CSP = `<meta http-equiv="Content-Security-Policy" content="script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">\n`;
+const RTL = /^(ar|he|fa|ur|ps|sd|yi|dv|ug|ckb)(-|$)/i;
+function pageShell(title, css, body, lang) {
+  const l = lang || "en";
+  return `<!doctype html>\n<html lang="${esc(l)}"${RTL.test(l) ? ' dir="rtl"' : ""}>\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n${NO_SCRIPT_CSP}<meta name="referrer" content="no-referrer">\n<title>${esc(title)}</title>\n<style>${PAGE_CSS}${css}</style>\n</head>\n<body>\n<a class="skip" href="#main">Skip to content</a>\n${body}\n</body>\n</html>\n`;
+}
+const STORY_CSS = `
+main{max-width:720px;margin:0 auto;padding:24px 18px 64px;font-family:Charter,"Iowan Old Style","Palatino Linotype",Georgia,serif;font-size:1.12rem;line-height:1.7}
+.note{font-family:system-ui,sans-serif;font-size:.92rem;color:var(--ink-2);border-left:4px solid var(--accent);padding:8px 12px;background:var(--surface)}
+.cover h1{font-size:clamp(2rem,6vw,3rem);line-height:1.1;margin:28px 0 8px}.summary{font-size:1.25rem;color:var(--ink-2)}.byline{font-family:system-ui,sans-serif;color:var(--ink-2)}
+h2,h3,h4{font-family:system-ui,sans-serif;line-height:1.25}figure{margin:28px 0}figcaption{font-family:system-ui,sans-serif;font-size:.9rem;color:var(--ink-2);margin-top:6px}
+blockquote{border-left:4px solid var(--line);margin:24px 0;padding:4px 18px;font-style:italic}.large{font-size:1.3rem}
+.mapref{border:1px solid var(--line);background:var(--surface);padding:14px 16px;border-radius:8px}.maplink{margin:0;font-family:system-ui,sans-serif;font-weight:650}
+.place{border-top:1px solid var(--line);padding-top:6px}.swipe{display:grid;gap:12px}
+.credits{border-top:1px solid var(--line);margin-top:48px;font-size:.95rem}hr{border:0;border-top:1px solid var(--line);margin:36px 0}
+`;
+const PORTFOLIO_CSS = `
+header.top{background:#142338;color:#f3f7fa;padding:34px 0 30px}header.top h1{font-size:clamp(1.9rem,5vw,3rem);line-height:1.08;margin:0 0 8px;letter-spacing:-.015em}
+header.top p{margin:4px 0;color:#d6e0e8;max-width:70ch}.privacy{background:var(--surface);border:1px solid var(--line);border-left:5px solid #b06a00;padding:12px 16px;margin:22px 0;border-radius:6px;max-width:80ch}
+nav.toc ul{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px 18px;margin:18px 0}h2{font-size:1.45rem;margin:40px 0 12px;padding-top:6px;border-top:2px solid var(--accent)}
+.entry{display:grid;grid-template-columns:200px 1fr;gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;margin:14px 0}
+.entry.feature{grid-template-columns:320px 1fr}.entry .thumb{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:6px;background:var(--line)}
+.entry .nothumb{width:100%;aspect-ratio:3/2;border-radius:6px;background:repeating-linear-gradient(135deg,var(--line) 0 2px,transparent 2px 14px)}
+.entry h3{margin:0 0 4px;font-size:1.2rem;overflow-wrap:anywhere}.kind{margin:0 0 8px;color:var(--ink-2);font-size:.92rem}.snippet{margin:0 0 10px;max-width:70ch}
+.links{list-style:none;padding:0;margin:8px 0;display:flex;flex-wrap:wrap;gap:6px 16px}.links li{font-weight:600}.links .sub{font-weight:400;color:var(--ink-2)}
+.desc{font-size:.95rem;max-width:72ch}details summary{cursor:pointer;color:var(--ink-2)}.notes{font-size:.9rem;color:#8a4b00;margin:6px 0 0}
+@media (prefers-color-scheme:dark){.notes{color:#ffcf8a}}.layers{font-size:.92rem;margin:6px 0;padding-left:1.1em}.layers li{margin:3px 0}
+table.v{border-collapse:collapse;font-size:.92rem}table.v th,table.v td{text-align:left;padding:5px 14px 5px 0;border-bottom:1px solid var(--line)}
+footer.end{color:var(--ink-2);font-size:.9rem;padding:30px 0 50px}
+@media (max-width:640px){.entry,.entry.feature{grid-template-columns:1fr}}
+`;
+const VIEWER_HTML = (sdk) => `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Map</title>
+<link rel="stylesheet" href="https://js.arcgis.com/${sdk}/esri/themes/light/main.css">
+<script type="module" src="https://js.arcgis.com/${sdk}/"><\/script>
+<style>
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#16243a;background:#f6f8fa}
+header{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:10px 16px;background:#142338;color:#f3f7fa}
+header a{color:#a8e3cd}header h1{font-size:1.1rem;margin:0}#view{position:absolute;top:56px;left:0;right:0;bottom:0}
+#msg{position:absolute;top:72px;left:16px;right:16px;max-width:680px;background:#fff;border:1px solid #cfd8df;border-radius:8px;padding:14px 16px;line-height:1.5}
+#msg[hidden]{display:none}:focus-visible{outline:3px solid #1a5fb4;outline-offset:2px}
+</style>
+</head>
+<body>
+<header><a href="../index.html">Back to the portfolio</a><h1 id="title">Map</h1></header>
+<main><div id="view" aria-label="Interactive map"></div><div id="msg" role="status" hidden></div></main>
+<script type="module">
+const q = new URLSearchParams(location.search);
+const file = q.get("m") || "";
+const msg = document.getElementById("msg");
+const show = (html) => { msg.innerHTML = html; msg.hidden = false; };
+const safe = /^[\\p{L}\\p{M}\\p{N}_-]+\\.mmap$/u.test(file);
+const title = safe ? file.replace(/\\.mmap$/, "").replace(/_/g, " ") : "";
+document.getElementById("title").textContent = title || "Map";
+document.title = (title || "Map") + " (map)";
+const atlas = ${JSON.stringify(ATLAS_URL)};
+const offline = "<p>Maps open here when this folder is on a website, for example GitHub Pages.</p><p>To look at this map now, open <a href='" + atlas + "' target='_blank' rel='noopener'>Atlas</a>, choose Open map, and pick <code>maps/" + (safe ? file : "") + "</code> from this folder.</p>";
+async function main() {
+  if (!safe) { show("<p>No map was chosen. Go back to the portfolio and choose one.</p>"); return; }
+  if (location.protocol === "file:") { show(offline); return; }
+  if (typeof $arcgis === "undefined") { show("<p>The map viewer couldn't load from js.arcgis.com.</p>" + offline); return; }
+  const [WebMap, MapView, Legend, Expand, Basemap, esriConfig] = await $arcgis.import(["@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js",
+    "@arcgis/core/widgets/Legend.js", "@arcgis/core/widgets/Expand.js", "@arcgis/core/Basemap.js", "@arcgis/core/config.js"]);
+  esriConfig.request.useIdentity = false;
+  const raw = await (await fetch("../maps/" + encodeURIComponent(file))).json();
+  const keyed = JSON.stringify(raw.baseMap || {}).match(/basemapstyles-api|basemaps-api\\.arcgis\\.com/);
+  const fallback = () => Basemap.fromJSON({ title: "World Topographic Map", baseMapLayers: [{ id: "topo", layerType: "ArcGISTiledMapServiceLayer", title: "World Topographic Map",
+    url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer" }] });
+  const map = WebMap.fromJSON(raw);
+  if (!raw.baseMap || keyed) map.basemap = fallback();
+  const view = new MapView({ container: "view", map });
+  view.ui.add(new Expand({ view, content: new Legend({ view }), expanded: innerWidth > 720, expandTooltip: "Legend" }), "bottom-left");
+  await view.when();
+  const missing = [];
+  for (const l of map.allLayers.toArray()) { try { await l.load(); } catch { missing.push(l.title || "A layer"); } }
+  if (missing.length) show("<p>These layers are links to ArcGIS and didn't load (they may have been private to your school): " + missing.map((t) => String(t).replace(/[<>&]/g, "")).join(", ") + ".</p>");
+}
+main().catch((e) => { console.error(e); show("<p>This map couldn't be shown here.</p>" + offline); });
+<\/script>
+</body>
+</html>
+`;
+
+// ===================================================================== the export
+const PHASES = [
+  { id: "prep", label: "Checking what your items use" },
+  { id: "copy", label: "Copying your items" },
+  { id: "maps", label: "Making maps you can reopen" },
+  { id: "stories", label: "Making StoryMap reading copies" },
+  { id: "page", label: "Writing your portfolio page" },
+  { id: "zip", label: "Finishing the .zip file" }
+];
+let ctx = null;
+function setPhase(id) {
+  const i = PHASES.findIndex((p) => p.id === id);
+  $("phaseList").querySelectorAll("li").forEach((li, j) => { li.className = j < i ? "done" : j === i ? "now" : ""; if (j === i) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current"); });
+  announce(PHASES[i].label);
+}
+let lastQuarter = 0;
+function progress(frac, text) {
+  if (Number.isFinite(frac)) {
+    const v = Math.max($("progressBar").value, Math.min(100, Math.round(frac * 100)));
+    $("progressBar").value = v;
+    const q = Math.floor(v / 25);
+    if (q > lastQuarter && q < 4) { lastQuarter = q; announce(`${q * 25}% done`); }
+  }
+  if (text) $("progressText").textContent = text;
+}
+function logLine(text, bad) { const li = document.createElement("li"); li.textContent = text; if (bad) li.className = "bad"; $("logList").appendChild(li); }
+
+/** Adds a file to the archive. data: string, Blob or array of strings/Blobs. */
+async function put(path, data) {
+  checkStop();
+  const blobType = data instanceof Blob ? data.type || "" : "";
+  const textual = !(data instanceof Blob) || /^(text\/|application\/(json|xml|geo\+json|javascript|x-ipynb))/i.test(blobType) || /\.(json|geojson|csv|txt|xml|html|mmap|ipynb)$/i.test(path);
+  const size = data instanceof Blob ? data.size : Array.isArray(data) ? data.reduce((n, x) => n + (x instanceof Blob ? x.size : String(x).length), 0) : String(data).length;
+  ctx.bytes += size;
+  const L = LIM(), cap = ctx.streaming ? L.streamBytes : L.memoryBytes;
+  if (ctx.bytes > cap) throw new ArcError("This copy has grown past " + fmtBytes(cap) + ", more than " + (ctx.streaming ? "this page will save at once" : "a browser can download as one file") + ". Choose fewer items and save them in two or more parts.", "toobig");
+  await ctx.zip.add(path, data, textual);
+}
+function uniqueDir(it) {
+  let d = `items/${slugify(it.title, 40)}-${it.id.slice(0, 8)}`;
+  if (ctx.dirs.has(d)) d = `items/${slugify(it.title, 40)}-${it.id}`;
+  ctx.dirs.add(d); return d;
+}
+function uniqueMapFile(title) {
+  const base = mapFileBase(title);
+  let name = base + ".mmap", n = 2;
+  while (ctx.mapFiles.has(name.toLowerCase())) name = `${base}_${n++}.mmap`;
+  ctx.mapFiles.add(name.toLowerCase()); return name;
+}
+async function fetchImageForSymbol(url) {
+  const b = await request(url, { as: "blob" });
+  if (!/^image\//.test(b.type || "image/png") || b.size > 2e6) throw new Error("not an image");
+  return { data: await blobToBase64(b), type: b.type || "image/png" };
+}
+async function getData(rec) {
+  if (rec.dataLoaded) return rec.data;
+  rec.dataLoaded = true;
+  const it = rec.item;
+  if (rec.plan === "file" || rec.plan === "tooBig" || rec.plan === "link") return null;
+  try {
+    const blob = await request(`${SR()}/content/items/${it.id}/data`, { as: "blob" });
+    rec.dataBlob = blob;
+    if (blob && blob.size && blob.size < 200e6) { try { rec.data = JSON.parse(await blob.text()); } catch { rec.data = null; } }
+  } catch (e) {
+    if (isAbort(e) || e.code === "auth") throw e;
+    if (![400, 403, 404, 500].includes(e.code)) rec.notes.push("Its data couldn't be read: " + e.message);
+  }
+  return rec.data;
+}
+const fatal = (e) => isAbort(e) || (e && (e.code === "toobig" || e.code === "auth"));
+async function copyItem(rec) {
+  const it = rec.item;
+  rec.dir = uniqueDir(it);
+  const details = { ...it }; delete details.folderTitle; delete details._group; delete details._plan;
+  await put(`${rec.dir}/item.json`, JSON.stringify({ ...details, folder: it.folderTitle || null }, null, 2));
+  rec.files.item = `${rec.dir}/item.json`;
+  if (it.thumbnail) {
+    try {
+      const b = await request(`${SR()}/content/items/${it.id}/info/${encodePath(it.thumbnail)}`, { as: "blob" });
+      const p = `${rec.dir}/thumbnail.${extFor(it.thumbnail, b.type, "png")}`; await put(p, b); rec.files.thumbnail = p;
+    } catch (e) { if (fatal(e)) throw e; rec.notes.push("Its thumbnail couldn't be copied."); }
+  }
+  try {
+    const b = await request(`${SR()}/content/items/${it.id}/info/metadata/metadata.xml`, { as: "blob", tries: 1 });
+    if (b && b.size && b.size < 20e6 && /xml|text\/plain|octet/i.test(b.type || "xml")) { await put(`${rec.dir}/metadata.xml`, b); rec.files.metadata = `${rec.dir}/metadata.xml`; }
+  } catch (e) { if (fatal(e)) throw e; /* most items have no metadata */ }
+  // The item's data: a file (in its own folder, so its name can't clash), or JSON settings
+  if (rec.plan === "tooBig") rec.notes.push(`The file is ${fmtBytes(it.size)}, too big to copy here. Download it from ArcGIS Online before your account closes.`);
+  else if (rec.plan === "file") {
+    try {
+      const b = await request(`${SR()}/content/items/${it.id}/data`, { as: "blob" });
+      const p = `${rec.dir}/file/${safeFileName(it.name || `${slugify(it.title)}.${extFor("", b.type, "bin")}`)}`; await put(p, b); rec.files.data = p;
+    } catch (e) { if (fatal(e)) throw e; rec.problems.push("The file couldn't be copied: " + e.message); }
+  } else if (rec.plan !== "link") {
+    await getData(rec);
+    if (rec.data !== null && rec.data !== undefined) {
+      const p = `${rec.dir}/${it.type === "Notebook" ? "notebook.ipynb" : "data.json"}`;
+      await put(p, JSON.stringify(rec.data, null, 2)); rec.files.data = p;
+    } else if (rec.dataBlob && rec.dataBlob.size) {
+      if (rec.dataBlob.size > LIM().fileBytes) rec.notes.push("Its data is too big to copy here.");
+      else { const p = `${rec.dir}/data.${extFor("", rec.dataBlob.type, "bin")}`; await put(p, rec.dataBlob); rec.files.data = p; }
+    }
+  }
+  rec.dataBlob = null;
+  await copyResources(rec);
+  if (rec.plan === "layerData") await exportService(rec);
+}
+const DRAFT = /^draft(_\d{13})?\.json$/i;
+async function copyResources(rec) {
+  const it = rec.item;
+  const list = [];
+  try {
+    let start = 1, guard = 0;
+    while (start > 0 && guard++ < 50) {
+      const r = await request(`${SR()}/content/items/${it.id}/resources`, { params: { num: 1000, start }, tries: 2 });
+      list.push(...(r.resources || []));
+      const n = Number(r.nextStart); start = Number.isFinite(n) && n > start ? n : -1;
+    }
+  } catch (e) { if (fatal(e)) throw e; return; }   // many item types have no resources
+  const tasks = list.filter((r) => r && r.resource).map((r) => async () => {
+    checkStop();
+    if ((r.size || 0) > LIM().fileBytes) { rec.notes.push(`${r.resource} is too big to copy here.`); return; }
+    try {
+      const b = await request(`${SR()}/content/items/${it.id}/resources/${encodePath(r.resource)}`, { as: "blob" });
+      const p = `${rec.dir}/resources/${safePath(r.resource)}`; await put(p, b); rec.resources.set(r.resource, p);
+      if (DRAFT.test(r.resource) && b.size < 50e6) rec.drafts.set(r.resource, b);
+    } catch (e) { if (fatal(e)) throw e; rec.problems.push(`${r.resource} couldn't be copied: ${e.message}`); }
+  });
+  await runPool(tasks, 3);
+}
+async function exportService(rec) {
+  const it = rec.item, base = it.url.replace(/\/+$/, "");
+  const svc = await request(base);
+  let all;
+  try { all = await request(base + "/layers"); if (!Array.isArray(all.layers)) throw new Error("no layers"); }
+  catch (e) {
+    if (fatal(e)) throw e;
+    all = { layers: [], tables: [] };
+    for (const l of svc.layers || []) all.layers.push(await request(`${base}/${l.id}`));
+    for (const t of svc.tables || []) all.tables.push(await request(`${base}/${t.id}`));
+  }
+  await put(`${rec.dir}/layers/service.json`, JSON.stringify({ service: svc, layers: all.layers, tables: all.tables || [] }, null, 2));
+  const settings = rec.data && typeof rec.data === "object" ? rec.data : {};
+  const entries = [...(all.layers || []).map((def) => ({ def, table: false })), ...(all.tables || []).map((def) => ({ def, table: true }))];
+  rec.service = { url: base, layers: [] };
+  for (const { def, table } of entries) {
+    checkStop();
+    const lid = def.id, lurl = `${base}/${lid}`, slug = `${lid}-${slugify(def.name || "layer", 40)}`;
+    const out = { id: lid, name: def.name || "Layer " + lid, table, geometryType: table ? null : def.geometryType || null, count: 0, files: {} };
+    let ids = [];
+    try {
+      progress(NaN, `${it.title}: reading ${out.name}`);
+      const idsRes = await request(`${lurl}/query`, { method: "POST", params: { where: "1=1", returnIdsOnly: true } });
+      const oidField = idsRes.objectIdFieldName || def.objectIdField || "OBJECTID";
+      ids = (idsRes.objectIds || []).slice().sort((a, b) => a - b);
+      const cap = LIM().featuresPerLayer;
+      if (ids.length > cap) { rec.notes.push(`${out.name} has ${ids.length.toLocaleString()} features; the first ${cap.toLocaleString()} were copied.`); ids = ids.slice(0, cap); out.truncated = true; }
+      const chunk = Math.max(1, Math.min(Number(def.maxRecordCount) || 1000, 1000));   // never more than the service allows
+      const geo = !table && !!def.geometryType;
+      const z = def.hasZ ? true : undefined;
+      const features = [];
+      for (let i = 0; i < ids.length; i += chunk) {
+        checkStop();
+        const r = await request(`${lurl}/query`, { method: "POST", params: { objectIds: ids.slice(i, i + chunk).join(","), outFields: "*", returnGeometry: geo, returnZ: z, outSR: 102100 } });
+        features.push(...(r.features || []));
+        if (ids.length > chunk) progress(NaN, `${it.title}: ${out.name}, ${Math.min(i + chunk, ids.length).toLocaleString()} of ${ids.length.toLocaleString()}`);
+      }
+      const fset = { objectIdFieldName: oidField, geometryType: def.geometryType || null, spatialReference: SR_WM, fields: def.fields || [], features: [] };
+      const pJson = `${rec.dir}/layers/${slug}.json`; await put(pJson, jsonWithFeatures(fset, features)); out.files.esriJson = pJson;
+      const pCsv = `${rec.dir}/layers/${slug}.csv`; await put(pCsv, toCsvParts(def.fields, features, def.geometryType)); out.files.csv = pCsv;
+      out.count = features.length;
+      const settingsList = (table ? settings.tables : settings.layers) || [];
+      ctx.layerStore.set(normalizeUrl(lurl), { def: { ...def, objectIdField: def.objectIdField || oidField }, features, table, layerUrl: lurl,
+        settings: Array.isArray(settingsList) ? settingsList.find((l) => l && Number(l.id) === Number(lid)) || null : null });
+      // GeoJSON is a convenience copy: if the service can't give it, the other files still stand.
+      const formats = String(def.supportedQueryFormats || "geoJSON").toLowerCase();
+      if (geo && formats.includes("geojson")) {
+        try {
+          const gj = [];
+          for (let i = 0; i < ids.length; i += chunk) {
+            checkStop();
+            const g = await request(`${lurl}/query`, { method: "POST", params: { objectIds: ids.slice(i, i + chunk).join(","), outFields: "*", returnGeometry: true, returnZ: z, outSR: 4326, f: "geojson" } });
+            gj.push(...(g.features || []));
+          }
+          const pGeo = `${rec.dir}/layers/${slug}.geojson`; await put(pGeo, jsonWithFeatures({ type: "FeatureCollection" }, gj)); out.files.geojson = pGeo;
+        } catch (e) { if (fatal(e)) throw e; rec.notes.push(`${out.name}: the GeoJSON copy couldn't be made; the CSV and ArcGIS JSON files have all the data.`); }
+      }
+    } catch (e) {
+      if (fatal(e)) throw e;
+      rec.problems.push(`${out.name}: ${e.message}`); out.error = e.message;
+    }
+    if (!out.error && ctx.opts.attachments && def.hasAttachments && ids.length) await exportAttachments(rec, def, lurl, ids, slug, out);
+    rec.service.layers.push(out);
+  }
+}
+async function exportAttachments(rec, def, lurl, ids, slug, out) {
+  let infos = null;
+  const qa = def.advancedQueryCapabilities && def.advancedQueryCapabilities.supportsQueryAttachments;
+  const page = Math.max(1, Math.min(Number(def.maxRecordCount) || 1000, 1000));
+  if (qa !== false) {
+    try {
+      const seen = new Set(); infos = [];
+      for (let i = 0; i < ids.length; i += 50) {
+        // A page holds at most maxRecordCount attachments, so keep asking until a page comes back short.
+        for (let offset = 0, guard = 0; guard < 1000; guard++) {
+          checkStop();
+          const r = await request(`${lurl}/queryAttachments`, { method: "POST", params: { objectIds: ids.slice(i, i + 50).join(","), returnUrl: false, resultOffset: offset, resultRecordCount: page } });
+          let n = 0;
+          for (const g of r.attachmentGroups || []) for (const a of g.attachmentInfos || []) {
+            n++; const key = g.parentObjectId + "/" + a.id;
+            if (!seen.has(key)) { seen.add(key); infos.push({ oid: g.parentObjectId, a }); }
+          }
+          if (n < page) break;
+          offset += n;
+        }
+      }
+    } catch (e) { if (fatal(e)) throw e; infos = null; }
+  }
+  if (!infos) {
+    infos = [];
+    if (ids.length > LIM().perFeatureAttachmentLookups) { rec.notes.push(`${out.name}: attachments weren't copied (too many features to check one by one).`); return; }
+    for (const oid of ids) {
+      checkStop();
+      try { const r = await request(`${lurl}/${oid}/attachments`); for (const a of r.attachmentInfos || []) infos.push({ oid, a }); }
+      catch (e) { if (fatal(e)) throw e; }
+    }
+  }
+  if (!infos.length) return;
+  const dir = `${rec.dir}/layers/${slug}-attachments`;
+  const index = [["objectId", "attachmentId", "name", "contentType", "size", "file"]];
+  let copied = 0, skipped = 0;
+  const L = LIM();
+  await runPool(infos.map(({ oid, a }) => async () => {
+    checkStop();
+    if (ctx.attachBytes + (a.size || 0) > L.attachmentBytes) { skipped++; return; }
+    try {
+      const b = await request(`${lurl}/${oid}/attachments/${a.id}`, { as: "blob" });
+      ctx.attachBytes += b.size;
+      const name = `${oid}-${a.id}-${safeFileName(a.name || "attachment", 80)}`;
+      await put(`${dir}/${name}`, b); copied++;
+      index.push([oid, a.id, a.name || "", a.contentType || b.type || "", b.size, name]);
+    } catch (e) { if (fatal(e)) throw e; skipped++; }
+  }), 3);
+  await put(`${dir}/index.csv`, "﻿" + index.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n");
+  out.attachments = copied; out.files.attachments = dir;
+  if (skipped) rec.notes.push(`${out.name}: ${plural(skipped, "attachment")} couldn't be copied${ctx.attachBytes >= L.attachmentBytes * 0.95 ? " (the 1 GB limit for attachments was reached)" : ""}.`);
+}
+
+async function runExport(chosen, opts, sink) {
+  ctx = { zip: new ZipWriter(sink), sink, streaming: sink.streaming, opts, records: new Map(), layerStore: new Map(), dirs: new Set(), mapFiles: new Set(),
+    bytes: 0, attachBytes: 0, cancelled: false, startedAt: new Date() };
+  abortCtl = new AbortController();
+  try {
+    return await exportAll(chosen, opts);
+  } catch (e) {
+    stopRun();                       // anything still running stops now
+    await sink.abort();
+    throw e;
+  }
+}
+async function exportAll(chosen, opts) {
+  setPhase("prep"); progress(0.01, "Getting ready…");
+  const newRec = (item, reason) => ({ item, reason, ...classify(item), dir: "", files: {}, resources: new Map(), drafts: new Map(), notes: [], problems: [], data: undefined, dataLoaded: false });
+  for (const it of chosen) ctx.records.set(it.id, newRec(it, "chosen"));
+  // 1. what the chosen items use
+  if (opts.deps) {
+    const ownedIds = new Set(st.byId.keys());
+    const ownedByUrl = new Map(st.items.filter((i) => i.url && /\/(FeatureServer|MapServer|VectorTileServer|ImageServer|SceneServer)\/?$/i.test(i.url)).map((i) => [normalizeUrl(i.url), i]));
+    const queue = [...ctx.records.values()];
+    let checked = 0;
+    while (queue.length) {
+      checkStop();
+      const rec = queue.shift();
+      if (!CONTAINER_TYPES.has(rec.item.type)) continue;
+      progress(0.01 + 0.04 * Math.min(1, ++checked / Math.max(1, ctx.records.size)), `Checking ${rec.item.title}`);
+      const data = await getData(rec);
+      for (const id of findRefs(data, rec.item.id, ownedIds, ownedByUrl)) {
+        if (ctx.records.has(id)) continue;
+        const dep = newRec(st.byId.get(id), rec.item.id);
+        ctx.records.set(id, dep); queue.push(dep);
+      }
+    }
+  }
+  const recs = [...ctx.records.values()];
+  const added = recs.filter((r) => r.reason !== "chosen").length;
+  if (added) logLine(`Also saving ${plural(added, "item")} that your chosen items use.`);
+  const L = LIM(), estimate = recs.reduce((n, r) => n + (r.plan === "tooBig" ? 0 : (r.item.size || 0)), 0);
+  const cap = ctx.streaming ? L.streamBytes : L.memoryBytes;
+  if (estimate > cap) throw new ArcError(`These items add up to about ${fmtBytes(estimate)}, more than ${ctx.streaming ? "this page will save at once" : "a browser can download as one file"}. Choose fewer items and save them in two or more parts.`, "toobig");
+  if (!ctx.streaming && estimate > L.warnBytes) logLine(`This is a big copy (about ${fmtBytes(estimate)}). If your browser runs out of memory, save in two or more parts.`, true);
+  // 2. copy items: layers first, so maps can use their data
+  setPhase("copy");
+  const order = { layerData: 0, layerCollection: 1 };
+  recs.sort((a, b) => (order[a.plan] ?? 5) - (order[b.plan] ?? 5));
+  let done = 0;
+  await runPool(recs.map((rec) => async () => {
+    checkStop();
+    progress(NaN, `Copying ${rec.item.title}`);
+    try { await copyItem(rec); }
+    catch (e) { if (fatal(e)) throw e; rec.problems.push(e.message || String(e)); }
+    done++;
+    progress(0.05 + 0.8 * done / recs.length, `Copied ${done} of ${recs.length}: ${rec.item.title}`);
+    logLine(`${rec.item.title}: ${rec.problems.length ? "copied, with problems" : "copied"}`, rec.problems.length > 0);
+  }), 2);
+  checkStop();
+  // 3. maps
+  setPhase("maps");
+  const mapRecs = recs.filter((r) => r.item.type === "Web Map" && r.data && typeof r.data === "object");
+  const pctx = { store: ctx.layerStore, fetchImage: fetchImageForSymbol,
+    itemData: (id) => { const r = ctx.records.get(String(id).toLowerCase()); return r && r.plan === "layerCollection" && r.data && typeof r.data === "object" ? r.data : null; } };
+  for (const [i, rec] of mapRecs.entries()) {
+    checkStop();
+    progress(0.85 + 0.05 * i / Math.max(1, mapRecs.length), `Making a map you can reopen: ${rec.item.title}`);
+    try {
+      const { webmap, stats } = await packWebMap(rec.data, pctx);
+      let text;
+      try { text = JSON.stringify(webmap); } catch { throw new Error("it holds too much data for one file; the data is in the layer files"); }
+      const name = uniqueMapFile(rec.item.title);
+      await put(`maps/${name}`, text);
+      rec.map = { file: `maps/${name}`, ...stats };
+      if (stats.features > L.atlasFeatureCap) rec.notes.push(`The map holds ${stats.features.toLocaleString()} features; Atlas opens the first ${L.atlasFeatureCap.toLocaleString()}. All the data is in the layer files.`);
+      if (stats.attachmentsDropped) rec.notes.push("Pop-ups in the map file don't show attachments; they're saved with the layer.");
+      if (stats.tablesDropped) rec.notes.push(`The map file leaves out ${plural(stats.tablesDropped, "table")} from your layers; the data is in the layer files.`);
+    } catch (e) { if (fatal(e)) throw e; rec.problems.push("The map file couldn't be made: " + e.message); }
+  }
+  // 4. stories
+  setPhase("stories");
+  const storyRecs = recs.filter((r) => r.item.type === "StoryMap");
+  const mapHrefFor = (prefix) => (id) => { const r = ctx.records.get(id); return r && r.map ? `${prefix}portfolio/viewer.html?m=${encodeURIComponent(r.map.file.slice(5))}` : null; };
+  for (const [i, rec] of storyRecs.entries()) {
+    checkStop();
+    progress(0.9 + 0.04 * i / Math.max(1, storyRecs.length), `Making a reading copy: ${rec.item.title}`);
+    try {
+      let story = rec.data, source = "published";
+      if (!story || !story.nodes) {
+        const drafts = [...rec.drafts.keys()].sort((a, b) => Number((a.match(/\d{13}/) || [0])[0]) - Number((b.match(/\d{13}/) || [0])[0]));
+        if (drafts.length) { story = JSON.parse(await rec.drafts.get(drafts[drafts.length - 1]).text()); source = "draft"; }
+      }
+      if (!story || !story.nodes) { rec.notes.push("No story content was found, so there's no reading copy."); continue; }
+      const resourceHref = (rid) => { const p = rec.resources.get(rid) || rec.resources.get("images/" + rid); return p ? "../" + p.split("/").map(encodeURIComponent).join("/") : null; };
+      const mapTitle = (id) => (st.byId.get(id) || {}).title || "";
+      const { title, body, locale } = storyToHtml(story, { resourceHref, mapHref: mapHrefFor("../"), mapTitle });
+      const file = `stories/${slugify(rec.item.title, 60)}-${rec.item.id.slice(0, 8)}.html`;
+      const note = `<p class="note" lang="en" dir="ltr">A reading copy of the StoryMap "${esc(rec.item.title)}"${source === "draft" ? ", from its last saved draft" : ""}. The text, pictures and links are here; layout, animation and embedded maps aren't. <a href="../index.html">Back to the portfolio</a></p>`;
+      await put(file, pageShell(title || rec.item.title, STORY_CSS, `<main id="main">${note}${body}</main>`, locale));
+      rec.story = { file, source };
+    } catch (e) { if (fatal(e)) throw e; rec.problems.push("The reading copy couldn't be made: " + e.message); }
+    rec.drafts.clear();
+  }
+  // 5. portfolio, viewer, manifest, README
+  checkStop();
+  setPhase("page"); progress(0.95, "Writing your portfolio page");
+  await put("portfolio/viewer.html", VIEWER_HTML(SDK_VERSION));
+  await put("index.html", buildPortfolio(recs));
+  const manifest = buildManifest(recs);
+  await put("manifest.json", JSON.stringify(manifest, null, 2));
+  await put("README.txt", buildReadme(recs));
+  // 6. finish the zip
+  setPhase("zip"); progress(0.98, "Finishing the .zip file");
+  const blob = await ctx.zip.finish();
+  checkStop();
+  ctx.layerStore.clear();
+  return { blob, recs, manifest, bytes: ctx.zip.offset };
+}
+
+function originalLink(it) {
+  const host = st.org && st.org.urlKey && st.org.customBaseUrl ? `https://${st.org.urlKey}.${st.org.customBaseUrl}` : cfg.portal;
+  return `${host}/home/item.html?id=${it.id}`;
+}
+function relHref(p) { return p ? p.split("/").map(encodeURIComponent).join("/") : ""; }
+function buildPortfolio(recs) {
+  const name = (st.user && (st.user.fullName || st.user.username)) || "My work";
+  const orgName = (st.org && st.org.name) || "";
+  const groups = [
+    { id: "story", title: "StoryMaps" }, { id: "map", title: "Maps" }, { id: "layer", title: "Layers and data" },
+    { id: "app", title: "Apps, dashboards and notebooks" }, { id: "file", title: "Files" }, { id: "other", title: "Other items" }
+  ];
+  const listed = (r) => r.reason === "chosen" || r.group === "layer" || r.group === "map";
+  const sorted = (list) => list.slice().sort((a, b) => (b.item.modified || 0) - (a.item.modified || 0));
+  const sections = [], shown = [];
+  for (const g of groups) {
+    const list = sorted(recs.filter((r) => r.group === g.id && listed(r)));
+    if (!list.length) continue;
+    shown.push(g);
+    sections.push(`<section aria-labelledby="g-${g.id}"><h2 id="g-${g.id}">${esc(g.title)} (${list.length})</h2>${list.map((r) => entryHtml(r, g.id === "story")).join("")}</section>`);
+  }
+  const omitted = recs.filter((r) => !listed(r));
+  const toc = shown.length > 1 ? `<nav class="toc" aria-label="Sections"><ul>${shown.map((g) => `<li><a href="#g-${g.id}">${esc(g.title)}</a></li>`).join("")}<li><a href="#about">About this copy</a></li></ul></nav>` : "";
+  const versions = [["Take My Work", APP_VERSION], ...COMPONENTS.map((c) => [c.label, c.version])];
+  const about = `<section aria-labelledby="about"><h2 id="about">About this copy</h2>
+<p>Made on ${esc(ctx.startedAt.toLocaleString())} from ${esc(orgName || cfg.portal)}, for the ArcGIS account ${esc(st.user.username)}. It holds ${plural(recs.length, "item")}.</p>
+<p>Open map files (<code>.mmap</code>) in <a href="${esc(ATLAS_URL)}">Atlas</a> to keep working on them without an account. The <code>items</code> folder has a full copy of each item, and <code>manifest.json</code> lists everything so a tool can put it back into ArcGIS.</p>
+${omitted.length ? `<p>Also saved, but not listed above: ${omitted.map((r) => esc(r.item.title)).join(", ")}.</p>` : ""}
+<table class="v"><caption class="sr-only">Versions</caption><thead><tr><th scope="col">Made with</th><th scope="col">Version</th></tr></thead><tbody>${versions.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("")}</tbody></table></section>`;
+  const body = `<header class="top"><div class="wrap"><h1>${esc(name)}</h1><p>Work made in ArcGIS Online${orgName ? " at " + esc(orgName) : ""}. Copy saved ${esc(ctx.startedAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }))}.</p></div></header>
+<main id="main" class="wrap">
+<p class="privacy"><strong>Before you put this folder online:</strong> it includes items you kept private and the data inside them, which may include other people's information. Remove anything you're not happy for everyone to see.</p>
+${toc}${sections.join("\n")}${about}</main><footer class="end wrap"><p>The links marked "original" point to ArcGIS Online and may stop working once your school account closes.</p></footer>`;
+  return pageShell(`${name}: ArcGIS work`, PORTFOLIO_CSS, body);
+}
+function entryHtml(r, feature) {
+  const it = r.item;
+  const kind = [it.type, it.modified ? "updated " + fmtDate(it.modified) : "", ACCESS_TEXT[it.access] ? ACCESS_TEXT[it.access].toLowerCase() : ""].filter(Boolean).join(", ");
+  const links = [];
+  if (r.story) links.push(`<li><a href="${relHref(r.story.file)}">Read the StoryMap</a></li>`);
+  if (r.map) links.push(`<li><a href="portfolio/viewer.html?m=${encodeURIComponent(r.map.file.slice(5))}">View the map</a></li><li><a href="${relHref(r.map.file)}" download>Map file (.mmap)</a></li>`);
+  if (r.files.data && r.group === "file") links.push(`<li><a href="${relHref(r.files.data)}">${esc(r.files.data.split("/").pop())}</a></li>`);
+  if (r.files.data && r.item.type === "Notebook") links.push(`<li><a href="${relHref(r.files.data)}" download>Notebook (.ipynb)</a></li>`);
+  if (it.type === "Document Link" && /^https?:\/\//i.test(it.url || "")) links.push(`<li><a href="${esc(it.url)}" rel="noopener noreferrer">The link</a></li>`);
+  if (r.files.item) links.push(`<li><a href="${relHref(r.files.item)}">Item details</a></li>`);
+  links.push(`<li><a href="${esc(originalLink(it))}" rel="noopener noreferrer">Original <span class="sub">in ArcGIS Online</span></a></li>`);
+  let layers = "";
+  if (r.service && r.service.layers.length) {
+    layers = `<ul class="layers">${r.service.layers.map((l) => {
+      const f = [];
+      if (l.files.geojson) f.push(`<a href="${relHref(l.files.geojson)}">GeoJSON</a>`);
+      if (l.files.csv) f.push(`<a href="${relHref(l.files.csv)}">CSV</a>`);
+      if (l.files.esriJson) f.push(`<a href="${relHref(l.files.esriJson)}">ArcGIS JSON</a>`);
+      if (l.files.attachments) f.push(`<a href="${relHref(l.files.attachments + "/index.csv")}">attachments list</a>`);
+      const count = l.error ? "couldn't be copied" : `${l.count.toLocaleString()} ${l.table ? "rows" : "features"}${l.attachments ? ", " + plural(l.attachments, "attachment") : ""}`;
+      return `<li>${esc(l.name)} (${count})${f.length ? ": " + f.join(", ") : ""}</li>`;
+    }).join("")}</ul>`;
+  }
+  const desc = sanitizeHtml(it.description);
+  const notes = [...r.problems, ...r.notes];
+  const thumb = r.files.thumbnail ? `<img class="thumb" src="${relHref(r.files.thumbnail)}" alt="" loading="lazy">` : `<div class="nothumb" aria-hidden="true"></div>`;
+  return `<article class="entry${feature ? " feature" : ""}" id="item-${esc(it.id)}">${thumb}<div><h3>${esc(it.title)}</h3><p class="kind">${esc(kind)}</p>
+${it.snippet ? `<p class="snippet">${esc(it.snippet)}</p>` : ""}<ul class="links">${links.join("")}</ul>${layers}
+${desc ? `<details><summary>Description</summary><div class="desc">${desc}</div></details>` : ""}
+${notes.length ? `<p class="notes">${notes.map(esc).join(" ")}</p>` : ""}</div></article>`;
+}
+function buildManifest(recs) {
+  return {
+    format: "TakeMyWorkArchive", formatVersion: 1, appVersion: APP_VERSION, components: V, createdAt: ctx.startedAt.toISOString(),
+    source: { portalUrl: cfg.portal, organization: st.org ? { id: st.org.id, name: st.org.name, urlKey: st.org.urlKey || null } : null },
+    account: { username: st.user.username, fullName: st.user.fullName || "" },
+    options: { includeDependencies: ctx.opts.deps, includeAttachments: ctx.opts.attachments },
+    items: recs.map((r) => ({
+      id: r.item.id, title: r.item.title, type: r.item.type, typeKeywords: r.item.typeKeywords || [], folder: r.item.folderTitle || null,
+      access: r.item.access, created: r.item.created, modified: r.item.modified, url: r.item.url || null,
+      includedBecause: r.reason === "chosen" ? "chosen" : { usedBy: r.reason }, saved: PLAN_TEXT[r.plan], dir: r.dir,
+      files: r.files, resources: Object.fromEntries(r.resources),
+      service: r.service || undefined, map: r.map ? { file: r.map.file, layersWithData: r.map.inlined, layersLinked: r.map.linked, features: r.map.features } : undefined,
+      story: r.story || undefined, notes: r.notes, problems: r.problems
+    }))
+  };
+}
+function buildReadme(recs) {
+  const lines = [
+    "Take My Work: a copy of your ArcGIS Online work",
+    "",
+    `Saved ${ctx.startedAt.toLocaleString()} from ${(st.org && st.org.name) || cfg.portal}`,
+    `Account: ${st.user.username}${st.user.fullName ? " (" + st.user.fullName + ")" : ""}`,
+    `Items: ${recs.length}`,
+    "",
+    "START HERE",
+    "Unzip everything, then open index.html in a web browser. It lists every item, with links.",
+    "",
+    "WHAT'S INSIDE",
+    "  index.html      Your portfolio page.",
+    "  maps/           Your web maps as .mmap files. Each is a standard ArcGIS web map, with the data from",
+    "                  your own layers inside it, so it doesn't depend on your school account.",
+    "  stories/        Reading copies of your StoryMaps: text, pictures and links.",
+    "  items/          A full copy of each item: details (item.json), data, thumbnail and files.",
+    "                  Layers are in items/<layer>/layers as GeoJSON, CSV and ArcGIS JSON, with attachments.",
+    "  manifest.json   A list of everything, for tools that can put it back into ArcGIS.",
+    "",
+    "KEEP WORKING ON A MAP",
+    `  Without an account: open ${ATLAS_URL}, choose Open map, and pick a .mmap file from maps/.`,
+    "  In ArcGIS Online (a new account): add the GeoJSON or CSV files from items/*/layers to a map.",
+    "",
+    "PUT YOUR PORTFOLIO ONLINE",
+    "  Upload the whole unzipped folder to a website, such as GitHub Pages. Maps then open in the browser.",
+    "  Check first: this copy includes items you kept private and the data in them, which may include",
+    "  other people's information. Remove anything you're not happy for everyone to see.",
+    "",
+    "WHAT ISN'T INCLUDED",
+    "  Items other people own. Subscriber or premium content. The data in tile, imagery and 3D scene",
+    "  layers (their settings and links are saved). Apps and dashboards can't run outside ArcGIS; their",
+    "  settings are saved so they can be rebuilt.",
+    ""
+  ];
+  const issues = recs.filter((r) => r.problems.length || r.notes.length);
+  if (issues.length) {
+    lines.push("THINGS TO CHECK");
+    for (const r of issues) for (const n of [...r.problems, ...r.notes]) lines.push(`  ${r.item.title}: ${n}`);
+    lines.push("");
+  }
+  lines.push(`Made with Take My Work ${APP_VERSION} (${COMPONENTS.map((c) => c.id + " " + c.version).join(", ")}).`);
+  return lines.join("\r\n") + "\r\n";
+}
+
+// ===================================================================== screens
+function show(id) {
+  for (const s of ["setupSection", "signinSection", "chooseSection", "saveSection", "doneSection"]) $(s).hidden = s !== id;
+  const step = { setupSection: 1, signinSection: 1, chooseSection: 2, saveSection: 3, doneSection: 3 }[id];
+  [1, 2, 3].forEach((n) => { const li = $("step" + n); if (n === step) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current"); li.classList.toggle("done", n < step); });
+}
+function focusHeading(id) { const h = $(id); if (h) h.focus({ preventScroll: false }); }
+
+function renderStatic() {
+  $("versionBadge").textContent = "v" + APP_VERSION;
+  $("compList").innerHTML = COMPONENTS.map((c) => `<li><span class="chip"><span aria-hidden="true">v</span><span class="sr-only">version </span>${esc(c.version)}</span><span>${esc(c.label)}</span></li>`).join("");
+  $("versionsTable").querySelector("tbody").innerHTML = [["Take My Work (app)", APP_VERSION], ...COMPONENTS.map((c) => [c.label, c.version])].map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("");
+  $("redirect1").textContent = redirectUri().replace(/index\.html$/, "");
+  $("redirect2").textContent = redirectUri().replace(/\/?(index\.html)?$/, "/index.html");
+  $("originShown").textContent = location.origin;
+  $("atlasLink").href = ATLAS_URL;
+  drawContours();
+}
+function drawContours() {
+  const svg = document.querySelector(".contours"); if (!svg) return;
+  const NS = "http://www.w3.org/2000/svg";
+  const hills = [{ cx: 1010, cy: 110, n: 10, base: 18, step: 27, seed: 1.3 }, { cx: 560, cy: 360, n: 7, base: 34, step: 31, seed: 4.1 }, { cx: 120, cy: -20, n: 5, base: 40, step: 34, seed: 2.6 }];
+  const closed = (p) => {
+    let d = `M${p[0][0].toFixed(1)},${p[0][1].toFixed(1)}`; const n = p.length;
+    for (let i = 0; i < n; i++) {
+      const p0 = p[(i - 1 + n) % n], p1 = p[i], p2 = p[(i + 1) % n], p3 = p[(i + 2) % n];
+      d += `C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)},${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)},${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+    }
+    return d + "Z";
+  };
+  for (const h of hills) for (let k = 0; k < h.n; k++) {
+    const pts = [], N = 54, r0 = h.base + k * h.step;
+    for (let i = 0; i < N; i++) {
+      const t = (i / N) * Math.PI * 2;
+      const r = r0 * (1 + 0.15 * Math.sin(3 * t + h.seed + k * 0.33) + 0.07 * Math.sin(5 * t - h.seed * 2 + k * 0.55) + 0.03 * Math.sin(9 * t + k));
+      pts.push([h.cx + r * Math.cos(t) * 1.4, h.cy + r * Math.sin(t)]);
+    }
+    const path = document.createElementNS(NS, "path"); path.setAttribute("d", closed(pts));
+    if (k % 4 === 3) path.setAttribute("class", "index");
+    svg.appendChild(path);
+  }
+}
+
+function renderFilters() {
+  const counts = { all: st.items.length };
+  for (const it of st.items) counts[it._group] = (counts[it._group] || 0) + 1;
+  $("filters").innerHTML = '<legend class="sr-only">Show</legend>' + GROUPS.filter((g) => g.id === "all" || counts[g.id]).map((g) =>
+    `<label><input type="radio" name="flt" value="${g.id}"${st.filter === g.id ? " checked" : ""}> ${esc(g.label)} <span class="count">${counts[g.id] || 0}</span></label>`).join("");
+}
+function visibleItems() {
+  const q = st.query.trim().toLowerCase();
+  return st.items.filter((it) => (st.filter === "all" || it._group === st.filter) &&
+    (!q || (it.title || "").toLowerCase().includes(q) || (it.type || "").toLowerCase().includes(q) || (it.folderTitle || "").toLowerCase().includes(q) || (it.tags || []).some((t) => String(t).toLowerCase().includes(q))));
+}
+function renderRows() {
+  const tbody = $("itemRows"); tbody.textContent = "";
+  const list = visibleItems();
+  const frag = document.createDocumentFragment();
+  for (const it of list) {
+    const tr = document.createElement("tr"); if (!st.selected.has(it.id)) tr.className = "off";
+    const id = "chk-" + it.id;
+    const c0 = document.createElement("td"); c0.className = "c-check";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = id; cb.checked = st.selected.has(it.id); cb.dataset.id = it.id;
+    cb.setAttribute("aria-describedby", "get-" + it.id);
+    c0.appendChild(cb);
+    const c1 = document.createElement("td"); c1.className = "title-cell";
+    const lab = document.createElement("label"); lab.htmlFor = id; lab.textContent = it.title || "(no title)"; c1.appendChild(lab);
+    const sub = document.createElement("span"); sub.className = "sub"; sub.textContent = ACCESS_TEXT[it.access] || ""; c1.appendChild(sub);
+    const plan = document.createElement("span"); plan.className = "sub plan-sub" + (LIMITED.has(it._plan) ? " limited" : ""); plan.setAttribute("aria-hidden", "true"); plan.textContent = PLAN_TEXT[it._plan]; c1.appendChild(plan);
+    const c2 = document.createElement("td"); c2.className = "c-type"; c2.textContent = it.type;
+    const c3 = document.createElement("td"); c3.className = "c-folder"; c3.textContent = it.folderTitle || "Home";
+    const c4 = document.createElement("td"); c4.className = "c-date"; c4.textContent = fmtDate(it.modified);
+    const c5 = document.createElement("td"); c5.className = "c-size"; c5.textContent = fmtBytes(it.size);
+    const c6 = document.createElement("td"); c6.className = "c-get get-cell" + (LIMITED.has(it._plan) ? " limited" : ""); c6.id = "get-" + it.id; c6.textContent = PLAN_TEXT[it._plan];
+    tr.append(c0, c1, c2, c3, c4, c5, c6);
+    frag.appendChild(tr);
+  }
+  tbody.appendChild(frag);
+  $("emptyNote").hidden = list.length > 0;
+  $("emptyNote").textContent = st.items.length ? "Nothing matches. Try another search or filter." : "";
+  $("shownCount").textContent = `${plural(list.length, "item")} shown`;
+  syncCheckAll(list); renderSummary();
+}
+function syncCheckAll(list) {
+  list = list || visibleItems();
+  const n = list.filter((it) => st.selected.has(it.id)).length;
+  const ca = $("checkAll"); ca.checked = list.length > 0 && n === list.length; ca.indeterminate = n > 0 && n < list.length; ca.disabled = !list.length;
+}
+function renderSummary() {
+  const sel = st.items.filter((it) => st.selected.has(it.id));
+  const bytes = sel.reduce((n, it) => n + (it._plan === "tooBig" ? 0 : (it.size || 0)), 0);
+  $("selSummary").textContent = sel.length ? `${plural(sel.length, "item")} chosen${bytes ? ", about " + fmtBytes(bytes) : ""}` : "No items chosen";
+  $("saveBtn").disabled = !sel.length || st.running;
+}
+
+async function afterSignIn() {
+  show("chooseSection"); focusHeading("chooseTitle");
+  $("loadingNote").hidden = false; $("loadError").hidden = true; $("chooser").hidden = true;
+  try {
+    const [self, org] = await Promise.all([request(`${SR()}/community/self`), request(`${SR()}/portals/self`).catch(() => null)]);
+    st.user = self; st.org = org;
+    auth.username = self.username;
+    $("whoName").textContent = self.fullName || self.username;
+    $("whoUser").textContent = self.fullName ? `(${self.username})` : "";
+    $("whoOrg").textContent = org && org.name ? `, ${org.name}` : "";
+    const items = await listMyContent();
+    st.items = items.map((it) => { const c = classify(it); return { ...it, id: String(it.id).toLowerCase(), _group: c.group, _plan: c.plan }; })
+      .sort((a, b) => (b.modified || 0) - (a.modified || 0));
+    st.byId = new Map(st.items.map((it) => [it.id, it]));
+    st.selected = new Set(st.items.map((it) => it.id));
+    $("loadingNote").hidden = true;
+    if (!st.items.length) {
+      $("loadError").hidden = false; $("loadError").className = "alert warn";
+      $("loadError").textContent = "You don't own any items in this organization. Items other people shared with you aren't included; ask the owner for a copy.";
+      return;
+    }
+    $("chooser").hidden = false;
+    renderFilters(); renderRows();
+    announce(`Found ${plural(st.items.length, "item")}. All are ticked.`);
+  } catch (e) {
+    console.error(e);
+    $("loadingNote").hidden = true;
+    $("loadError").hidden = false; $("loadError").className = "alert error";
+    $("loadError").textContent = "Your items couldn't be listed: " + e.message;
+  }
+}
+
+async function pickFile() {
+  if (TEST.picker) return TEST.picker(st.fileName);                 // the automated tests stand in for the file picker
+  if (typeof window.showSaveFilePicker !== "function") return null;
+  return window.showSaveFilePicker({ suggestedName: st.fileName, types: [{ description: "Zip file", accept: { "application/zip": [".zip"] } }] });
+}
+async function onSave() {
+  if (st.running) return;
+  const chosen = st.items.filter((it) => st.selected.has(it.id));
+  if (!chosen.length) return;
+  st.fileName = `ArcGIS-work-${slugify(st.user.username, 40)}-${isoDate()}.zip`;
+  st.fileHandle = null; st.blob = null;                  // let the previous copy go before making a new one
+  try { st.fileHandle = await pickFile(); }
+  catch (e) { if (isAbort(e)) return; st.fileHandle = null; }
+  let sink;
+  try { sink = st.fileHandle ? await fileSink(st.fileHandle) : memorySink(); }
+  catch { st.fileHandle = null; sink = memorySink(); }
+  st.running = true; renderSummary();
+  $("logList").textContent = ""; $("progressBar").value = 0; $("progressText").textContent = ""; lastQuarter = 0;
+  $("phaseList").innerHTML = PHASES.map((p) => `<li>${esc(p.label)}</li>`).join("");
+  show("saveSection"); focusHeading("saveTitle");
+  const guard = (e) => { e.preventDefault(); e.returnValue = ""; };
+  window.addEventListener("beforeunload", guard);
+  try {
+    const result = await runExport(chosen, { deps: $("optDeps").checked, attachments: $("optAttach").checked }, sink);
+    let saved = "picked";
+    if (result.blob) { st.blob = result.blob; downloadBlob(result.blob, st.fileName); saved = "download"; }
+    showDone(result, saved);
+  } catch (e) {
+    console.error(e);
+    show("chooseSection");
+    $("loadError").hidden = false; $("loadError").className = isAbort(e) ? "alert warn" : "alert error";
+    $("loadError").textContent = isAbort(e) ? "Stopped. Nothing was saved." : "Your work couldn't be saved: " + (e.message || e);
+    focusHeading("chooseTitle");
+  } finally {
+    window.removeEventListener("beforeunload", guard);
+    st.running = false; abortCtl = null; ctx = null; renderSummary();
+  }
+}
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = name; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+function showDone(result, saved) {
+  const recs = result.recs;
+  const maps = recs.filter((r) => r.map).length, stories = recs.filter((r) => r.story).length, layers = recs.filter((r) => r.service).length;
+  const parts = [plural(recs.length, "item")];
+  if (maps) parts.push(plural(maps, "map you can reopen", "maps you can reopen"));
+  if (stories) parts.push(plural(stories, "StoryMap reading copy", "StoryMap reading copies"));
+  if (layers) parts.push(plural(layers, "layer with its data", "layers with their data"));
+  const where = saved === "picked" ? `It's in the file you chose, ${st.fileHandle && st.fileHandle.name ? st.fileHandle.name : st.fileName}.` : `Your browser is downloading ${st.fileName}. If it didn't start, use the button below.`;
+  $("doneSummary").textContent = `${parts.join(", ")}, ${fmtBytes(result.bytes)} in all. ${where}`;
+  const issues = recs.flatMap((r) => [...r.problems, ...r.notes].map((n) => `${r.item.title}: ${n}`));
+  $("problemsBox").hidden = !issues.length;
+  $("problemList").innerHTML = issues.slice(0, 200).map((t) => `<li>${esc(t)}</li>`).join("") + (issues.length > 200 ? `<li>…and ${issues.length - 200} more, listed in README.txt</li>` : "");
+  show("doneSection"); focusHeading("doneTitle");
+  announce("Your work is saved.");
+}
+
+// ===================================================================== wiring
+function wire() {
+  $("signInBtn").addEventListener("click", async () => {
+    $("signinError").hidden = true;
+    try { await beginSignIn(); } catch (e) { $("signinError").hidden = false; $("signinError").textContent = e.message; }
+  });
+  $("signOutBtn").addEventListener("click", signOut);
+  $("filters").addEventListener("change", (e) => { if (e.target.name === "flt") { st.filter = e.target.value; renderRows(); } });
+  let t = null;
+  $("searchBox").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { st.query = e.target.value; renderRows(); }, 150); });
+  $("itemRows").addEventListener("change", (e) => {
+    const id = e.target.dataset && e.target.dataset.id; if (!id) return;
+    if (e.target.checked) st.selected.add(id); else st.selected.delete(id);
+    e.target.closest("tr").classList.toggle("off", !e.target.checked);
+    syncCheckAll(); renderSummary();
+  });
+  $("checkAll").addEventListener("change", (e) => {
+    for (const it of visibleItems()) { if (e.target.checked) st.selected.add(it.id); else st.selected.delete(it.id); }
+    renderRows();
+  });
+  $("saveBtn").addEventListener("click", onSave);
+  $("cancelBtn").addEventListener("click", () => { stopRun(); $("progressText").textContent = "Stopping…"; });
+  $("downloadBtn").addEventListener("click", async () => {
+    if (st.blob) downloadBlob(st.blob, st.fileName);
+    else if (st.fileHandle && st.fileHandle.getFile) { try { downloadBlob(await st.fileHandle.getFile(), st.fileName); } catch { announce("That copy is in the file you chose."); } }
+  });
+  $("againBtn").addEventListener("click", () => { show("chooseSection"); $("loadError").hidden = true; renderRows(); focusHeading("chooseTitle"); });
+  $("showSetupBtn").addEventListener("click", () => { $("about").open = false; show("setupSection"); $("setupTitle").textContent = "Make a link for your school"; $("setupLead").hidden = true; $("adminSetup").open = true; $("portalInput").value = cfg.portal || ""; $("clientInput").value = cfg.clientId || ""; focusHeading("setupTitle"); });
+  $("setupForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const portal = normalizePortal($("portalInput").value), clientId = cleanClientId($("clientInput").value);
+    const err = $("setupError");
+    if (!portal) { err.hidden = false; err.textContent = "Enter your organization's address, starting with https://, for example https://yourschool.maps.arcgis.com"; $("portalInput").focus(); return; }
+    if (!clientId) { err.hidden = false; err.textContent = "Enter the Client ID from the credentials item (letters and numbers, at least 8)."; $("clientInput").focus(); return; }
+    err.hidden = true;
+    const link = `${redirectUri()}?${new URLSearchParams({ portal, clientId })}`;
+    $("studentLink").value = link; $("tryLink").href = link; $("linkOut").hidden = false;
+    try { local && local.setItem(CONFIG_KEY, JSON.stringify({ portal, clientId })); } catch { /* fine */ }
+    announce("Student link made.");
+  });
+  $("copyLinkBtn").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($("studentLink").value); announce("Link copied."); $("copyLinkBtn").textContent = "Copied"; setTimeout(() => { $("copyLinkBtn").textContent = "Copy link"; }, 2000); }
+    catch { $("studentLink").select(); announce("Press Control or Command and C to copy."); }
+  });
+}
+
+async function start() {
+  renderStatic(); wire();
+  if (TEST.expose) window.TakeMyWork = { version: APP_VERSION, components: V, packWebMap, storyToHtml, sanitizeHtml, toCsvParts, findRefs, classify, normalizePortal, normalizeUrl, slugify, safeFileName, mapFileBase, ZipWriter, memorySink };
+  const showPortal = () => {
+    const host = cfg.portal ? new URL(cfg.portal).host : "";
+    $("orgShown").textContent = host;
+    if (cfg.portal && !isArcGISOnline(cfg.portal)) {
+      $("portalWarn").hidden = false;
+      $("portalWarn").textContent = `This link signs you in at ${host}, which isn't an arcgis.com address. Only carry on if your school runs its own ArcGIS portal there.`;
+    }
+  };
+  try {
+    if (await completeSignInIfReturning()) { await afterSignIn(); return; }
+  } catch (e) {
+    show("signinSection"); showPortal();
+    $("signinError").hidden = false; $("signinError").textContent = e.message; return;
+  }
+  if (!cfg.clientId || !cfg.portal) {
+    show("setupSection");
+    $("portalInput").value = cfg.portal && cfg.portal !== DEFAULT_PORTAL ? cfg.portal : "";
+    if (!cfg.portal) { $("setupError").hidden = false; $("setupError").textContent = "The organization address in this link isn't a valid https address."; }
+    return;
+  }
+  show("signinSection"); showPortal();
+}
+start();
+</script>
+</body>
+</html>
