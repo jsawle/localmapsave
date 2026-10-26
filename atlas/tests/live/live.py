@@ -23,7 +23,7 @@ ATLAS = HERE.parent.parent
 sys.path.insert(0, str(HERE.parent / "smoke"))
 import smoke  # noqa: E402  (finds Chromium, fetches axe-core)
 
-APP_VERSION = "1.7.0"
+APP_VERSION = "1.8.0"
 # The live basemap group's web maps in its own order (date added, newest first), October 2026.
 GROUP_ORDER = ["OpenStreetMap Style", "Ocean", "Black and White Outline", "Imagery (no labels)", "Dark Gray", "Human Geography"]
 AXE = "axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))"
@@ -231,7 +231,19 @@ def main():
         page.click("#tool-basemaps"); page.wait_for_selector(".bmg-card"); page.wait_for_function("document.querySelector('.bmg-card[aria-pressed=\"true\"]')", timeout=20000)
         check(page.eval_on_selector_all('.bmg-card[aria-pressed="true"]', "e => e.map(x => x.textContent)") == ["Ocean"] and json.loads(downloaded)["baseMap"]["title"] == "Oceans",
               "the copy opens after a reload, as downloaded")
-        check(not errors, f"console errors (downloads) {errors[:3]}")
+        # Change a spreadsheet layer's style from Map layers (real SDK: the pie chart and the legend draw)
+        page.click("#tool-add"); page.click("#tabOwnData")
+        with page.expect_file_chooser() as fc: page.click("#csvPick")
+        fc.value.set_files(str(HERE / "litter.csv")); page.wait_for_selector("#dataSubmit:not([disabled])"); page.click("#dataSubmit"); page.wait_for_timeout(3000)
+        if page.is_hidden("#layersPanel"): page.click("#tool-layers")
+        page.click("#layersList button[data-style-for]"); page.wait_for_timeout(1500)
+        check(page.inner_text("#dataH") == "Style: litter" and "Type" in page.inner_text('#styleList [aria-pressed="true"]'), "Change style opens with the layer's current style")
+        page.click('#styleList .style-card:has-text("Pie")'); page.wait_for_timeout(1500); page.click("#dataSubmit"); page.wait_for_timeout(3000)
+        check(page.inner_text("#toast").startswith("Changed the style") and page.is_visible("#layersPanel"), "Apply changes it and goes back to Map layers")
+        page.click("#tool-legend"); page.wait_for_timeout(3000)
+        leg = page.inner_text("#legendBody")
+        check(all(w in leg for w in ("Plastic", "Glass", "Metal")), "the legend shows the pie chart's columns: " + leg.replace("\n", " | ")[:120])
+        check(not errors, f"console errors (downloads, change style) {errors[:3]}")
         ctx.close()
 
         # ---------------------------------------------------------------- Phone

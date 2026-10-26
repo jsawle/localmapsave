@@ -6,7 +6,7 @@ A configurable version of the National Geographic MapMaker app (an Atlas Instant
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.7.0**. Created by Jason Sawle.
+Version **1.8.0**. Created by Jason Sawle.
 
 **For developers:** the local save and add data logic is packaged on its own, with a minimal example, in [`kit/`](kit/README.md).
 
@@ -30,7 +30,7 @@ The toolbar is in MapMaker's order: Basemaps, Open map, Map layers, Add layer, L
 | Header | Logo (wide, plus a compact version on tablets and phones), help links, partner logos. The map title with ⓘ (description and credits) appears once a map is open. A Sign in button is optional (`signIn.headerButton`); MapMaker signs in from Save |
 | Open map | MapMaker's browser for the collection's maps: search, a **Categories** tree (the content group's categories, with arrows for sub-categories, a reset button, and a Categories button to hide the tree), wide cards with an expandable description, and page numbers. Counts show how many maps each category holds, and the search looks inside the chosen category. Maps whose categories aren't in the group's list appear under *Other*. *On this device* lists every map saved in this browser, newest first, with a picture of each, and *Browse this device* opens any other file (see *Saved maps*). When signed in, *My ArcGIS maps*. Plus *Start a new blank map* |
 | Add layer | A dialog like MapMaker's: the same browser for the collection's layers, each card with **Add layer** (then **Remove layer**). A second tab, *Your own data*, adds a spreadsheet (CSV) |
-| Map layers | Turn layers on and off, zoom to a layer, remove layers you added. As in MapMaker, the button shows how many layers the map has: its top-level layers, so a group counts once (MapMaker shows 6 for "1777-1778 Revolutionary Battles": four layers and two groups). It updates as layers are added or removed |
+| Map layers | Turn layers on and off, zoom to a layer, remove layers you added. Spreadsheet (CSV) layers have a **Change style** button (palette icon) that reopens the styling panel with the layer's current settings: map style, columns, shape, colours, size and labels, with a live preview; **Apply** updates the layer in place (bookmarks still find it), Cancel or Escape leaves it as it was. It also works for spreadsheet layers in a map opened from a file. As in MapMaker, the button shows how many layers the map has: its top-level layers, so a group counts once (MapMaker shows 6 for "1777-1778 Revolutionary Battles": four layers and two groups). It updates as layers are added or removed |
 | Legend | Legend for every layer |
 | Basemaps | As in MapMaker: a line of text, then the basemap group as a grid of cards, two to a row, with a picture above each name, in the group's own order (MapMaker's group: date added, newest first). The map's basemap is selected. In 3D the group's 3D basemaps (web scenes) come first. New maps start on the configured default |
 | Measure | Opens a small menu above the tool, as in MapMaker: **Measure** (distance, area and coordinates; direct-line distance in 3D) and **Elevation profile**, which docks across the bottom of the screen with the map above it, as in MapMaker. It's ready to draw as soon as it opens: click on the map to start the line, double-click to finish. It shows the height of the land and the sea floor (Esri's World Elevation TopoBathy 3D, credited in the panel) along the line, or along a line you've sketched. The panel is a short strip (under a third of the screen) with the chart on the left and the settings, legend and buttons on the right, so nothing needs scrolling; on phones the buttons come first. While it's open the toolbar is tucked away; the button under the scale bar brings it back |
@@ -140,7 +140,7 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.7.0: saved maps are `.amap` files |
+| App | 1.8.0: change a spreadsheet layer's style from Map layers |
 | Basemaps | 2.0: MapMaker's card grid (1.x was Esri's Basemap Gallery widget) |
 | Saved maps list (Open map, On this device) | 1.0 |
 | Collection browser (Open map, Add layer) | 2.0 |
@@ -148,7 +148,7 @@ The app version, plus a version for each part, is shown under the version button
 | Elevation profile | 2.0: land and sea floor (TopoBathy 3D), ready to draw on opening |
 | Saved map (.amap and ArcGIS Online) | 2.0: a web map (Web Map Specification 2.31) |
 | Older .mmap files (open only) | 4. Also opens versions 2 and 3 from the local-save concept, and Map Studio files |
-| CSV import | 3.0 |
+| CSV import | 3.1: a layer's style can be changed after it's added |
 | Sketch | 1.0 |
 | Config schema | 1 |
 

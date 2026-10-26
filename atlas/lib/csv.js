@@ -2,8 +2,9 @@
 // Pure functions only (no ArcGIS SDK), so they can be unit-tested in Node.
 // Nothing here sends the file anywhere: parsing happens in the browser.
 
-export const CSV_VERSION = "3.0";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
+export const CSV_VERSION = "3.1";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
                                     // multi-language lat/long names, manual column choice
+                                    // 3.1: a layer's style can be changed after it's added (stateFromLayerDef)
 
 export const PALETTE_HEX = ["#0079c1", "#d4572a", "#1a7f37", "#8250df", "#b4453a", "#9a6700", "#e3116c", "#2b2b2b"];
 export const PALETTE_RGB = [
@@ -215,19 +216,76 @@ export function buildLayerData(fileName, parsed, latIdx, lonIdx) {
   }
   if (!features.length) return fail("csvNoCoords");
   const coordNames = [names[latIdx], names[lonIdx]];
+  const { numeric, categorical } = columnKinds(fields, features, coordNames);
+  return { ok: true, fileName, features, fields, numeric, categorical, dropped, coordNames };
+}
+
+/** Which columns can be styled by number (size, shade) and which by type (2 to 12 different values). */
+export function columnKinds(fields, features, coordNames) {
   const numeric = [], categorical = [];
   for (const f of fields) {
-    if (f.type === "esriFieldTypeOID" || coordNames.includes(f.name)) continue;
+    if (f.type === "esriFieldTypeOID" || f.name === "_pieTotal" || coordNames.includes(f.name)) continue;
     if (f.type !== "esriFieldTypeString") { numeric.push(f.name); continue; }
     const seen = new Set();
     for (const ft of features) {
       const v = ft.attributes[f.name];
-      if (v !== null && v !== "") seen.add(v);
+      if (v !== null && v !== undefined && v !== "") seen.add(v);
       if (seen.size > 12) break;
     }
     if (seen.size >= 2 && seen.size <= 12) categorical.push(f.name);
   }
-  return { ok: true, fileName, features, fields, numeric, categorical, dropped, coordNames };
+  return { numeric, categorical };
+}
+
+/**
+ * The styling panel's settings for a spreadsheet layer already on the map, read back from its saved definition
+ * (the feature collection this app writes: fields, REST renderer, labels, features). Works for a layer added in this
+ * session and for one in a map opened from a file. Returns { ok:false } when the definition can't be read.
+ */
+export function stateFromLayerDef(def) {
+  if (!def || !Array.isArray(def.fields) || !Array.isArray(def.features) || !def.features.length) return { ok: false };
+  const fields = def.fields.filter((f) => f && f.name && f.name !== "_pieTotal");
+  const features = def.features;
+  const nameOfAlias = (i) => (i >= 0 ? fields[i].name : null);
+  const ll = detectLatLon(fields.map((f) => f.alias || f.name));
+  const coordNames = ll.latIdx >= 0 && ll.lonIdx >= 0 ? [nameOfAlias(ll.latIdx), nameOfAlias(ll.lonIdx)] : [];
+  const { numeric, categorical } = columnKinds(fields, features, coordNames);
+  const st = { ok: true, fileName: def.title || "My data", features, fields, numeric, categorical, dropped: 0, coordNames };
+  const r = def.renderer || {};
+  const vv = Array.isArray(r.visualVariables) ? r.visualVariables : [];
+  const sizeVV = vv.find((v) => v && v.type === "sizeInfo"), colorVV = vv.find((v) => v && v.type === "colorInfo");
+  const choices = { color: null, size: null, label: null };
+  let styleId = "simple";
+  if (r.type === "pieChart") styleId = "pie_chart";
+  else if (r.type === "uniqueValue") { styleId = sizeVV ? "categorical_size" : "categorical"; choices.color = r.field1 || null; }
+  else if (colorVV) { styleId = "numeric_color_size"; choices.color = colorVV.field || null; }
+  else if (sizeVV) styleId = "graduated";
+  if (sizeVV && styleId !== "pie_chart") choices.size = sizeVV.field || null;
+  const lab = Array.isArray(def.labelingInfo) && def.labelingInfo[0];
+  if (lab) {
+    const m = String((lab.labelExpressionInfo && lab.labelExpressionInfo.expression) || "").match(/^\$feature\.(\w+)$/) || String(lab.labelExpression || "").match(/^\[(\w+)\]$/);
+    if (m && fields.some((f) => f.name === m[1])) choices.label = m[1];
+  }
+  // The symbol: shape, colour (single-colour styles) and size, from the renderer's symbol.
+  const sym = r.symbol || r.defaultSymbol || {};
+  const shape = SHAPES.some((x) => x.id === sym.style) ? sym.style : "esriSMSCircle";
+  const color = Array.isArray(sym.color) && r.type !== "uniqueValue" ? sym.color.slice(0, 3) : [0, 121, 193];
+  let size = Number(sym.size) || 12;
+  if (r.type === "pieChart") size = Math.round((Number(r.size) || 24) / 2);
+  st.symbolChoices = { shape, color, size: Math.max(6, Math.min(28, Math.round(size))), ramp: "blue" };
+  if (colorVV && Array.isArray(colorVV.stops) && colorVV.stops.length) {
+    const first = (colorVV.stops[0].color || []).slice(0, 3).join(",");
+    const ramp = COLOR_RAMPS.find((x) => x.colors[0].join(",") === first);
+    if (ramp) st.symbolChoices.ramp = ramp.id;
+  }
+  // Fall back to the automatic choice if the saved style no longer fits the columns (e.g. a file edited elsewhere).
+  const style = DATA_STYLES.find((x) => x.id === styleId);
+  const fits = style && styleAvailable(style, st)
+    && (!choices.color || (styleId === "numeric_color_size" ? numeric : categorical).includes(choices.color))
+    && (!choices.size || numeric.includes(choices.size));
+  st.style = fits ? style : pickAutoStyle(st);
+  st.fieldChoices = fits ? choices : { ...pickAutoFields(st.style, st), label: choices.label };
+  return st;
 }
 
 // ---------- Styling (renderers in ArcGIS REST JSON, so the same definition saves to an .amap file and to a web map) ----------

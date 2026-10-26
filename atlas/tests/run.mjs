@@ -444,6 +444,43 @@ test("saved maps: a new save may replace an entry with the same file name, kind 
   assert.deepEqual(recent.candidates(list, recent.makeEntry({ scope: "es", fileName: "b.mmap", json: "{}" })), []);
   assert.equal(list[0].hasHandle, true); assert.equal(list[1].hasHandle, false);
 });
+// ---------- Changing a spreadsheet layer's style after it's added ----------
+test("style read back from a layer definition, for every style", () => {
+  const text = "Site,Latitude,Longitude,Species,Height,Width,Depth\nA,51.5,-0.12,Oak,12,3,1\nB,51.6,-0.11,Ash,9,2,4\nC,51.55,-0.1,Oak,15,5,2\nD,51.52,-0.13,Birch,7,1,3\n";
+  const parsed = csv.readCsv(text);
+  for (const id of ["simple", "categorical", "graduated", "numeric_color_size", "categorical_size", "pie_chart"]) {
+    const st = csv.buildLayerData("trees.csv", parsed, parsed.latIdx, parsed.lonIdx);
+    st.symbolChoices = { shape: "esriSMSDiamond", color: [26, 127, 55], size: 16, ramp: "green" };
+    st.style = csv.DATA_STYLES.find((x) => x.id === id);
+    st.fieldChoices = { ...csv.pickAutoFields(st.style, st), label: "Site" };
+    if (id === "numeric_color_size") st.fieldChoices = { color: "Width", size: "Height", label: "Site" };
+    const def = JSON.parse(JSON.stringify(csv.buildLayerDef(st, "abc", "Trees")));   // as saved in a file
+    const back = csv.stateFromLayerDef(def);
+    assert.ok(back.ok, id);
+    assert.equal(back.style.id, id, id);
+    assert.deepEqual(back.fieldChoices, st.fieldChoices, id);
+    assert.deepEqual(back.coordNames, ["Latitude", "Longitude"], id);
+    assert.ok(!back.numeric.includes("Latitude") && back.numeric.includes("Height") && back.categorical.includes("Species"), id);
+    assert.equal(back.symbolChoices.size, 16, id + " size");
+    if (id !== "pie_chart") assert.equal(back.symbolChoices.shape, "esriSMSDiamond", id);
+    if (id === "simple" || id === "graduated") assert.deepEqual(back.symbolChoices.color, [26, 127, 55], id);
+    if (id === "numeric_color_size") assert.equal(back.symbolChoices.ramp, "green");
+    // and building it again gives the same renderer
+    assert.deepEqual(JSON.parse(JSON.stringify(csv.buildLayerDef(back, "abc", "Trees").renderer)), def.renderer, id + " renderer");
+  }
+});
+test("style read back falls back when the saved style no longer fits, and refuses junk", () => {
+  const parsed = csv.readCsv("Site,Latitude,Longitude,Species\nA,51.5,-0.12,Oak\nB,51.6,-0.11,Ash\n");
+  const st = csv.buildLayerData("t.csv", parsed, parsed.latIdx, parsed.lonIdx);
+  st.symbolChoices = { shape: "esriSMSCircle", color: [0, 121, 193], size: 12, ramp: "blue" };
+  st.style = csv.DATA_STYLES.find((x) => x.id === "categorical"); st.fieldChoices = { color: "Species", size: null, label: null };
+  const def = JSON.parse(JSON.stringify(csv.buildLayerDef(st, "x", "T")));
+  def.renderer.field1 = "Gone";
+  const fb = csv.stateFromLayerDef(def);   // the automatic choice instead of a column that's gone
+  assert.ok(fb.ok && fb.categorical.includes(fb.fieldChoices.color) && fb.fieldChoices.color !== "Gone");
+  assert.equal(csv.stateFromLayerDef(null).ok, false);
+  assert.equal(csv.stateFromLayerDef({ fields: [], features: [] }).ok, false);
+});
 test("every config translates only known strings", () => {
   for (const f of ["default", "mapmaker", "example-es"]) {
     const c = JSON.parse(readFileSync(new URL("../config/" + f + ".json", import.meta.url)));

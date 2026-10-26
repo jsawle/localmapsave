@@ -1,5 +1,5 @@
 {
-  "configVersion": 8,
+  "configVersion": 9,
   "appName": "Mapas Escolares",
   "locale": "es",
   "dir": "ltr",
@@ -208,6 +208,11 @@
     "sketchLayer": "Mis dibujos",
     "noSketches": "Aún no hay dibujos.",
     "layerRemoved": "Capa quitada.",
+    "changeStyle": "Cambiar estilo",
+    "changeStyleTitle": "Estilo: {title}",
+    "applyStyle": "Aplicar",
+    "styleChanged": "Se cambió el estilo de «{title}».",
+    "styleCantChange": "El estilo de esta capa no se puede cambiar aquí.",
     "legendEmpty": "Aquí aparecerán las capas que tienen leyenda.",
     "basemapsIntro": "Elige el mapa que va debajo de tus capas.",
     "basemapsLoading": "Cargando mapas base…",
