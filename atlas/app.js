@@ -2,7 +2,7 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef } from "./lib/csv.js";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js";
 import { DEFAULT_STRINGS } from "./lib/strings.js";
@@ -11,10 +11,10 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.9.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
-const SKETCH_VERSION = "1.0";
+const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
 const CONFIG_SCHEMA = 1;
 const SDK_VERSION = "5.1";
 const AUTH_STASH = "atlas.authReturn";
@@ -309,7 +309,7 @@ function goToSafe(target, opts) {
     if (e && e.name === "AbortError") return;
     if (++tries < 4) return new Promise((res) => setTimeout(res, 350)).then(attempt);
   });
-  return view.when().then(attempt);
+  return reactiveUtils.whenOnce(() => view.ready).then(attempt);   // not view.when(): the SDK warns when a view is between maps
 }
 
 // ============================================================ State
@@ -536,8 +536,14 @@ function setImagePreview(dataUrl) {
   else { $("imgThumb").removeAttribute("src"); $("imgPreview").hidden = true; $("imgPick").textContent = S.addImage; }
 }
 function highlightSwatch(hex) { [...$("swatches").children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.color === hex))); }
+// Rotation turns text only (a round marker, line or area looks the same turned), so it shows for text alone.
+function syncRotationRow() {
+  const a = selectedFeature ? selectedFeature.attributes : null;
+  $("rotSection").hidden = !(a ? a.kind === "text" : currentTool === "text" || placingText);
+}
 function populateSketchPanel() {
   const sel = selectedFeature, a = sel ? sel.attributes : null;
+  syncRotationRow();
   popupFieldsEnabled(!!sel);
   setImagePreview(a ? a.imageUrl || "" : "");
   $("fTitle").value = a ? a.title || "" : "";
@@ -620,6 +626,7 @@ function setTool(tool) {
   if (["point", "polyline", "polygon", "circle"].includes(tool)) sketchVM.create(tool);
   else if (tool === "text") { placingText = true; toast(S.placeText); }
   updatePopupEnabled();
+  syncRotationRow();
 }
 document.querySelectorAll("#sketchTools [data-tool]").forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
 function startEdit(g) {
@@ -1022,6 +1029,8 @@ async function openWebMapFile(raw, fileName) {
     const n = graphicsLayer.graphics.length + parsed.layers.reduce((x, l) => x + l.features.length, 0);
     toast(t("openedFile", { title: title || S.untitled, n }));
     if (parsed.skipped) setTimeout(() => toast(t("skippedOnOpen", { n: parsed.skipped }), 5000), 3500);
+    const by = parsed.webmap.authoringApp, ver = parsed.webmap.authoringAppVersion;
+    if (by === AUTHORING_APP && newerVersion(ver, APP_VERSION)) setTimeout(() => toast(t("newerFile", { v: ver }), 7000), parsed.skipped ? 9000 : 3500);
     return true;
   } catch (e) {
     console.error("Open file failed", e);
@@ -1030,6 +1039,12 @@ async function openWebMapFile(raw, fileName) {
   }
 }
 
+// "1.10.0" is newer than "1.9.0".
+function newerVersion(a, b) {
+  const pa = String(a || "").split(".").map((x) => parseInt(x, 10) || 0), pb = String(b || "").split(".").map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d > 0; }
+  return false;
+}
 function newBlankMap() {
   if (!confirmDiscard()) return;
   closeModal("openModal");
@@ -1169,7 +1184,8 @@ function applyLayerSnapshot(snap) {
 }
 function applyBookmark(bm) {
   const vp = bm.viewpoint;
-  if (vp.center) goToSafe({ center: vp.center, zoom: vp.zoom }, { duration: 800 });
+  if (mode === "3d" && bm.camera) goToSafe(bm.camera.clone(), { duration: 800 });   // made in 3D: same tilt and heading
+  else if (vp.center) goToSafe({ center: vp.center, zoom: vp.zoom }, { duration: 800 });
   else if (vp.extent) goToSafe(Extent.fromJSON(vp.extent), { duration: 800 });
   applyLayerSnapshot(bm.layers);
 }
@@ -1210,6 +1226,8 @@ $("bmSave").addEventListener("click", () => {
   if (bmEditIndex >= 0) bookmarks[bmEditIndex].title = title || bookmarks[bmEditIndex].title;
   else {
     const bm = { title: title || t("bookmarkDefault", { n: bookmarks.length + 1 }), viewpoint: { center: [view.center.longitude, view.center.latitude], zoom: view.zoom }, layers: layerSnapshot(), thumb: null };
+    // In 3D, the camera too (tilt and heading), for this session: saved maps keep the place, as a web map bookmark does.
+    if (mode === "3d" && sceneView && sceneView.camera) bm.camera = sceneView.camera.clone();
     bookmarks.push(bm); captureThumb(bm);
   }
   markDirty(); showBmList(); updateToolBadges();
@@ -1599,6 +1617,7 @@ function continueCsv(name, parsed, latIdx, lonIdx) {
   const data = buildLayerData(name, parsed, latIdx, lonIdx);
   if (!data.ok) { showDataError(t(data.code, data.params)); return; }
   addState = data;
+  addState.src = { name, parsed, latIdx, lonIdx };   // for Swap latitude and longitude
   addState.symbolChoices = { shape: "esriSMSCircle", color: hexToRgb(PALETTE_HEX[0]), size: 12, ramp: "blue" };
   addState.style = pickAutoStyle(addState);
   addState.fieldChoices = pickAutoFields(addState.style, addState);
@@ -1630,8 +1649,10 @@ function renderDataPanel() {
   const editing = !!addState.editing;
   $("dataH").textContent = editing ? t("changeStyleTitle", { title: addState.editing.layer.title || "" }) : S.dataLooksGood;
   $("dataSubmit").textContent = editing ? S.applyStyle : S.addToMap;
+  $("swapRow").hidden = editing || !addState.src;   // in Change style the points are already placed
   $("dataError").hidden = true; $("llPicker").hidden = true; $("dataControls").hidden = false; $("dataSubmit").disabled = false;
-  let s = t("dataSummary", { n: addState.features.length, num: addState.numeric.length, cat: addState.categorical.length });
+  // categories counted as text columns only: number codes are offered under "By type" but are counted as numbers
+  let s = t("dataSummary", { n: addState.features.length, num: addState.numeric.length, cat: (addState.categoricalText || addState.categorical).length });
   if (addState.dropped) s += " " + t("dataSkipped", { n: addState.dropped });
   $("dataSummary").textContent = s;
   $("dataSize").value = addState.symbolChoices.size; $("dataSizeVal").textContent = addState.symbolChoices.size + " px";
@@ -1670,11 +1691,53 @@ function renderFieldRows() {
     sel.addEventListener("change", () => { addState.fieldChoices[key] = sel.value === NONE ? null : sel.value; renderSymbolBlocks(); });
     wrap.append(lbl, sel);
   });
+  if (addState.style.id === "pie_chart") wrap.appendChild(pieColumnsBox());
 }
+// Which number columns make up each pie (2 to 8); each pie is sized by the total of those columns only.
+function pieColumnsBox() {
+  const c = addState.fieldChoices;
+  c.pie = pieFields(addState);
+  const fs = document.createElement("fieldset"); fs.className = "pie-cols";
+  const lg = document.createElement("legend"); lg.textContent = S.pieColumns;
+  const hint = document.createElement("p"); hint.className = "hint"; hint.id = "pieColsHint"; hint.textContent = t("pieColumnsHint", { min: PIE_MIN, max: PIE_MAX });
+  fs.setAttribute("aria-describedby", "pieColsHint");
+  fs.append(lg, hint);
+  const boxes = [];
+  const sync = () => { const n = c.pie.length; boxes.forEach((b) => { b.disabled = (b.checked && n <= PIE_MIN) || (!b.checked && n >= PIE_MAX); }); };
+  addState.numeric.forEach((name, i) => {
+    const row = document.createElement("div"); row.className = "pie-col";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = "pieCol" + i; cb.value = name; cb.checked = c.pie.includes(name);
+    const lb = document.createElement("label"); lb.htmlFor = cb.id; lb.textContent = aliasOf(addState, name);
+    cb.addEventListener("change", () => {
+      c.pie = addState.numeric.filter((n) => (n === name ? cb.checked : c.pie.includes(n)));
+      sync(); renderSymbolBlocks();
+    });
+    boxes.push(cb); row.append(cb, lb); fs.appendChild(row);
+  });
+  sync();
+  return fs;
+}
+$("dataSwap").addEventListener("click", () => {
+  if (!addState || !addState.src || addState.editing) return;
+  const { name, parsed, latIdx, lonIdx } = addState.src;
+  const data = buildLayerData(name, parsed, lonIdx, latIdx);
+  if (!data.ok) { toast(S.swapNoPoints, 6000); return; }
+  const before = addState;
+  data.src = { name, parsed, latIdx: lonIdx, lonIdx: latIdx };
+  data.symbolChoices = before.symbolChoices;
+  const keepStyle = styleAvailable(before.style, data);
+  data.style = keepStyle ? before.style : pickAutoStyle(data);
+  data.fieldChoices = keepStyle ? before.fieldChoices : pickAutoFields(data.style, data);
+  addState = data;
+  renderDataPanel();
+  updatePreview(true);
+  toast(t("swappedLatLon", { n: data.features.length }));
+  $("dataSwap").focus();
+});
 function renderSymbolBlocks() {
   const c = addState.symbolChoices, isPie = addState.style.id === "pie_chart";
   const single = addState.style.id === "simple" || addState.style.id === "graduated";
-  const ramp = !isPie && addState.style.fields.includes("color") && !!addState.fieldChoices.color && addState.numeric.includes(addState.fieldChoices.color);
+  const ramp = addState.style.id === "numeric_color_size" && !!addState.fieldChoices.color;
   $("shapeRow").hidden = isPie; $("colorRow").hidden = isPie || !single; $("rampRow").hidden = !ramp;
   const sw = $("shapeOptions"); sw.innerHTML = "";
   for (const s of SHAPES) {
@@ -1701,10 +1764,10 @@ function renderSymbolBlocks() {
 }
 function updateConfigSummary() {
   const c = addState.fieldChoices, A = (n) => (n ? aliasOf(addState, n) : "—");
-  const numColor = c.color && addState.numeric.includes(c.color);
+  const numColor = addState.style.id === "numeric_color_size";
   let s;
   switch (addState.style.id) {
-    case "pie_chart": s = t("sumPie", { n: Math.min(8, addState.numeric.length) }); break;
+    case "pie_chart": s = t("sumPie", { n: pieFields(addState).length }); break;
     case "numeric_color_size": s = t("sumColorSize", { color: A(c.color), size: A(c.size) }); break;
     case "categorical_size": s = t(numColor ? "sumColorSize" : "sumTypeSize", { color: A(c.color), size: A(c.size) }); break;
     case "categorical": s = t(numColor ? "sumShade" : "sumType", { color: A(c.color) }); break;
@@ -1804,6 +1867,7 @@ async function handleDroppedFile(f) {
     try { handleCsvText(name, await readText(f)); } catch (e) { toast(S.cantRead); }
     return;
   }
+  if (/\.(xlsx|xlsm|xlsb|xls|ods|numbers)$/i.test(name)) { toast(S.excelFile, 9000); return; }
   toast(S.dropWhat, 5000);
 }
 

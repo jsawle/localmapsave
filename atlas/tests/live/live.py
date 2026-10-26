@@ -23,7 +23,7 @@ ATLAS = HERE.parent.parent
 sys.path.insert(0, str(HERE.parent / "smoke"))
 import smoke  # noqa: E402  (finds Chromium, fetches axe-core)
 
-APP_VERSION = "1.8.0"
+APP_VERSION = "1.9.0"
 # The live basemap group's web maps in its own order (date added, newest first), October 2026.
 GROUP_ORDER = ["OpenStreetMap Style", "Ocean", "Black and White Outline", "Imagery (no labels)", "Dark Gray", "Human Geography"]
 AXE = "axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))"
@@ -72,6 +72,7 @@ def main():
             page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "favicon" not in m.text and "404" not in m.text else None)
             page.on("dialog", lambda d: d.accept())
             page.on("crash", lambda: errors.append("the page crashed"))
+            page.on("console", lambda m: errors.append("SDK warning: " + m.text[:120]) if m.type == "warning" and "#when()" in m.text else None)
             page.goto(f"{base}/index.html?config={cfg}", wait_until="domcontentloaded", timeout=90000)
             page.wait_for_function("document.querySelector('.esri-attribution') && document.querySelector('#verBtn').textContent.length > 1", timeout=90000)
             page.wait_for_timeout(3000)
@@ -243,7 +244,33 @@ def main():
         page.click("#tool-legend"); page.wait_for_timeout(3000)
         leg = page.inner_text("#legendBody")
         check(all(w in leg for w in ("Plastic", "Glass", "Metal")), "the legend shows the pie chart's columns: " + leg.replace("\n", " | ")[:120])
-        check(not errors, f"console errors (downloads, change style) {errors[:3]}")
+        # Coordinates written with N/S/E/W and degrees-minutes-seconds land in the right place
+        def add_csv(name):
+            if page.is_visible("#dataPanel"): page.click("#dataCancel")
+            page.click("#tool-add"); page.click("#tabOwnData")
+            with page.expect_file_chooser() as fc: page.click("#csvPick")
+            fc.value.set_files(str(HERE / name)); page.wait_for_selector("#dataSubmit:not([disabled])"); page.wait_for_timeout(2500)
+        add_csv("uk_letters.csv")
+        check(page.inner_text("#dataSummary").startswith("Found 3 points") and "skipped" not in page.inner_text("#dataSummary"), "N/S/E/W and degrees-minutes-seconds read: " + page.inner_text("#dataSummary"))
+        page.click("#dataSubmit"); page.wait_for_timeout(3000)
+        # Swap latitude and longitude puts swapped columns right
+        add_csv("uk_swapped.csv")
+        check(page.is_visible("#dataSwap"), "Swap offered")
+        page.click("#dataSwap"); page.wait_for_timeout(2500)
+        check(page.inner_text("#toast").startswith("Swapped latitude and longitude: 3 points"), "swap: " + page.inner_text("#toast"))
+        page.click("#dataSubmit"); page.wait_for_timeout(3000)
+        page.click("#tool-save")
+        with page.expect_download() as dl:
+            page.click("#saveTile"); page.wait_for_selector("#nameModal:not([hidden])"); page.fill("#fileNameInput", "uk_points"); page.click("#nameConfirm")
+        uk = json.loads(pathlib.Path(dl.value.path()).read_text())
+        import math
+        def lonlat(f):
+            x, y = f["geometry"]["x"], f["geometry"]["y"]
+            return round(x / 6378137 * 180 / math.pi, 3), round((2 * math.atan(math.exp(y / 6378137)) - math.pi / 2) * 180 / math.pi, 3)
+        pts = {o["title"]: [lonlat(f) for f in o["featureCollection"]["layers"][0]["featureSet"]["features"]] for o in uk["operationalLayers"] if o["title"] in ("uk letters", "uk swapped")}
+        check(pts.get("uk letters") == [(1.079, 51.28), (0.873, 51.146), (-0.128, 51.507)], f"letters: points in Kent and London {pts.get('uk letters')}")
+        check(pts.get("uk swapped") == [(1.079, 51.28), (0.873, 51.146), (-0.128, 51.507)], f"swapped: the same places {pts.get('uk swapped')}")
+        check(not errors, f"console errors and SDK view warnings (downloads, change style, coordinates) {errors[:3]}")
         ctx.close()
 
         # ---------------------------------------------------------------- Phone

@@ -2,9 +2,11 @@
 // Pure functions only (no ArcGIS SDK), so they can be unit-tested in Node.
 // Nothing here sends the file anywhere: parsing happens in the browser.
 
-export const CSV_VERSION = "3.1";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
+export const CSV_VERSION = "3.2";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
                                     // multi-language lat/long names, manual column choice
                                     // 3.1: a layer's style can be changed after it's added (stateFromLayerDef)
+                                    // 3.2: coordinates with N/S/E/W and degrees-minutes-seconds; whole-number codes
+                                    //      (2-12 values) can be types; pie charts from chosen columns
 
 export const PALETTE_HEX = ["#0079c1", "#d4572a", "#1a7f37", "#8250df", "#b4453a", "#9a6700", "#e3116c", "#2b2b2b"];
 export const PALETTE_RGB = [
@@ -76,7 +78,7 @@ function countOutsideQuotes(line, d) {
   return n;
 }
 
-/** Split CSV text into rows of cells. Handles quoted cells, "" escapes and line breaks inside quotes. */
+/** Split CSV text into rows of cells. Handles quoted cells, "" escapes, line breaks inside quotes, and stray quotes mid-cell. */
 export function parseRows(text, delim) {
   const s = String(text).replace(/^﻿/, "");
   const rows = [];
@@ -89,7 +91,8 @@ export function parseRows(text, delim) {
       } else cell += ch;
       continue;
     }
-    if (ch === '"') { q = true; continue; }
+    if (ch === '"' && cell === "") { q = true; continue; }   // a quote starts quoting only at the start of a cell;
+                                                            // elsewhere it's text (51°08'46"N typed by hand)
     if (ch === delim) { row.push(cell); cell = ""; continue; }
     if (ch === "\r" || ch === "\n") {
       if (ch === "\r" && s[i + 1] === "\n") i++;
@@ -175,6 +178,32 @@ export function lonLatToWebMercator(lon, lat) {
  * Turn parsed rows into features + fields. Column types are inferred: a column is numeric when every
  * non-empty cell is a number (decimal commas allowed when the file uses them).
  */
+// A latitude or longitude: decimal degrees ("51.5", "-0.12"), with a hemisphere letter ("51.5N", "0.12W", "N51.5"),
+// or degrees, minutes and seconds ("51°30'15\"N", "51 30 15 N", "51:30:15"). The letter must suit the column (N or S
+// for latitude, E or W for longitude); a minus sign and a letter together are refused as unclear. null = empty cell,
+// NaN = not readable. Range checks are left to the caller.
+const HEMI = { N: 1, S: -1, E: 1, W: -1 };
+export function parseCoord(raw, decimalComma, axis) {
+  const plain = toNumber(raw, decimalComma);
+  if (plain === null || !Number.isNaN(plain)) return plain;
+  let v = String(raw).trim().toUpperCase().replace(/[′’‘`´]/g, "'").replace(/[″”“]/g, '"').replace(/[º˚]/g, "°");
+  let hemi = null;
+  const lead = v.match(/^([NSEW])\s*(.+)$/), tail = v.match(/^(.+?)\s*([NSEW])$/);
+  if (lead) { hemi = lead[1]; v = lead[2]; } else if (tail) { hemi = tail[2]; v = tail[1]; }
+  if (hemi && (axis === "lat") !== (hemi === "N" || hemi === "S")) return NaN;
+  if (decimalComma) v = v.replace(/(\d),(\d)/g, "$1.$2");
+  const parts = v.replace(/[°'"]/g, " ").trim().split(/[\s:]+/).filter(Boolean);
+  if (!parts.length || parts.length > 3 || !parts.every((x) => /^-?\d+(\.\d+)?$/.test(x))) return NaN;
+  if (!hemi && parts.length === 1) return NaN;   // a plain number would have been read above
+  const nums = parts.map(Number);
+  if (nums.slice(1).some((n) => n < 0 || n >= 60)) return NaN;
+  if (parts.length > 1 && !Number.isInteger(nums[0])) return NaN;
+  if (nums.slice(0, -1).some((n, i) => i > 0 && !Number.isInteger(n))) return NaN;   // only the last part may have decimals
+  let deg = nums[0], sign = hemi ? HEMI[hemi] : 1;
+  if (deg < 0 || Object.is(deg, -0)) { if (hemi) return NaN; sign = -1; deg = -deg; }
+  return sign * (deg + (nums[1] || 0) / 60 + (nums[2] || 0) / 3600);
+}
+
 export function buildLayerData(fileName, parsed, latIdx, lonIdx) {
   const { header, rows, delim } = parsed;
   const decComma = header.map((_, i) => usesDecimalComma(rows, i, delim));
@@ -200,8 +229,8 @@ export function buildLayerData(fileName, parsed, latIdx, lonIdx) {
   });
   const features = []; let dropped = 0;
   for (const cells of rows) {
-    const lat = toNumber(cells[latIdx], decComma[latIdx]);
-    const lon = toNumber(cells[lonIdx], decComma[lonIdx]);
+    const lat = parseCoord(cells[latIdx], decComma[latIdx], "lat");
+    const lon = parseCoord(cells[lonIdx], decComma[lonIdx], "lon");
     if (lat === null || lon === null || !Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) { dropped++; continue; }
     const attrs = { ObjectId: features.length + 1 };
     header.forEach((_, c) => {
@@ -216,25 +245,46 @@ export function buildLayerData(fileName, parsed, latIdx, lonIdx) {
   }
   if (!features.length) return fail("csvNoCoords");
   const coordNames = [names[latIdx], names[lonIdx]];
-  const { numeric, categorical } = columnKinds(fields, features, coordNames);
-  return { ok: true, fileName, features, fields, numeric, categorical, dropped, coordNames };
+  const { numeric, categorical, categoricalText } = columnKinds(fields, features, coordNames);
+  return { ok: true, fileName, features, fields, numeric, categorical, categoricalText, dropped, coordNames };
 }
 
-/** Which columns can be styled by number (size, shade) and which by type (2 to 12 different values). */
+/**
+ * Which columns can be styled by number (size, shade) and which by type: text columns with 2 to 12 different values,
+ * then whole-number columns with 2 to 12 different values (site or quadrat numbers), which stay numbers as well.
+ * categoricalText is the text ones only (the automatic first choice prefers them).
+ */
 export function columnKinds(fields, features, coordNames) {
-  const numeric = [], categorical = [];
-  for (const f of fields) {
-    if (f.type === "esriFieldTypeOID" || f.name === "_pieTotal" || coordNames.includes(f.name)) continue;
-    if (f.type !== "esriFieldTypeString") { numeric.push(f.name); continue; }
+  const numeric = [], categoricalText = [], codes = [];
+  const distinct = (name) => {
     const seen = new Set();
     for (const ft of features) {
-      const v = ft.attributes[f.name];
+      const v = ft.attributes[name];
       if (v !== null && v !== undefined && v !== "") seen.add(v);
       if (seen.size > 12) break;
     }
-    if (seen.size >= 2 && seen.size <= 12) categorical.push(f.name);
+    return seen;
+  };
+  for (const f of fields) {
+    if (f.type === "esriFieldTypeOID" || f.name === "_pieTotal" || coordNames.includes(f.name)) continue;
+    if (f.type !== "esriFieldTypeString") {
+      numeric.push(f.name);
+      if (/Integer$/.test(f.type)) { const n = distinct(f.name).size; if (n >= 2 && n <= 12) codes.push(f.name); }
+      continue;
+    }
+    const n = distinct(f.name).size;
+    if (n >= 2 && n <= 12) categoricalText.push(f.name);
   }
-  return { numeric, categorical };
+  return { numeric, categorical: categoricalText.concat(codes), categoricalText };
+}
+
+// Columns that look like identifiers or dates rather than amounts: left out of a pie chart unless chosen.
+const ID_LIKE = /\b(id|code|no|nr|num|number|ref|year|date|month|day)\b/i;
+export const PIE_MAX = 8, PIE_MIN = 2;
+/** The columns a pie chart starts with: the number columns that don't look like IDs, up to eight. */
+export function defaultPieFields(st) {
+  const amounts = st.numeric.filter((n) => !ID_LIKE.test(aliasOf(st, n)));
+  return (amounts.length >= PIE_MIN ? amounts : st.numeric).slice(0, PIE_MAX);
 }
 
 /**
@@ -249,14 +299,14 @@ export function stateFromLayerDef(def) {
   const nameOfAlias = (i) => (i >= 0 ? fields[i].name : null);
   const ll = detectLatLon(fields.map((f) => f.alias || f.name));
   const coordNames = ll.latIdx >= 0 && ll.lonIdx >= 0 ? [nameOfAlias(ll.latIdx), nameOfAlias(ll.lonIdx)] : [];
-  const { numeric, categorical } = columnKinds(fields, features, coordNames);
-  const st = { ok: true, fileName: def.title || "My data", features, fields, numeric, categorical, dropped: 0, coordNames };
+  const { numeric, categorical, categoricalText } = columnKinds(fields, features, coordNames);
+  const st = { ok: true, fileName: def.title || "My data", features, fields, numeric, categorical, categoricalText, dropped: 0, coordNames };
   const r = def.renderer || {};
   const vv = Array.isArray(r.visualVariables) ? r.visualVariables : [];
   const sizeVV = vv.find((v) => v && v.type === "sizeInfo"), colorVV = vv.find((v) => v && v.type === "colorInfo");
-  const choices = { color: null, size: null, label: null };
+  const choices = { color: null, size: null, label: null, pie: null };
   let styleId = "simple";
-  if (r.type === "pieChart") styleId = "pie_chart";
+  if (r.type === "pieChart") { styleId = "pie_chart"; choices.pie = (Array.isArray(r.attributes) ? r.attributes : []).map((a) => a && a.field).filter((n) => numeric.includes(n)); }
   else if (r.type === "uniqueValue") { styleId = sizeVV ? "categorical_size" : "categorical"; choices.color = r.field1 || null; }
   else if (colorVV) { styleId = "numeric_color_size"; choices.color = colorVV.field || null; }
   else if (sizeVV) styleId = "graduated";
@@ -282,7 +332,8 @@ export function stateFromLayerDef(def) {
   const style = DATA_STYLES.find((x) => x.id === styleId);
   const fits = style && styleAvailable(style, st)
     && (!choices.color || (styleId === "numeric_color_size" ? numeric : categorical).includes(choices.color))
-    && (!choices.size || numeric.includes(choices.size));
+    && (!choices.size || numeric.includes(choices.size))
+    && (styleId !== "pie_chart" || choices.pie.length >= PIE_MIN);
   st.style = fits ? style : pickAutoStyle(st);
   st.fieldChoices = fits ? choices : { ...pickAutoFields(st.style, st), label: choices.label };
   return st;
@@ -297,19 +348,21 @@ export function styleAvailable(style, st) {
   return true;
 }
 export function pickAutoStyle(st) {
+  const text = { ...st, categorical: st.categoricalText || st.categorical };   // number codes are offered, not picked
   for (const id of ["categorical_size", "categorical", "graduated", "simple"]) {
     const s = DATA_STYLES.find((x) => x.id === id);
-    if (s && styleAvailable(s, st)) return s;
+    if (s && styleAvailable(s, text)) return s;
   }
   return DATA_STYLES[0];
 }
 export function pickAutoFields(style, st) {
-  const choices = { color: null, size: null, label: null };
+  const choices = { color: null, size: null, label: null, pie: null };
+  if (style.id === "pie_chart") { choices.pie = defaultPieFields(st); return choices; }
   if (style.id === "numeric_color_size") {
     choices.color = st.numeric[0] || null;
     choices.size = st.numeric[1] || st.numeric[0] || null;
   } else {
-    if (style.fields.includes("color")) choices.color = st.categorical[0] || null;
+    if (style.fields.includes("color")) choices.color = (st.categoricalText || [])[0] || st.categorical[0] || null;
     if (style.fields.includes("size")) choices.size = st.numeric[0] || null;
   }
   return choices;   // labels are opt-in
@@ -329,8 +382,13 @@ function sizeVariable(st, field) {
   return { type: "sizeInfo", field, minSize: Math.max(4, Math.round(s * 0.7)), maxSize: Math.round(s * 3.3),
     minDataValue: Math.min(...values), maxDataValue: Math.max(...values) };
 }
+/** The pie chart's columns: the ones chosen (still number columns), else the defaults. */
+export function pieFields(st) {
+  const chosen = ((st.fieldChoices && st.fieldChoices.pie) || []).filter((n) => st.numeric.includes(n)).slice(0, PIE_MAX);
+  return chosen.length >= PIE_MIN ? chosen : defaultPieFields(st);
+}
 function pieRenderer(st) {
-  const fieldsUsed = st.numeric.slice(0, 8);
+  const fieldsUsed = pieFields(st);
   const totals = st.features.map((f) => {
     let sum = 0;
     for (const fld of fieldsUsed) { const v = f.attributes[fld]; if (typeof v === "number" && Number.isFinite(v)) sum += v; }
@@ -363,7 +421,8 @@ function numericColorRenderer(st, field) {
   return { type: "simple", symbol: dataSymbol(st), visualVariables: [{ type: "colorInfo", field, stops }] };
 }
 function uniqueRenderer(st, field) {
-  const values = [...new Set(st.features.map((f) => f.attributes[field]).filter((v) => v !== null && v !== undefined && v !== ""))].sort();
+  const raw = [...new Set(st.features.map((f) => f.attributes[field]).filter((v) => v !== null && v !== undefined && v !== ""))];
+  const values = raw.every((v) => typeof v === "number") ? raw.sort((a, b) => a - b) : raw.sort();
   return { type: "uniqueValue", field1: field, defaultSymbol: dataSymbol(st, [179, 179, 179, 200]), defaultLabel: "Other",
     uniqueValueInfos: values.map((val, i) => ({ value: String(val), label: String(val), symbol: dataSymbol(st, PALETTE_RGB[i % PALETTE_RGB.length]) })) };
 }
@@ -373,7 +432,7 @@ export function aliasOf(st, name) {
 }
 export function buildRenderer(st) {
   const style = st.style, c = st.fieldChoices;
-  const colorIsNumeric = c.color && st.numeric.includes(c.color);
+  const colorIsNumeric = style.id === "numeric_color_size";   // "By type" colours a number code by its values
   const colorRenderer = (f) => (colorIsNumeric ? numericColorRenderer(st, f) : uniqueRenderer(st, f));
   const withSize = (r, f) => { const sv = sizeVariable(st, f); if (sv) r.visualVariables = (r.visualVariables || []).concat([sv]); return r; };
   switch (style.id) {

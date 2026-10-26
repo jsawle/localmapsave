@@ -137,7 +137,7 @@ class UI {
 class MapView extends Accessor {
   constructor(p) {
     super();
-    this.map = p.map; this.zoom = p.zoom; this.rotation = 0; this.popupEnabled = true; this.type = "2d";
+    this.map = p.map; this.zoom = p.zoom; this.rotation = 0; this.popupEnabled = true; this.type = "2d"; this.ready = true;
     this.center = { longitude: (p.center || [0, 0])[0], latitude: (p.center || [0, 0])[1], clone() { return this; } };
     this.container = document.getElementById(p.container);
     this.root = document.createElement("div"); this.root.className = "esri-view-root";
@@ -187,6 +187,7 @@ async function esriRequest(url, opts) {
 }
 // reactiveUtils.watch: polls the getter, which is enough for tests.
 const reactiveUtils = {
+  whenOnce(getter) { return new Promise((res) => { const tick = () => { let v; try { v = getter(); } catch (e) { v = null; } if (v) res(v); else setTimeout(tick, 50); }; tick(); }); },
   watch(getter, cb, opts) {
     let last = getter();
     if (opts && opts.initial) later(() => cb(last));

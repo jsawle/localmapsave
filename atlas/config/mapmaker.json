@@ -1,5 +1,5 @@
 {
-  "configVersion": 6,
+  "configVersion": 7,
   "appName": "National Geographic MapMaker",
   "showAppName": false,
   "locale": "en",
@@ -35,5 +35,14 @@
   "agolTags": ["MapMaker", "student map"],
   "csvMaxRows": 1000,
   "features": { "openMap": true, "addLayer": true, "csv": true, "layers": true, "legend": true, "basemaps": true, "measure": true, "sketch": true, "bookmarks": true, "threeD": true, "save": true, "localSave": true, "screenshot": true, "print": true, "search": true, "signIn": true, "compass": true, "elevationProfile": true },
-  "strings": { "tabGroup": "MapMaker maps", "layersFrom": "MapMaker layers", "basemapsIntro": "Select a basemap to refine the color of your map." }
+  "strings": { "tabGroup": "MapMaker maps", "layersFrom": "MapMaker layers", "basemapsIntro": "Select a basemap to refine the color of your map.",
+    "colour": "Color",
+    "ramp": "Colors",
+    "colorBy": "Color points by",
+    "styleNumericColorSize": "Color & size",
+    "styleNumericColorSizeHint": "two numbers together, e.g. depth as color, magnitude as size",
+    "styleCategoricalSizeHint": "e.g. species as color, height as size",
+    "sumTypeSize": "Each point colored by {color}, sized by {size}.",
+    "sumType": "Each point colored by {color}.",
+    "symbol": "Color" }
 }
