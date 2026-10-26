@@ -58,7 +58,7 @@ test("types, dropped rows, categories exclude coordinates", () => {
   const p = csv.readCsv(text); const d = csv.buildLayerData("trees.csv", p, p.latIdx, p.lonIdx);
   assert.equal(d.features.length, 3); assert.equal(d.dropped, 1);
   assert.deepEqual(d.numeric, ["Height", "Count"]);
-  assert.deepEqual(d.categorical, ["Site", "Species", "Count"]);   // whole-number codes (2-12 values) can be types too
+  assert.deepEqual(d.categorical, ["Site", "Species"]);   // text columns only
   assert.deepEqual(d.categoricalText, ["Site", "Species"]);
   assert.equal(d.fields.find((f) => f.name === "Count").type, "esriFieldTypeInteger");
   assert.equal(d.fields.find((f) => f.name === "Latitude").type, "esriFieldTypeString");   // column had "bad"
@@ -515,19 +515,16 @@ test("pie charts use the columns chosen; ID-like columns start unticked", () => 
   st.fieldChoices.pie = ["Plastic"];   // fewer than two: the defaults instead
   assert.deepEqual(csv.pieFields(st), csv.defaultPieFields(st));
 });
-test("number codes: offered as types, in number order, not picked automatically", () => {
-  const rows = Array.from({ length: 11 }, (_, i) => `${i + 1},51.${i},-0.1${i},${(i * 7) % 5 + 1},${10 + i}`).join("\n");
-  const p = csv.readCsv("Quadrat,Latitude,Longitude,Plot,Count\n" + rows + "\n");
-  const st = csv.buildLayerData("q.csv", p, p.latIdx, p.lonIdx);
-  assert.ok(st.categorical.includes("Plot") && st.numeric.includes("Plot") && st.categoricalText.length === 0);
-  assert.equal(csv.pickAutoStyle(st).id, "graduated");   // a numbers-only file is still sized by a number
-  st.symbolChoices = { shape: "esriSMSCircle", color: [0, 121, 193], size: 12, ramp: "blue" };
-  st.style = csv.DATA_STYLES.find((x) => x.id === "categorical"); st.fieldChoices = { color: "Quadrat", size: null, label: null };
-  const r = csv.buildRenderer(st);
-  assert.equal(r.type, "uniqueValue");   // separate colours, not a ramp
-  assert.deepEqual(r.uniqueValueInfos.map((u) => u.value), ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]);
-  const back = csv.stateFromLayerDef(JSON.parse(JSON.stringify(csv.buildLayerDef(st, "q", "Q"))));
-  assert.equal(back.style.id, "categorical"); assert.equal(back.fieldChoices.color, "Quadrat");
+test("whole numbers are amounts, never types (Community Litter Survey)", () => {
+  const p = csv.readCsv(readFileSync(new URL("./Community_Litter_Survey.csv", import.meta.url), "utf8"));
+  const st = csv.buildLayerData("Community_Litter_Survey.csv", p, p.latIdx, p.lonIdx);
+  assert.equal(st.features.length, 15); assert.equal(st.numeric.length, 6);
+  assert.deepEqual(st.categorical, []);   // no "By type" for counts
+  assert.ok(!csv.styleAvailable(csv.DATA_STYLES.find((x) => x.id === "categorical"), st));
+  assert.equal(csv.pickAutoStyle(st).id, "graduated");
+  assert.ok(csv.styleAvailable(csv.DATA_STYLES.find((x) => x.id === "pie_chart"), st));
+  const q = csv.readCsv("Quadrat,Latitude,Longitude,Count\n1,51.1,-0.1,4\n2,51.2,-0.2,7\n1,51.3,-0.3,2\n");
+  assert.deepEqual(csv.buildLayerData("q.csv", q, q.latIdx, q.lonIdx).categorical, []);   // not even site or quadrat numbers
 });
 test("every config translates only known strings", () => {
   for (const f of ["default", "mapmaker", "example-es"]) {
