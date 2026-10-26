@@ -184,6 +184,11 @@ export const DEFAULT_STRINGS = {
   sketchLayer: "My sketches",
   noSketches: "No sketches yet.",
   layerRemoved: "Layer removed.",
+  changeStyle: "Change style",
+  changeStyleTitle: "Style: {title}",
+  applyStyle: "Apply",
+  styleChanged: "Changed the style of “{title}”.",
+  styleCantChange: "This layer's style can't be changed here.",
 
   // Legend
   legendEmpty: "Layers with a legend will appear here.",

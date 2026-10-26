@@ -9,7 +9,8 @@ const later = (fn) => setTimeout(fn, 0);
 class Collection {
   constructor(items) { this.items = items ? [...items] : []; }
   get length() { return this.items.length; }
-  add(x) { if (!this.items.includes(x)) this.items.push(x); }
+  add(x, i) { if (this.items.includes(x)) return; if (Number.isInteger(i) && i >= 0) this.items.splice(i, 0, x); else this.items.push(x); }
+  indexOf(x) { return this.items.indexOf(x); }
   remove(x) { this.items = this.items.filter((i) => i !== x); }
   removeAll() { this.items = []; }
   includes(x) { return this.items.includes(x); }
@@ -24,7 +25,7 @@ class Accessor extends Evented { constructor(p) { super(); Object.assign(this, p
 
 class EsriMap extends Accessor {
   constructor(p) { super(); this.basemap = p && p.basemap; this.ground = p && p.ground; this.layers = new Collection(p && p.layers); }
-  add(l) { this.layers.add(l); } remove(l) { this.layers.remove(l); } reorder(l, i) { this.layers.reorder(l, i); }
+  add(l, i) { this.layers.add(l, i); } remove(l) { this.layers.remove(l); } reorder(l, i) { this.layers.reorder(l, i); }
 }
 // Operational layer JSON -> a layer object with the same id (as the SDK does).
 const layerFromJson = (op) => new FeatureLayer({ id: op.id, title: op.title || op.id, visible: op.visibility !== false, opacity: op.opacity ?? 1, url: op.url,

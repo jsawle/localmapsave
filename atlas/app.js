@@ -2,7 +2,7 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef } from "./lib/csv.js";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef } from "./lib/csv.js";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js";
 import { DEFAULT_STRINGS } from "./lib/strings.js";
@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.8.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.0";
@@ -426,7 +426,14 @@ function panelClosing(name) {
   if (name === "sketch") { endSketchOps(); sketchPanelOpen = false; placingText = false; currentTool = null; selectedFeature = null; updateToolButtons(); }
   if (name === "measure") stopMeasuring();
   if (name === "profile") { stopProfile(); $("app").classList.remove("docked", "tools-shown"); syncToolsToggles(); setTimeout(layoutBottom, 0); }
-  if (name === "data") { addState = null; removePreview(true); }
+  if (name === "data") {
+    const ed = addState && addState.editing;
+    addState = null; removePreview(true);
+    if (ed) {   // editing a layer's style: put the layer back as it was, and go back to Map layers
+      ed.layer.visible = ed.wasVisible;
+      setTimeout(() => { if (!openPanelName) backToLayers(ed.layer.id); }, 0);
+    }
+  }
 }
 document.querySelectorAll("[data-panel]").forEach((b) => b.addEventListener("click", () => togglePanel(b.dataset.panel)));
 document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => closePanels()));
@@ -1103,6 +1110,7 @@ function addDataLayer(def, opts) {
 
 // ============================================================ Map layers panel
 const ICON_ZOOM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="M8 10.5h5M10.5 8v5"/></svg>';
+const ICON_STYLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.7-.8 1.7-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.1" fill="currentColor"/><circle cx="9.8" cy="7.4" r="1.1" fill="currentColor"/><circle cx="14.6" cy="7.4" r="1.1" fill="currentColor"/><circle cx="17" cy="11.3" r="1.1" fill="currentColor"/></svg>';
 const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m3 0-1 13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 7"/><path d="M10 11v6M14 11v6"/></svg>';
 const ICON_INFO = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>';
 function eachToggleableLayer(fn) {
@@ -1130,6 +1138,12 @@ function renderLayers() {
     z.addEventListener("click", () => zoomToLayer(l));
     li.append(main, z);
     const isData = dataLayers.includes(l), isPortal = !!l.__item && portalLayers.get(l.__item.itemId) === l;
+    if (isData) {   // change the map style (type, colours, size, labels) of a spreadsheet layer
+      const sb = document.createElement("button"); sb.type = "button"; sb.className = "mini"; sb.innerHTML = ICON_STYLE; sb.title = S.changeStyle;
+      sb.setAttribute("aria-label", S.changeStyle + ": " + title); sb.dataset.styleFor = l.id;
+      sb.addEventListener("click", () => editDataLayer(l));
+      li.appendChild(sb);
+    }
     if (isData || isPortal) {
       const d = document.createElement("button"); d.type = "button"; d.className = "mini"; d.innerHTML = ICON_TRASH; d.title = S.removeLayer; d.setAttribute("aria-label", S.removeLayer + ": " + title);
       d.addEventListener("click", () => {
@@ -1594,8 +1608,28 @@ function continueCsv(name, parsed, latIdx, lonIdx) {
   renderDataPanel();
   updatePreview(true);
 }
+// Change the style of a spreadsheet layer already on the map: the same panel, filled in from the layer's definition.
+// The layer is hidden while the preview shows; Cancel puts it back, Apply replaces it in the same place with the same id.
+function editDataLayer(layer) {
+  if (openPanelName === "data") closePanels(false);
+  const st = stateFromLayerDef(layer._srcDef);
+  if (!st.ok) { toast(S.styleCantChange); return; }
+  st.editing = { layer, wasVisible: layer.visible !== false };
+  addState = st;
+  removePreview(false); prePreviewCam = null;
+  layer.visible = false;
+  openPanel("data");
+  renderDataPanel();
+}
+function backToLayers(layerId) {
+  openPanel("layers", { focus: false });
+  const b = [...$("layersList").querySelectorAll("[data-style-for]")].find((x) => x.dataset.styleFor === layerId);
+  if (b) b.focus(); else { const h = $("layersH"); if (h) h.focus(); }
+}
 function renderDataPanel() {
-  $("dataH").textContent = S.dataLooksGood;
+  const editing = !!addState.editing;
+  $("dataH").textContent = editing ? t("changeStyleTitle", { title: addState.editing.layer.title || "" }) : S.dataLooksGood;
+  $("dataSubmit").textContent = editing ? S.applyStyle : S.addToMap;
   $("dataError").hidden = true; $("llPicker").hidden = true; $("dataControls").hidden = false; $("dataSubmit").disabled = false;
   let s = t("dataSummary", { n: addState.features.length, num: addState.numeric.length, cat: addState.categorical.length });
   if (addState.dropped) s += " " + t("dataSkipped", { n: addState.dropped });
@@ -1701,6 +1735,7 @@ function updatePreview(frame) {
 }
 function submitData() {
   if (!addState) { closePanels(); return; }
+  if (addState.editing) { applyStyleEdit(); return; }
   const def = buildLayerDef(addState, "csv" + Date.now().toString(36) + (++dataLayerSeq));
   const n = addState.features.length;
   removePreview(false); prePreviewCam = null;
@@ -1710,6 +1745,24 @@ function submitData() {
   closePanels();
   fl.when().then(() => fl.queryExtent()).then((r) => { if (r && r.extent) goToSafe(r.extent.expand(1.2), { animate: false }); }).catch(() => {});
   toast(t("addedPoints", { n }));
+}
+function applyStyleEdit() {
+  const { layer: old, wasVisible } = addState.editing, src = old._srcDef;
+  const def = buildLayerDef(addState, src.id, src.title || old.title);
+  removePreview(false);
+  let fl;
+  try { fl = buildDataLayer(def); } catch (e) { console.error(e); toast(S.styleCantChange); return; }
+  fl.visible = wasVisible; fl.opacity = old.opacity;
+  const m = activeMap(), at = m.layers.indexOf(old);
+  dataLayers[dataLayers.indexOf(old)] = fl;
+  removeFromMaps(old);
+  if (at >= 0) m.add(fl, at); else m.add(fl);
+  keepSketchOnTop();
+  addState = null;   // so closing the panel doesn't put the old layer back
+  markDirty();
+  closePanels(false);
+  backToLayers(fl.id);
+  toast(t("styleChanged", { title: fl.title }));
 }
 $("dataSubmit").addEventListener("click", submitData);
 $("dataCancel").addEventListener("click", () => closePanels());
