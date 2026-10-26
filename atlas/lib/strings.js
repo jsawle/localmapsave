@@ -101,6 +101,13 @@ export const DEFAULT_STRINGS = {
   sourceMissing: "The original map couldn't be opened, so your drawings and data are shown on their own.",
   discard: "You have unsaved changes. Continue and lose them?",
   newMapStarted: "New blank map.",
+  leaveDataTitle: "Discard your data?",
+  leaveDataText: "“{title}” isn’t on the map yet. If you open another tool now, you’ll need to add the file again.",
+  leaveStyleTitle: "Discard your style changes?",
+  leaveStyleText: "Your changes to “{title}” haven’t been applied. If you open another tool now, the layer keeps its old style.",
+  keepEditing: "Keep editing",
+  discardData: "Discard data",
+  discardChanges: "Discard changes",
 
   // Add layer
   addLayerIntro: "Add a layer to explore it in the map view.",
@@ -196,13 +203,6 @@ export const DEFAULT_STRINGS = {
   applyStyle: "Apply",
   styleChanged: "Changed the style of “{title}”.",
   styleCantChange: "This layer's style can't be changed here.",
-  dataParked: "“{name}” isn't on the map yet. Select Add layer to carry on.",
-  styleParked: "The new style for “{title}” isn't applied yet. Select Change style for it in Map layers to carry on.",
-  draftWaiting: "“{name}” isn't on the map yet.",
-  draftResume: "Carry on",
-  draftDiscard: "Discard it",
-  draftDiscarded: "Discarded “{name}”.",
-  addDotSr: ", data not added yet",
 
   // Legend
   legendEmpty: "Layers with a legend will appear here.",

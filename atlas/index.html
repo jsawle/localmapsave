@@ -283,8 +283,6 @@
     .tab[aria-selected="true"]{ color:var(--brand-strong); border-bottom-color:var(--brand); }
     .open-tools{ display:flex; gap:10px; padding:14px 22px 0; flex-wrap:wrap; }
     .open-body{ padding:16px 22px 22px; overflow-y:auto; min-height:0; }
-    .draft-box{ border:1px solid var(--brand); background:var(--brand-soft); border-radius:6px; padding:12px 14px; margin:0 0 18px; }
-    .draft-box .note{ margin:0 0 10px; color:var(--ink); font-weight:600; }
     /* On this device: Browse, then the maps saved in this browser (cards like the collection's) */
     .dev-top{ flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:14px 22px; border-bottom:1px solid var(--line); }
     .dev-top .note{ margin:0; flex:1 1 320px; }
@@ -475,7 +473,7 @@
         <button class="tool" type="button" id="tool-basemaps" data-panel="basemaps" aria-expanded="false" aria-controls="basemapsPanel" data-feature="basemaps" data-i18n-title="basemaps"><span class="ti" data-icon="basemap" aria-hidden="true"></span><span class="tl" data-i18n="basemaps">Basemaps</span></button>
         <button class="tool" type="button" id="tool-open" data-feature="openMap" data-i18n-title="openMap"><span class="ti" data-icon="map" aria-hidden="true"></span><span class="tl" data-i18n="openMap">Open map</span></button>
         <button class="tool" type="button" id="tool-layers" data-panel="layers" aria-expanded="false" aria-controls="layersPanel" data-feature="layers" data-i18n-title="mapLayers"><span class="ti" data-icon="layer-map" aria-hidden="true"></span><span class="tl" data-i18n="mapLayers">Map layers</span><span class="tool-badge" id="layersBadge" aria-hidden="true" hidden></span><span class="sr-only" id="layersBadgeSr"></span></button>
-        <button class="tool" type="button" id="tool-add" aria-haspopup="dialog" data-feature="addLayer" data-i18n-title="addLayer"><span class="ti" data-icon="plus-circle" aria-hidden="true"></span><span class="tl" data-i18n="addLayer">Add layer</span><span class="tool-dot" id="addDot" aria-hidden="true" hidden></span><span class="sr-only" id="addDotSr"></span></button>
+        <button class="tool" type="button" id="tool-add" aria-haspopup="dialog" data-feature="addLayer" data-i18n-title="addLayer"><span class="ti" data-icon="plus-circle" aria-hidden="true"></span><span class="tl" data-i18n="addLayer">Add layer</span></button>
         <button class="tool" type="button" id="tool-legend" data-panel="legend" aria-expanded="false" aria-controls="legendPanel" data-feature="legend" data-i18n-title="legend"><span class="ti" data-icon="legend" aria-hidden="true"></span><span class="tl" data-i18n="legend">Legend</span></button>
         <button class="tool" type="button" id="tool-measure" aria-haspopup="menu" aria-expanded="false" aria-controls="measureMenu" data-feature="measure" data-i18n-title="measure"><span class="ti" data-icon="measure" aria-hidden="true"></span><span class="tl" data-i18n="measure">Measure</span></button>
         <button class="tool" type="button" id="tool-sketch" data-panel="sketch" aria-expanded="false" aria-controls="sketchPanel" data-feature="sketch" data-i18n-title="sketch"><span class="ti" data-icon="pencil-mark" aria-hidden="true"></span><span class="tl" data-i18n="sketch">Sketch</span></button>
@@ -719,10 +717,6 @@
         </div>
       </div>
       <div id="paneOwnData" role="tabpanel" aria-labelledby="tabOwnData" hidden><div class="open-body">
-        <div class="draft-box" id="draftBox" hidden>
-          <p class="note" id="draftText"></p>
-          <div class="row"><button class="btn primary" type="button" id="draftResume" data-i18n="draftResume">Carry on</button><button class="btn" type="button" id="draftDiscard" data-i18n="draftDiscard">Discard it</button></div>
-        </div>
         <p class="note" data-i18n="yourDataHint">Drop a CSV file with latitude and longitude columns anywhere on the map, or choose one.</p>
         <button class="btn primary" type="button" id="csvPick" data-i18n="chooseCsv">Choose a CSV file…</button>
       </div></div>
@@ -760,6 +754,14 @@
       <h2 id="firstSaveH" tabindex="-1" data-i18n="firstSaveTitle">Save changes to this file?</h2>
       <p class="note" id="firstSaveText"></p>
       <div class="actions"><button class="btn" type="button" data-modal-close data-i18n="cancel">Cancel</button><button class="btn" type="button" id="fsUpdate" data-i18n="updateOriginal">Update the original</button><button class="btn primary" type="button" id="fsCopy" data-i18n="saveOwnCopy">Save my own copy…</button></div>
+    </div>
+  </div>
+
+  <div class="modal" id="leaveModal" hidden>
+    <div class="card" role="alertdialog" aria-modal="true" aria-labelledby="leaveH" aria-describedby="leaveText">
+      <h2 id="leaveH" tabindex="-1" data-i18n="leaveDataTitle">Discard your data?</h2>
+      <p class="note" id="leaveText"></p>
+      <div class="actions"><button class="btn danger" type="button" id="leaveDiscard" data-i18n="discardData">Discard</button><button class="btn primary" type="button" id="leaveKeep" data-modal-close data-i18n="keepEditing">Keep editing</button></div>
     </div>
   </div>
 

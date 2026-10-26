@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.10.0";
+const APP_VERSION = "1.11.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -323,7 +323,8 @@ let currentFileHandle = null, openedHandleUnsaved = false;
 let portalUser = null;
 function markDirty() { dirty = true; }
 function markClean() { dirty = false; }
-function confirmDiscard() { return !dirty || window.confirm(S.discard); }
+// Unsaved map changes, or data in Add data / Change style that isn't on the map yet.
+function confirmDiscard() { return (!dirty && !unfinishedData()) || window.confirm(S.discard); }
 window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 function sizeTitle() { const el = $("docTitle"); el.size = Math.max(8, Math.min(60, (el.value || el.placeholder || "").length + 2)); }
 $("docTitle").addEventListener("input", () => { markDirty(); sizeTitle(); });
@@ -410,7 +411,7 @@ function closePanels(restoreFocus) {
   updatePopupEnabled();
   if (restoreFocus !== false && hadFocus && $(TRIGGERS[name])) $(TRIGGERS[name]).focus();
 }
-function togglePanel(name) { if (openPanelName === name) closePanels(); else openPanel(name); }
+function togglePanel(name) { if (openPanelName === name) closePanels(); else leaveData(() => openPanel(name)); }
 function panelOpening(name) {
   if (name === "sketch") { sketchPanelOpen = true; setTool("select"); selectForEdit(null); }
   if (name === "layers") renderLayers();
@@ -427,13 +428,11 @@ function panelClosing(name) {
   if (name === "measure") stopMeasuring();
   if (name === "profile") { stopProfile(); $("app").classList.remove("docked", "tools-shown"); syncToolsToggles(); setTimeout(layoutBottom, 0); }
   if (name === "data") {
-    const st = addState, ed = st && st.editing;
-    addState = null;
-    if (st && !dataDiscarding) { parkDraft(st); return; }   // another tool opened: set the data aside, don't lose it
-    removePreview(true);
+    const ed = addState && addState.editing;
+    addState = null; pendingParse = null; removePreview(true);
     if (ed) {   // editing a layer's style: put the layer back as it was, and go back to Map layers
       ed.layer.visible = ed.wasVisible;
-      setTimeout(() => { if (!openPanelName) backToLayers(ed.layer.id); }, 0);
+      setTimeout(() => { if (!openPanelName && !modalStack.length) backToLayers(ed.layer.id); }, 0);
     }
   }
 }
@@ -478,8 +477,7 @@ document.addEventListener("keydown", (e) => {
   if (!$("measureMenu").hidden) { closeToolMenu(true); return; }
   if (!$("userMenu").hidden) { closeUserMenu(true); return; }
   if (sketchPanelOpen && (drawing || placingText)) { setTool("select"); return; }
-  if (openPanelName === "data") discardData();
-  else if (openPanelName) closePanels();
+  if (openPanelName) closePanels();
 });
 
 // ============================================================ Pop-ups
@@ -845,8 +843,8 @@ $("tool-measure").addEventListener("click", () => {
   if (items.length < 2) { togglePanel(items[0] === $("menuProfile") ? "profile" : "measure"); return; }
   if ($("measureMenu").hidden) openToolMenu(); else closeToolMenu(false);
 });
-$("menuMeasure").addEventListener("click", () => { closeToolMenu(false); openPanel("measure"); });
-$("menuProfile").addEventListener("click", () => { closeToolMenu(false); openPanel("profile"); });
+$("menuMeasure").addEventListener("click", () => { closeToolMenu(false); leaveData(() => openPanel("measure")); });
+$("menuProfile").addEventListener("click", () => { closeToolMenu(false); leaveData(() => openPanel("profile")); });
 $("measureMenu").addEventListener("keydown", (e) => {
   const items = menuItems(), i = items.indexOf(document.activeElement);
   const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
@@ -934,7 +932,7 @@ function updateToolBadges() {
 function keepSketchOnTop() { const m = activeMap(); try { m.reorder(graphicsLayer, m.layers.length - 1); } catch (e) { /* ok */ } }
 function removeFromMaps(l) { for (const m of new Set([localMap, mapView.map, sceneView && sceneView.map])) { if (m) { try { m.remove(l); } catch (e) { /* not there */ } } } }
 function resetWorkspace() {
-  addState = null; removePreview(false); dropDraft();
+  addState = null; removePreview(false);
   dataLayers.splice(0).forEach(removeFromMaps);
   [...portalLayers.values()].forEach(removeFromMaps); portalLayers.clear();
   endSketchOps(); graphicsLayer.removeAll(); graphicsLayer.visible = true; selectedFeature = null;
@@ -1165,7 +1163,7 @@ function renderLayers() {
     if (isData || isPortal) {
       const d = document.createElement("button"); d.type = "button"; d.className = "mini"; d.innerHTML = ICON_TRASH; d.title = S.removeLayer; d.setAttribute("aria-label", S.removeLayer + ": " + title);
       d.addEventListener("click", () => {
-        if (isData) { if (parked && parked.editing && parked.editing.layer === l) dropDraft(); dataLayers.splice(dataLayers.indexOf(l), 1); removeFromMaps(l); markDirty(); toast(S.layerRemoved); renderLayers(); }
+        if (isData) { dataLayers.splice(dataLayers.indexOf(l), 1); removeFromMaps(l); markDirty(); toast(S.layerRemoved); renderLayers(); }
         else removePortalLayer(l.__item.itemId);
         if (catalogLoaded) refreshCatalogButtons();
       });
@@ -1531,16 +1529,8 @@ const addBrowser = createBrowser({ p: "al", query: '-type:"Web Map"', accept: (i
   } });
 function refreshCatalogButtons() { addBrowser.refreshActions(); }
 const switchAddTab = setupTabs([["tabLayers", "paneLayers"], ["tabOwnData", "paneOwnData"]], (tabId) => { if (tabId === "tabLayers") { addBrowser.start(); catalogLoaded = true; } });
-function openAddModal(tabId) {
-  closePanels(false);
-  const waiting = parked && !parked.editing;   // data set aside: open on Your own data, where it can be carried on
-  $("draftBox").hidden = !waiting;
-  if (waiting) $("draftText").textContent = t("draftWaiting", { name: parked.fileName || "" });
-  openModal("addModal", waiting ? $("draftResume") : null);
-  switchAddTab(waiting ? "tabOwnData" : tabId || "tabLayers");
-  if (waiting) setTimeout(() => $("draftResume").focus(), 0);
-}
-$("tool-add").addEventListener("click", () => openAddModal("tabLayers"));
+function openAddModal(tabId) { closePanels(false); openModal("addModal"); switchAddTab(tabId || "tabLayers"); }
+$("tool-add").addEventListener("click", () => leaveData(() => openAddModal("tabLayers")));
 
 // ============================================================ Map and item information (ⓘ)
 function safeFragment(html) {
@@ -1593,7 +1583,7 @@ const STYLE_TEXT = { simple: ["styleSimple", "styleSimpleHint"], categorical: ["
 const FIELD_LABEL = { color: "colorBy", size: "sizeBy", label: "labelBy" };
 const NONE = "__none__";
 function showDataError(msg) {
-  addState = null; removePreview(true);
+  restoreEditedLayer(); addState = null; removePreview(true);
   openPanel("data");
   $("dataH").textContent = S.addData;
   $("dataError").textContent = msg; $("dataError").hidden = false;
@@ -1606,7 +1596,7 @@ function handleCsvText(name, text) {
   continueCsv(name, parsed, parsed.latIdx, parsed.lonIdx);
 }
 function showLatLonPicker(name, parsed) {
-  addState = null; removePreview(true);
+  restoreEditedLayer(); addState = null; removePreview(true);
   pendingParse = { name, parsed };
   openPanel("data");
   $("dataH").textContent = S.addData;
@@ -1625,9 +1615,9 @@ $("llUse").addEventListener("click", () => {
   continueCsv(p.name, p.parsed, la, lo);
 });
 function continueCsv(name, parsed, latIdx, lonIdx) {
-  dropDraft();   // a new file replaces data set aside earlier
   const data = buildLayerData(name, parsed, latIdx, lonIdx);
   if (!data.ok) { showDataError(t(data.code, data.params)); return; }
+  restoreEditedLayer();
   addState = data;
   addState.src = { name, parsed, latIdx, lonIdx };   // for Swap latitude and longitude
   addState.symbolChoices = { shape: "esriSMSCircle", color: hexToRgb(PALETTE_HEX[0]), size: 12, ramp: "blue" };
@@ -1642,9 +1632,7 @@ function continueCsv(name, parsed, latIdx, lonIdx) {
 // Change the style of a spreadsheet layer already on the map: the same panel, filled in from the layer's definition.
 // The layer is hidden while the preview shows; Cancel puts it back, Apply replaces it in the same place with the same id.
 function editDataLayer(layer) {
-  if (parked && parked.editing && parked.editing.layer === layer) { resumeDraft(); return; }   // carry on where it was left
-  if (openPanelName === "data") discardData();
-  dropDraft();
+  if (openPanelName === "data") closePanels(false);
   const st = stateFromLayerDef(layer._srcDef);
   if (!st.ok) { toast(S.styleCantChange); return; }
   st.editing = { layer, wasVisible: layer.visible !== false };
@@ -1653,7 +1641,9 @@ function editDataLayer(layer) {
   layer.visible = false;
   openPanel("data");
   renderDataPanel();
+  styleAtStart = styleDef();   // so leaving without changing anything doesn't ask
 }
+function restoreEditedLayer() { if (addState && addState.editing) addState.editing.layer.visible = addState.editing.wasVisible; }
 function backToLayers(layerId) {
   openPanel("layers", { focus: false });
   const b = [...$("layersList").querySelectorAll("[data-style-for]")].find((x) => x.dataset.styleFor === layerId);
@@ -1842,45 +1832,37 @@ function applyStyleEdit() {
   toast(t("styleChanged", { title: fl.title }));
 }
 $("dataSubmit").addEventListener("click", submitData);
-$("dataCancel").addEventListener("click", discardData);
-$("dataClose").addEventListener("click", discardData);
+$("dataCancel").addEventListener("click", () => closePanels());
+$("dataClose").addEventListener("click", () => closePanels());
 
-// ---------- Data set aside (another tool opened while Add data or Change style was open)
-// Switching tools doesn't lose the work: the file and every setting are kept, the preview comes off the map (an edited
-// layer shows as it was), a message says so, and a dot shows on Add layer. Add layer opens on Your own data with
-// Carry on and Discard it; Change style on the same layer carries on. Only Cancel, x or Escape (or Discard it) discard.
-let parked = null, dataDiscarding = false;
-function discardData() { dataDiscarding = true; try { closePanels(); } finally { dataDiscarding = false; } }
-function syncDraftDot() {
-  const on = !!(parked && !parked.editing);
-  $("addDot").hidden = !on; $("addDotSr").textContent = on ? S.addDotSr : "";
+// Opening another tool while Add data holds a file that isn't on the map yet (or Change style holds changes that
+// aren't applied) would lose that work, so ask first. Cancel, × and Escape in the panel itself discard straight away.
+let leaveNext = null, styleAtStart = null;
+function styleDef() {
+  try { const ed = addState.editing, src = ed.layer._srcDef; return JSON.stringify(buildLayerDef(addState, src.id, src.title || ed.layer.title)); }
+  catch (e) { return null; }
 }
-function parkDraft(st) {
-  removePreview(false); prePreviewCam = null;
-  const ed = st.editing;
-  if (ed) ed.layer.visible = ed.wasVisible;
-  parked = st; syncDraftDot();
-  setTimeout(() => toast(ed ? t("styleParked", { title: ed.layer.title || "" }) : t("dataParked", { name: st.fileName || "" }), 6000), 0);
+function unfinishedData() {
+  if (openPanelName !== "data") return null;
+  if (addState && addState.editing) return styleDef() === styleAtStart ? null : { style: true, title: addState.editing.layer.title || "" };
+  if (addState) return { style: false, title: addState.fileName || "" };
+  if (pendingParse && !$("llPicker").hidden) return { style: false, title: pendingParse.name || "" };
+  return null;
 }
-function dropDraft() { parked = null; syncDraftDot(); }
-function resumeDraft() {
-  const st = parked;
-  if (!st) return;
-  dropDraft();
-  closeModal("addModal");
-  if (st.editing) {
-    const ed = st.editing;
-    if (!dataLayers.includes(ed.layer)) { toast(S.styleCantChange); return; }   // the layer has gone since
-    ed.wasVisible = ed.layer.visible !== false; ed.layer.visible = false;
-  }
-  addState = st;
-  openPanel("data");
-  renderDataPanel();
+function leaveData(next) {
+  const u = unfinishedData();
+  if (!u) { next(); return; }
+  leaveNext = next;
+  $("leaveH").textContent = u.style ? S.leaveStyleTitle : S.leaveDataTitle;
+  $("leaveText").textContent = t(u.style ? "leaveStyleText" : "leaveDataText", { title: u.title });
+  $("leaveDiscard").textContent = u.style ? S.discardChanges : S.discardData;
+  openModal("leaveModal", $("leaveKeep"));
 }
-$("draftResume").addEventListener("click", resumeDraft);
-$("draftDiscard").addEventListener("click", () => {
-  const name = parked ? parked.fileName || "" : "";
-  dropDraft(); $("draftBox").hidden = true; toast(t("draftDiscarded", { name })); $("csvPick").focus();
+$("leaveDiscard").addEventListener("click", () => {
+  const next = leaveNext; leaveNext = null;
+  closeModal("leaveModal");
+  closePanels(false);
+  if (next) next();
 });
 $("dataSize").addEventListener("input", () => {
   const v = parseInt($("dataSize").value, 10) || 12;
