@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.9.1";
+const APP_VERSION = "1.11.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -323,7 +323,8 @@ let currentFileHandle = null, openedHandleUnsaved = false;
 let portalUser = null;
 function markDirty() { dirty = true; }
 function markClean() { dirty = false; }
-function confirmDiscard() { return !dirty || window.confirm(S.discard); }
+// Unsaved map changes, or data in Add data / Change style that isn't on the map yet.
+function confirmDiscard() { return (!dirty && !unfinishedData()) || window.confirm(S.discard); }
 window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 function sizeTitle() { const el = $("docTitle"); el.size = Math.max(8, Math.min(60, (el.value || el.placeholder || "").length + 2)); }
 $("docTitle").addEventListener("input", () => { markDirty(); sizeTitle(); });
@@ -410,7 +411,7 @@ function closePanels(restoreFocus) {
   updatePopupEnabled();
   if (restoreFocus !== false && hadFocus && $(TRIGGERS[name])) $(TRIGGERS[name]).focus();
 }
-function togglePanel(name) { if (openPanelName === name) closePanels(); else openPanel(name); }
+function togglePanel(name) { if (openPanelName === name) closePanels(); else leaveData(() => openPanel(name)); }
 function panelOpening(name) {
   if (name === "sketch") { sketchPanelOpen = true; setTool("select"); selectForEdit(null); }
   if (name === "layers") renderLayers();
@@ -428,10 +429,10 @@ function panelClosing(name) {
   if (name === "profile") { stopProfile(); $("app").classList.remove("docked", "tools-shown"); syncToolsToggles(); setTimeout(layoutBottom, 0); }
   if (name === "data") {
     const ed = addState && addState.editing;
-    addState = null; removePreview(true);
+    addState = null; pendingParse = null; removePreview(true);
     if (ed) {   // editing a layer's style: put the layer back as it was, and go back to Map layers
       ed.layer.visible = ed.wasVisible;
-      setTimeout(() => { if (!openPanelName) backToLayers(ed.layer.id); }, 0);
+      setTimeout(() => { if (!openPanelName && !modalStack.length) backToLayers(ed.layer.id); }, 0);
     }
   }
 }
@@ -842,8 +843,8 @@ $("tool-measure").addEventListener("click", () => {
   if (items.length < 2) { togglePanel(items[0] === $("menuProfile") ? "profile" : "measure"); return; }
   if ($("measureMenu").hidden) openToolMenu(); else closeToolMenu(false);
 });
-$("menuMeasure").addEventListener("click", () => { closeToolMenu(false); openPanel("measure"); });
-$("menuProfile").addEventListener("click", () => { closeToolMenu(false); openPanel("profile"); });
+$("menuMeasure").addEventListener("click", () => { closeToolMenu(false); leaveData(() => openPanel("measure")); });
+$("menuProfile").addEventListener("click", () => { closeToolMenu(false); leaveData(() => openPanel("profile")); });
 $("measureMenu").addEventListener("keydown", (e) => {
   const items = menuItems(), i = items.indexOf(document.activeElement);
   const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
@@ -1529,7 +1530,7 @@ const addBrowser = createBrowser({ p: "al", query: '-type:"Web Map"', accept: (i
 function refreshCatalogButtons() { addBrowser.refreshActions(); }
 const switchAddTab = setupTabs([["tabLayers", "paneLayers"], ["tabOwnData", "paneOwnData"]], (tabId) => { if (tabId === "tabLayers") { addBrowser.start(); catalogLoaded = true; } });
 function openAddModal(tabId) { closePanels(false); openModal("addModal"); switchAddTab(tabId || "tabLayers"); }
-$("tool-add").addEventListener("click", () => openAddModal("tabLayers"));
+$("tool-add").addEventListener("click", () => leaveData(() => openAddModal("tabLayers")));
 
 // ============================================================ Map and item information (ⓘ)
 function safeFragment(html) {
@@ -1582,7 +1583,7 @@ const STYLE_TEXT = { simple: ["styleSimple", "styleSimpleHint"], categorical: ["
 const FIELD_LABEL = { color: "colorBy", size: "sizeBy", label: "labelBy" };
 const NONE = "__none__";
 function showDataError(msg) {
-  addState = null; removePreview(true);
+  restoreEditedLayer(); addState = null; removePreview(true);
   openPanel("data");
   $("dataH").textContent = S.addData;
   $("dataError").textContent = msg; $("dataError").hidden = false;
@@ -1595,7 +1596,7 @@ function handleCsvText(name, text) {
   continueCsv(name, parsed, parsed.latIdx, parsed.lonIdx);
 }
 function showLatLonPicker(name, parsed) {
-  addState = null; removePreview(true);
+  restoreEditedLayer(); addState = null; removePreview(true);
   pendingParse = { name, parsed };
   openPanel("data");
   $("dataH").textContent = S.addData;
@@ -1616,6 +1617,7 @@ $("llUse").addEventListener("click", () => {
 function continueCsv(name, parsed, latIdx, lonIdx) {
   const data = buildLayerData(name, parsed, latIdx, lonIdx);
   if (!data.ok) { showDataError(t(data.code, data.params)); return; }
+  restoreEditedLayer();
   addState = data;
   addState.src = { name, parsed, latIdx, lonIdx };   // for Swap latitude and longitude
   addState.symbolChoices = { shape: "esriSMSCircle", color: hexToRgb(PALETTE_HEX[0]), size: 12, ramp: "blue" };
@@ -1639,7 +1641,9 @@ function editDataLayer(layer) {
   layer.visible = false;
   openPanel("data");
   renderDataPanel();
+  styleAtStart = styleDef();   // so leaving without changing anything doesn't ask
 }
+function restoreEditedLayer() { if (addState && addState.editing) addState.editing.layer.visible = addState.editing.wasVisible; }
 function backToLayers(layerId) {
   openPanel("layers", { focus: false });
   const b = [...$("layersList").querySelectorAll("[data-style-for]")].find((x) => x.dataset.styleFor === layerId);
@@ -1830,6 +1834,36 @@ function applyStyleEdit() {
 $("dataSubmit").addEventListener("click", submitData);
 $("dataCancel").addEventListener("click", () => closePanels());
 $("dataClose").addEventListener("click", () => closePanels());
+
+// Opening another tool while Add data holds a file that isn't on the map yet (or Change style holds changes that
+// aren't applied) would lose that work, so ask first. Cancel, × and Escape in the panel itself discard straight away.
+let leaveNext = null, styleAtStart = null;
+function styleDef() {
+  try { const ed = addState.editing, src = ed.layer._srcDef; return JSON.stringify(buildLayerDef(addState, src.id, src.title || ed.layer.title)); }
+  catch (e) { return null; }
+}
+function unfinishedData() {
+  if (openPanelName !== "data") return null;
+  if (addState && addState.editing) return styleDef() === styleAtStart ? null : { style: true, title: addState.editing.layer.title || "" };
+  if (addState) return { style: false, title: addState.fileName || "" };
+  if (pendingParse && !$("llPicker").hidden) return { style: false, title: pendingParse.name || "" };
+  return null;
+}
+function leaveData(next) {
+  const u = unfinishedData();
+  if (!u) { next(); return; }
+  leaveNext = next;
+  $("leaveH").textContent = u.style ? S.leaveStyleTitle : S.leaveDataTitle;
+  $("leaveText").textContent = t(u.style ? "leaveStyleText" : "leaveDataText", { title: u.title });
+  $("leaveDiscard").textContent = u.style ? S.discardChanges : S.discardData;
+  openModal("leaveModal", $("leaveKeep"));
+}
+$("leaveDiscard").addEventListener("click", () => {
+  const next = leaveNext; leaveNext = null;
+  closeModal("leaveModal");
+  closePanels(false);
+  if (next) next();
+});
 $("dataSize").addEventListener("input", () => {
   const v = parseInt($("dataSize").value, 10) || 12;
   $("dataSizeVal").textContent = v + " px";

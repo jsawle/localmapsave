@@ -101,6 +101,13 @@ export const DEFAULT_STRINGS = {
   sourceMissing: "The original map couldn't be opened, so your drawings and data are shown on their own.",
   discard: "You have unsaved changes. Continue and lose them?",
   newMapStarted: "New blank map.",
+  leaveDataTitle: "Discard your data?",
+  leaveDataText: "“{title}” isn’t on the map yet. If you open another tool now, you’ll need to add the file again.",
+  leaveStyleTitle: "Discard your style changes?",
+  leaveStyleText: "Your changes to “{title}” haven’t been applied. If you open another tool now, the layer keeps its old style.",
+  keepEditing: "Keep editing",
+  discardData: "Discard data",
+  discardChanges: "Discard changes",
 
   // Add layer
   addLayerIntro: "Add a layer to explore it in the map view.",

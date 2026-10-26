@@ -757,6 +757,14 @@
     </div>
   </div>
 
+  <div class="modal" id="leaveModal" hidden>
+    <div class="card" role="alertdialog" aria-modal="true" aria-labelledby="leaveH" aria-describedby="leaveText">
+      <h2 id="leaveH" tabindex="-1" data-i18n="leaveDataTitle">Discard your data?</h2>
+      <p class="note" id="leaveText"></p>
+      <div class="actions"><button class="btn danger" type="button" id="leaveDiscard" data-i18n="discardData">Discard</button><button class="btn primary" type="button" id="leaveKeep" data-modal-close data-i18n="keepEditing">Keep editing</button></div>
+    </div>
+  </div>
+
   <div class="modal" id="agolModal" hidden>
     <div class="card" role="dialog" aria-modal="true" aria-labelledby="agolH">
       <h2 id="agolH" tabindex="-1" data-i18n="saveToArcgis">Save to ArcGIS Online</h2>
