@@ -243,6 +243,12 @@
     .ramp-btn{ width:44px; height:22px; border-radius:4px; border:2px solid rgba(0,0,0,.15); cursor:pointer; padding:0; }
     .ramp-btn[aria-pressed="true"]{ border-color:#1a1a1a; }
     .sym-row .swatch{ width:24px; height:24px; }
+    .pie-cols{ border:none; margin:10px 0 0; padding:0; }
+    .pie-cols legend{ font-size:13px; color:#444; padding:0; margin:0 0 2px; }
+    .pie-cols .hint{ margin:0 0 6px; }
+    .pie-col{ display:flex; align-items:center; gap:8px; padding:3px 0; font-size:13.5px; }
+    .pie-col input{ width:18px; height:18px; accent-color:var(--brand); margin:0; }
+    .pie-col input:disabled + label{ color:var(--muted); }
     .cfg-summary{ color:#444; font-size:12.5px; line-height:1.5; padding:8px 12px; background:#f5f6f7; border-radius:4px; margin-top:8px; }
     .error-box{ font-size:13.5px; line-height:1.55; color:#7a2a1e; background:#fdefec; border:1px solid #f2c9c0; border-radius:5px; padding:10px 12px; margin-bottom:10px; }
 
@@ -497,6 +503,7 @@
           </div>
           <div id="dataControls">
             <p class="data-summary" id="dataSummary"></p>
+            <div class="row" id="swapRow" style="margin:-2px 0 10px"><button class="btn" type="button" id="dataSwap" data-i18n="swapLatLon">Swap latitude and longitude</button></div>
             <h3 class="cfg-h" data-i18n="mapStyle">Map style</h3>
             <div class="style-grid" id="styleList"></div>
             <div class="style-desc" id="styleDesc"></div>
@@ -576,7 +583,7 @@
           </div>
           <div class="section"><p class="label" data-i18n="symbol">Colour</p><div class="swatches" id="swatches" role="group"></div></div>
           <div class="section"><label class="label" for="fSize" data-i18n="size">Size</label><div class="slider-row"><input type="range" id="fSize" min="6" max="48" value="12" /><span class="slider-val" id="sizeVal">12</span></div></div>
-          <div class="section"><label class="label" for="fRot" data-i18n="rotation">Rotation</label><div class="slider-row"><input type="range" id="fRot" min="0" max="360" value="0" /><span class="slider-val" id="rotVal">0°</span></div></div>
+          <div class="section" id="rotSection"><label class="label" for="fRot" data-i18n="rotation">Rotation</label><div class="slider-row"><input type="range" id="fRot" min="0" max="360" value="0" /><span class="slider-val" id="rotVal">0°</span></div></div>
         </div>
       </section>
 

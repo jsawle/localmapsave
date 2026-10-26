@@ -6,7 +6,7 @@ A configurable version of the National Geographic MapMaker app (an Atlas Instant
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.8.0**. Created by Jason Sawle.
+Version **1.9.0**. Created by Jason Sawle.
 
 **For developers:** the local save and add data logic is packaged on its own, with a minimal example, in [`kit/`](kit/README.md).
 
@@ -29,13 +29,13 @@ The toolbar is in MapMaker's order: Basemaps, Open map, Map layers, Add layer, L
 |---|---|
 | Header | Logo (wide, plus a compact version on tablets and phones), help links, partner logos. The map title with ⓘ (description and credits) appears once a map is open. A Sign in button is optional (`signIn.headerButton`); MapMaker signs in from Save |
 | Open map | MapMaker's browser for the collection's maps: search, a **Categories** tree (the content group's categories, with arrows for sub-categories, a reset button, and a Categories button to hide the tree), wide cards with an expandable description, and page numbers. Counts show how many maps each category holds, and the search looks inside the chosen category. Maps whose categories aren't in the group's list appear under *Other*. *On this device* lists every map saved in this browser, newest first, with a picture of each, and *Browse this device* opens any other file (see *Saved maps*). When signed in, *My ArcGIS maps*. Plus *Start a new blank map* |
-| Add layer | A dialog like MapMaker's: the same browser for the collection's layers, each card with **Add layer** (then **Remove layer**). A second tab, *Your own data*, adds a spreadsheet (CSV) |
+| Add layer | A dialog like MapMaker's: the same browser for the collection's layers, each card with **Add layer** (then **Remove layer**). A second tab, *Your own data*, adds a spreadsheet (CSV). *Your own data*: coordinates can be decimal degrees (51.5, -0.12), with N/S/E/W (51.5N, 0.12W) or in degrees, minutes and seconds (51°30'15"N); a **Swap latitude and longitude** button fixes columns the wrong way round; **pie charts** use the columns ticked (2 to 8; ID-like columns such as "Site ID" or "Year" start unticked), each pie sized by their total; whole-number columns with 2 to 12 values (site or quadrat numbers) can be used *By type*. Excel files get a message to save them as CSV first |
 | Map layers | Turn layers on and off, zoom to a layer, remove layers you added. Spreadsheet (CSV) layers have a **Change style** button (palette icon) that reopens the styling panel with the layer's current settings: map style, columns, shape, colours, size and labels, with a live preview; **Apply** updates the layer in place (bookmarks still find it), Cancel or Escape leaves it as it was. It also works for spreadsheet layers in a map opened from a file. As in MapMaker, the button shows how many layers the map has: its top-level layers, so a group counts once (MapMaker shows 6 for "1777-1778 Revolutionary Battles": four layers and two groups). It updates as layers are added or removed |
 | Legend | Legend for every layer |
 | Basemaps | As in MapMaker: a line of text, then the basemap group as a grid of cards, two to a row, with a picture above each name, in the group's own order (MapMaker's group: date added, newest first). The map's basemap is selected. In 3D the group's 3D basemaps (web scenes) come first. New maps start on the configured default |
 | Measure | Opens a small menu above the tool, as in MapMaker: **Measure** (distance, area and coordinates; direct-line distance in 3D) and **Elevation profile**, which docks across the bottom of the screen with the map above it, as in MapMaker. It's ready to draw as soon as it opens: click on the map to start the line, double-click to finish. It shows the height of the land and the sea floor (Esri's World Elevation TopoBathy 3D, credited in the panel) along the line, or along a line you've sketched. The panel is a short strip (under a third of the screen) with the chart on the left and the settings, legend and buttons on the right, so nothing needs scrolling; on phones the buttons come first. While it's open the toolbar is tucked away; the button under the scale bar brings it back |
-| Sketch | Point, line, area, circle and text. Each has a pop-up with title, description and image, plus colour, size and rotation. Select to move or reshape; delete |
-| Bookmarks | Saves the location and which layers are on. A map's own bookmarks appear when you open it. As in MapMaker, a blue dot on the button shows the map has bookmarks |
+| Sketch | Point, line, area, circle and text. Each has a pop-up with title, description and image, plus colour and size, and rotation for text (the only sketch it turns). Select to move or reshape; delete |
+| Bookmarks | Saves the location and which layers are on. A map's own bookmarks appear when you open it. As in MapMaker, a blue dot on the button shows the map has bookmarks. A bookmark made in 3D brings back the same tilt and heading while the app is open; a saved map keeps its place |
 | 2D / 3D | One map shown in either view. Switching to 3D tilts the camera towards the horizon (60° by default) so it's obvious the view has changed. From the whole-world start view the SDK allows almost no tilt (0.5°), so there the globe itself is the change; the tilt shows from about country scale in. The 3D view has zoom and one pan/rotate toggle; the compass rose turns with it |
 | Save | Save, Save as, Screenshot, Print. With sign-in: Save to ArcGIS Online and Update. Save and Save to ArcGIS Online write the same web map |
 | On the map | Search, Home and zoom (top left); MapMaker's compass rose above the scale bar (bottom left), which turns with the map and faces north again when selected; the disclaimer in the attribution bar; the version (bottom right) |
@@ -140,7 +140,7 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.8.0: change a spreadsheet layer's style from Map layers |
+| App | 1.9.0: fixes from Esri's code review (CSV coordinates, swap, pie columns, number codes; rotation; US wording; 3D bookmarks; newer-file warning) |
 | Basemaps | 2.0: MapMaker's card grid (1.x was Esri's Basemap Gallery widget) |
 | Saved maps list (Open map, On this device) | 1.0 |
 | Collection browser (Open map, Add layer) | 2.0 |
@@ -148,14 +148,17 @@ The app version, plus a version for each part, is shown under the version button
 | Elevation profile | 2.0: land and sea floor (TopoBathy 3D), ready to draw on opening |
 | Saved map (.amap and ArcGIS Online) | 2.0: a web map (Web Map Specification 2.31) |
 | Older .mmap files (open only) | 4. Also opens versions 2 and 3 from the local-save concept, and Map Studio files |
-| CSV import | 3.1: a layer's style can be changed after it's added |
-| Sketch | 1.0 |
+| CSV import | 3.2: N/S/E/W and degrees-minutes-seconds, pie columns, number codes as types, stray quotes inside a cell read as text |
+| Sketch | 1.1: rotation for text only |
 | Config schema | 1 |
 
 ## Known limits
 
 - **Esri widgets:** Measure, Elevation profile, Legend, Search, Home and Scale bar use Esri widgets. Esri marks these as deprecated from SDK 5.0 in favour of web components. They work in 5.1 but should move to components in a later version.
 - **Pie-chart layers** only draw in 2D.
+- **Hemisphere letters** are N, S, E and W only. "O" for west (Spanish, French) isn't read, because in German "O" means east (Ost).
+- **3D bookmarks** keep their tilt and heading only while the app is open. The web map specification's bookmark viewpoint hasn't been confirmed to allow a camera, and saved maps keep to the specification.
+- **A map saved by a newer version** of the app opens with a note that some parts may not show.
 - **Choosing a folder** for local save needs Chrome or Edge. Safari and Firefox save to Downloads instead.
 - **Private browsing:** in Playwright's private-mode test sessions, Chromium crashes when it reads a stored file link back from browser storage (normal profiles are fine). The list therefore never reads those links to show itself, only to open the one map chosen. Real Chrome Incognito hasn't been tried; in a private window the list is in any case wiped when the window closes.
 - **3D basemaps in 2D:** the group's 3D Buildings basemap is only offered in 3D. If it's chosen and the map goes back to 2D, its 2D layers still show; its 3D layers can't draw in 2D (the browser console notes this).

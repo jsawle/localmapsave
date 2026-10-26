@@ -58,7 +58,8 @@ test("types, dropped rows, categories exclude coordinates", () => {
   const p = csv.readCsv(text); const d = csv.buildLayerData("trees.csv", p, p.latIdx, p.lonIdx);
   assert.equal(d.features.length, 3); assert.equal(d.dropped, 1);
   assert.deepEqual(d.numeric, ["Height", "Count"]);
-  assert.deepEqual(d.categorical, ["Site", "Species"]);
+  assert.deepEqual(d.categorical, ["Site", "Species", "Count"]);   // whole-number codes (2-12 values) can be types too
+  assert.deepEqual(d.categoricalText, ["Site", "Species"]);
   assert.equal(d.fields.find((f) => f.name === "Count").type, "esriFieldTypeInteger");
   assert.equal(d.fields.find((f) => f.name === "Latitude").type, "esriFieldTypeString");   // column had "bad"
 });
@@ -453,7 +454,7 @@ test("style read back from a layer definition, for every style", () => {
     st.symbolChoices = { shape: "esriSMSDiamond", color: [26, 127, 55], size: 16, ramp: "green" };
     st.style = csv.DATA_STYLES.find((x) => x.id === id);
     st.fieldChoices = { ...csv.pickAutoFields(st.style, st), label: "Site" };
-    if (id === "numeric_color_size") st.fieldChoices = { color: "Width", size: "Height", label: "Site" };
+    if (id === "numeric_color_size") st.fieldChoices = { color: "Width", size: "Height", label: "Site", pie: null };
     const def = JSON.parse(JSON.stringify(csv.buildLayerDef(st, "abc", "Trees")));   // as saved in a file
     const back = csv.stateFromLayerDef(def);
     assert.ok(back.ok, id);
@@ -480,6 +481,53 @@ test("style read back falls back when the saved style no longer fits, and refuse
   assert.ok(fb.ok && fb.categorical.includes(fb.fieldChoices.color) && fb.fieldChoices.color !== "Gone");
   assert.equal(csv.stateFromLayerDef(null).ok, false);
   assert.equal(csv.stateFromLayerDef({ fields: [], features: [] }).ok, false);
+});
+// ---------- Review fixes (1.9.0) ----------
+test("coordinates with N/S/E/W and degrees-minutes-seconds", () => {
+  const ok = [["51.5N", "lat", 51.5], ["51.5S", "lat", -51.5], ["0.12W", "lon", -0.12], ["E2.35", "lon", 2.35], ["N 51.5", "lat", 51.5],
+    ["51°30'15\"N", "lat", 51 + 30 / 60 + 15 / 3600], ["51 30 15 N", "lat", 51 + 30 / 60 + 15 / 3600], ["51:30:15", "lat", 51 + 30 / 60 + 15 / 3600],
+    ["0°7'12\"W", "lon", -0.12], ["-0 7 12", "lon", -0.12], ["51°30.5′N", "lat", 51 + 30.5 / 60], ["51.5", "lat", 51.5]];
+  for (const [raw, axis, want] of ok) assert.ok(Math.abs(csv.parseCoord(raw, false, axis) - want) < 1e-9, raw);
+  for (const [raw, axis] of [["-0.12W", "lon"], ["51.5E", "lat"], ["0.12N", "lon"], ["51 61 0 N", "lat"], ["51.5 30 N", "lat"], ["12abc", "lat"], ["N", "lat"], ["1 2 3 4", "lat"]])
+    assert.ok(Number.isNaN(csv.parseCoord(raw, false, axis)), raw);
+  assert.equal(csv.parseCoord("", false, "lat"), null);
+  assert.ok(Math.abs(csv.parseCoord("51,5N", true, "lat") - 51.5) < 1e-9);   // decimal comma files
+  // seconds typed with a double quote, unquoted (hand-made files), and the same cell quoted properly (Excel exports)
+  const hand = csv.readCsv("Site,Latitude,Longitude\nAshford,51°08'46\"N,0°52'23\"E\nX,\"51°08'46\"\"N\",\"0°52'23\"\"E\"\n");
+  assert.deepEqual(hand.rows.map((r) => r.slice(1)), [["51°08'46\"N", "0°52'23\"E"], ["51°08'46\"N", "0°52'23\"E"]]);
+  const p = csv.readCsv("Site,Latitude,Longitude\nA,51.5N,0.12W\nB,51.6N,0.11W\nC,51.55,-0.10\n");
+  const d = csv.buildLayerData("t.csv", p, p.latIdx, p.lonIdx);
+  assert.equal(d.features.length, 3); assert.equal(d.dropped, 0);
+  assert.ok(d.features[0].geometry.x < 0, "west of Greenwich");
+});
+test("pie charts use the columns chosen; ID-like columns start unticked", () => {
+  const p = csv.readCsv("Site ID,Latitude,Longitude,Plastic,Glass,Metal,Temperature,Year\n1,51.5,-0.12,12,3,4,14.5,2026\n2,51.51,-0.13,5,8,2,15.1,2026\n3,51.52,-0.11,9,1,7,13.9,2025\n");
+  const st = csv.buildLayerData("litter.csv", p, p.latIdx, p.lonIdx);
+  st.symbolChoices = { shape: "esriSMSCircle", color: [0, 121, 193], size: 12, ramp: "blue" };
+  st.style = csv.DATA_STYLES.find((x) => x.id === "pie_chart");
+  assert.deepEqual(csv.defaultPieFields(st), ["Plastic", "Glass", "Metal", "Temperature"]);   // not Site ID or Year
+  st.fieldChoices = { ...csv.pickAutoFields(st.style, st), pie: ["Plastic", "Glass", "Metal"] };
+  const def = JSON.parse(JSON.stringify(csv.buildLayerDef(st, "p", "Litter")));
+  assert.deepEqual(def.renderer.attributes.map((a) => a.field), ["Plastic", "Glass", "Metal"]);
+  assert.equal(def.features[0].attributes._pieTotal, 19);   // 12 + 3 + 4 only
+  const back = csv.stateFromLayerDef(def);
+  assert.equal(back.style.id, "pie_chart"); assert.deepEqual(back.fieldChoices.pie, ["Plastic", "Glass", "Metal"]);   // Change style reads them back
+  st.fieldChoices.pie = ["Plastic"];   // fewer than two: the defaults instead
+  assert.deepEqual(csv.pieFields(st), csv.defaultPieFields(st));
+});
+test("number codes: offered as types, in number order, not picked automatically", () => {
+  const rows = Array.from({ length: 11 }, (_, i) => `${i + 1},51.${i},-0.1${i},${(i * 7) % 5 + 1},${10 + i}`).join("\n");
+  const p = csv.readCsv("Quadrat,Latitude,Longitude,Plot,Count\n" + rows + "\n");
+  const st = csv.buildLayerData("q.csv", p, p.latIdx, p.lonIdx);
+  assert.ok(st.categorical.includes("Plot") && st.numeric.includes("Plot") && st.categoricalText.length === 0);
+  assert.equal(csv.pickAutoStyle(st).id, "graduated");   // a numbers-only file is still sized by a number
+  st.symbolChoices = { shape: "esriSMSCircle", color: [0, 121, 193], size: 12, ramp: "blue" };
+  st.style = csv.DATA_STYLES.find((x) => x.id === "categorical"); st.fieldChoices = { color: "Quadrat", size: null, label: null };
+  const r = csv.buildRenderer(st);
+  assert.equal(r.type, "uniqueValue");   // separate colours, not a ramp
+  assert.deepEqual(r.uniqueValueInfos.map((u) => u.value), ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]);
+  const back = csv.stateFromLayerDef(JSON.parse(JSON.stringify(csv.buildLayerDef(st, "q", "Q"))));
+  assert.equal(back.style.id, "categorical"); assert.equal(back.fieldChoices.color, "Quadrat");
 });
 test("every config translates only known strings", () => {
   for (const f of ["default", "mapmaker", "example-es"]) {
