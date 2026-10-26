@@ -122,14 +122,32 @@
     .seg button[aria-pressed="true"]{ background:var(--tool-active); color:var(--tool-active-ink); }
 
     /* ---------- Side panels ---------- */
-    .panel{ position:absolute; top:14px; right:14px; width:360px; max-height:calc(100% - var(--tb-h) - 40px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--line2); border-radius:6px; box-shadow:0 2px 16px rgba(0,0,0,.2); z-index:25; }
+    .panel{ position:absolute; top:15px; right:6px; width:360px; max-height:calc(100% - var(--tb-h) - var(--attr-h, 16px) - 51px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--line2); border-radius:6px; box-shadow:0 2px 16px rgba(0,0,0,.2); z-index:25; }
     .panel.wide{ width:400px; }
-    .panel-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 14px; border-bottom:1px solid #ededed; flex:0 0 auto; }
-    .panel-head h2{ margin:0; font-size:16px; font-weight:600; color:var(--ink); outline:none; }
+    /* Basemaps, after MapMaker's: a line of text, then a two-column grid of cards (picture above, name below) */
+    .panel.bmg-panel{ width:374px; }
+    .bmg-grid{ list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); column-gap:16px; row-gap:12px; }
+    .bmg-card{ display:flex; flex-direction:column; width:100%; padding:0; border:1px solid #d4d4d4; border-radius:0; background:#fff; cursor:pointer; text-align:left; color:#6a6a6a; font:inherit; font-size:12px; }
+    .bmg-card:hover{ border-color:#9f9f9f; }
+    .bmg-card:hover .bmg-title{ color:var(--ink); }
+    .bmg-card[aria-pressed="true"]{ border-color:var(--brand); box-shadow:0 0 0 1px var(--brand); }
+    .bmg-card[aria-pressed="true"] .bmg-title{ color:var(--brand-strong); }
+    .bmg-thumb{ display:block; width:100%; aspect-ratio:3 / 2; object-fit:cover; background:#eef0f2; }
+    .bmg-title{ display:block; padding:8px 7px; min-height:31px; font-size:12px; line-height:15px; overflow-wrap:anywhere; }
+    .bmg-status{ font-size:13px; color:var(--muted); line-height:1.5; text-align:center; }
+    .bmg-status:empty{ display:none; }
+    .bmg-status .btn{ margin-top:8px; }
+    @media (forced-colors: active){ .bmg-card[aria-pressed="true"]{ outline:3px solid Highlight; outline-offset:-3px; } }
+    /* Panel header as MapMaker's (Esri Calcite): 14px medium heading, small grey close button */
+    .panel-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 4px 0 9px; height:39px; border-bottom:1px solid #ebebeb; flex:0 0 auto; }
+    .panel-head h2{ margin:0; font-size:14px; font-weight:500; color:#151515; outline:none; }
+    .panel-head .x-btn{ width:32px; height:32px; padding:0; font-size:20px; color:#6a6a6a; }
     .x-btn{ border:none; background:none; font-size:22px; line-height:1; color:#555; cursor:pointer; padding:2px 8px; border-radius:4px; }
     .x-btn:hover{ background:var(--soft); }
     .panel-body{ padding:14px; overflow-y:auto; flex:1 1 auto; min-height:0; }
     .panel-foot{ flex:0 0 auto; display:flex; gap:10px; justify-content:flex-end; padding:10px 14px; border-top:1px solid #ededed; }
+    .panel-body.bmg-body{ padding:14px 17px 18px 22px; scrollbar-width:thin; scrollbar-gutter:stable; }
+    .bmg-intro{ margin:0 0 19px; text-align:center; font-size:14px; line-height:20px; color:#4a4a4a; }
     .section{ margin-bottom:20px; }
     .section:last-child{ margin-bottom:0; }
     .label{ font-size:13px; font-weight:600; color:var(--ink); margin:0 0 8px; }
@@ -258,6 +276,20 @@
     .tab{ border:none; background:none; padding:10px 2px; font-size:14px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:3px solid transparent; white-space:nowrap; }
     .tab[aria-selected="true"]{ color:var(--brand-strong); border-bottom-color:var(--brand); }
     .open-tools{ display:flex; gap:10px; padding:14px 22px 0; flex-wrap:wrap; }
+    .open-body{ padding:16px 22px 22px; overflow-y:auto; min-height:0; }
+    /* On this device: Browse, then the maps saved in this browser (cards like the collection's) */
+    .dev-top{ flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:14px 22px; border-bottom:1px solid var(--line); }
+    .dev-top .note{ margin:0; flex:1 1 320px; }
+    .dev-main{ flex:1 1 auto; }
+    .dev-h{ margin:2px 0 4px; font-size:16px; font-weight:500; color:var(--ink); }
+    .dev-acts{ display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; margin-top:auto; }
+    .dev-acts .cat-act{ margin-top:0; }
+    .cat-act.quiet{ border-color:var(--line2); color:var(--ink); }
+    .cat-act.quiet:hover{ background:var(--soft); }
+    .dev-meta{ margin:0; font-size:13px; color:var(--muted); overflow-wrap:anywhere; }
+    .dev-note{ margin:4px 0 0; }
+    .cat-thumb.blank{ display:flex; align-items:center; justify-content:center; color:#8a949c; }
+    .cat-thumb.blank svg{ width:40px; height:40px; }
     .open-tools .field{ flex:1 1 220px; }
     .count{ flex:0 0 auto; font-size:12px; font-weight:600; color:#555; background:var(--soft); border-radius:999px; padding:2px 8px; min-width:30px; text-align:center; }
     .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px; list-style:none; margin:0; padding:0; }
@@ -370,7 +402,7 @@
       .rose text{ font-size:15px; }
       .ll-stack{ gap:8px; }
       .map-wrap .esri-attribution__powered-by{ white-space:normal; max-width:60%; }
-      .panel, .panel.wide{ left:8px; right:8px; width:auto; top:auto; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 14px); max-height:58%; }
+      .panel, .panel.wide, .panel.bmg-panel{ left:8px; right:8px; width:auto; top:auto; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 14px); max-height:58%; }
       .open-card{ height:calc(100vh - 40px); max-height:none; }
       .modal.top{ padding-top:20px; }
     }
@@ -389,6 +421,7 @@
       #profileBody .esri-elevation-profile__action-button{ align-self:auto; margin:0; }
       #profileBody .esri-elevation-profile-legend{ max-height:66px; }
       .open-body{ padding:14px 16px 18px; }
+      .dev-top{ padding:12px 16px; }
     }
     @media (prefers-reduced-motion: reduce){ *{ scroll-behavior:auto!important; transition:none!important; animation:none!important; } }
   </style>
@@ -491,9 +524,13 @@
         <div class="panel-body"><div id="legendBody"></div></div>
       </section>
 
-      <section class="panel" id="basemapsPanel" hidden aria-labelledby="basemapsH">
+      <section class="panel bmg-panel" id="basemapsPanel" hidden aria-labelledby="basemapsH">
         <div class="panel-head"><h2 id="basemapsH" tabindex="-1" data-i18n="basemaps">Basemaps</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
-        <div class="panel-body"><p class="hint" data-i18n="basemapsIntro">Choose the map underneath your layers.</p><div id="basemapsBody"></div></div>
+        <div class="panel-body bmg-body">
+          <p class="bmg-intro" id="basemapsIntro" data-i18n="basemapsIntro">Choose the map underneath your layers.</p>
+          <ul class="bmg-grid" id="basemapsGrid" aria-labelledby="basemapsH"></ul>
+          <div class="bmg-status" id="basemapsStatus" role="status"></div>
+        </div>
       </section>
 
       <section class="panel" id="measurePanel" hidden aria-labelledby="measureH">
@@ -628,7 +665,15 @@
           <div class="cat-foot"><div class="cat-foot-side"><button class="link-btn" type="button" id="newMapBtn" data-i18n="newBlankMap">Start a new blank map</button></div><nav class="pager" id="omPager" data-i18n-aria="pages" hidden></nav><div class="cat-foot-side"></div></div>
         </div>
       </div>
-      <div id="paneDevice" role="tabpanel" aria-labelledby="tabDevice" hidden><div class="open-body"><p class="note" data-i18n="deviceLead"></p><button class="btn primary" type="button" id="browseDevice" data-i18n="browseDevice">Browse this device…</button></div></div>
+      <div id="paneDevice" class="pane-fill" role="tabpanel" aria-labelledby="tabDevice" hidden>
+        <div class="dev-top"><p class="note" data-i18n="deviceLead"></p><button class="btn primary" type="button" id="browseDevice" data-i18n="browseDevice">Browse this device…</button></div>
+        <div class="cat-main dev-main">
+          <h3 class="dev-h" id="savedMapsH" data-i18n="savedMaps">Saved maps</h3>
+          <p class="cat-status" id="savedStatus" aria-live="polite"></p>
+          <ul class="cat-list" id="savedList" aria-labelledby="savedMapsH"></ul>
+          <p class="hint dev-note" id="savedNote"></p>
+        </div>
+      </div>
       <div id="paneArcgis" role="tabpanel" aria-labelledby="tabArcgis" hidden style="flex-direction:column;min-height:0;flex:1 1 auto">
         <div class="open-tools"><label class="sr-only" for="agolSearch" data-i18n="search">Search</label><input class="field" id="agolSearch" type="search" data-i18n-ph="search" /></div>
         <div class="open-body"><p class="hint" data-i18n="arcgisLead"></p><ul class="grid" id="agolGrid" aria-live="polite"></ul><p class="empty" id="agolStatus2"></p><div class="more-row" id="agolMoreRow" hidden><button class="btn" type="button" id="agolMore" data-i18n="loadMore">Show more</button></div></div>

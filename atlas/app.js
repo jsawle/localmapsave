@@ -8,8 +8,10 @@ import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTH
 import { DEFAULT_STRINGS } from "./lib/strings.js";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
   filterEntries, pageList } from "./lib/catalog.js";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.6.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.0";
@@ -215,13 +217,12 @@ applyHeader();
 paintIcons();
 
 // ============================================================ ArcGIS SDK
-const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel, Basemap, BasemapGallery,
-  PortalBasemapsSource, Measurement, ElevationProfile, ElevationLayer, CoordinateConversion, ScaleBar, Search, Expand, Home, Legend, Layer,
+const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel, Basemap,
+  Measurement, ElevationProfile, ElevationLayer, CoordinateConversion, ScaleBar, Search, Expand, Home, Legend, Layer,
   Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils] = await $arcgis.import([
   "@arcgis/core/Map.js", "@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js", "@arcgis/core/views/SceneView.js",
   "@arcgis/core/layers/GraphicsLayer.js", "@arcgis/core/layers/FeatureLayer.js", "@arcgis/core/Graphic.js",
-  "@arcgis/core/widgets/Sketch/SketchViewModel.js", "@arcgis/core/Basemap.js", "@arcgis/core/widgets/BasemapGallery.js",
-  "@arcgis/core/widgets/BasemapGallery/support/PortalBasemapsSource.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js", "@arcgis/core/layers/ElevationLayer.js",
+  "@arcgis/core/widgets/Sketch/SketchViewModel.js", "@arcgis/core/Basemap.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js", "@arcgis/core/layers/ElevationLayer.js",
   "@arcgis/core/widgets/CoordinateConversion.js", "@arcgis/core/widgets/ScaleBar.js", "@arcgis/core/widgets/Search.js",
   "@arcgis/core/widgets/Expand.js", "@arcgis/core/widgets/Home.js",
   "@arcgis/core/widgets/Legend.js", "@arcgis/core/layers/Layer.js",
@@ -661,14 +662,90 @@ onViews("click", (event) => {
 });
 
 // ============================================================ Legend, basemaps, measure
-let legend = null, basemapGallery = null, measurement = null, coordWidget = null;
+let legend = null, measurement = null, coordWidget = null;
 function ensureLegend() { if (!legend) legend = new Legend({ view, container: "legendBody" }); else legend.view = view; }
-function ensureGallery() {
-  if (!basemapGallery) {
-    basemapGallery = new BasemapGallery({ view, container: "basemapsBody", source: new PortalBasemapsSource({ query: { id: cfg.basemapGroup } }) });
-    reactiveUtils.watch(() => basemapGallery.activeBasemap, (b, old) => { if (old && b && b !== old) markDirty(); });
-  } else basemapGallery.view = view;
+
+// Basemaps, as MapMaker shows them: the basemap group's web maps (and, in 3D, its web scenes) as a two-column grid of
+// cards, in the group's own order (MapMaker's: date added, newest first). The card for the map's basemap is selected.
+const gallery = { items: null, loading: null, dataTitles: null, fetchingTitles: false };
+async function loadGalleryItems() {
+  if (gallery.items) return gallery.items;
+  if (!gallery.loading) gallery.loading = (async () => {
+    const group = await restGet(`/sharing/rest/community/groups/${cfg.basemapGroup}`);
+    const d = await restGet(`/sharing/rest/content/groups/${cfg.basemapGroup}/search`, { q: "*", num: 100, start: 1, ...groupSort(group) });
+    return d.results || [];
+  })();
+  try { gallery.items = await gallery.loading; return gallery.items; }
+  catch (e) { console.error("Basemaps couldn't load", e); return null; }
+  finally { gallery.loading = null; }
 }
+const galleryList = () => basemapItems(gallery.items || [], mode);
+function currentBasemapInfo() {
+  const b = mapView.map && mapView.map.basemap;
+  return b ? { itemId: (b.portalItem && b.portalItem.id) || null, title: b.title || "" } : null;
+}
+function syncGallerySelection() {
+  if (!gallery.items) return;
+  const list = galleryList(), info = currentBasemapInfo();
+  const sel = selectedId(list, info, gallery.dataTitles);
+  $("basemapsGrid").querySelectorAll(".bmg-card").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === sel)));
+  // A basemap from inside a web map (a saved file, a collection map) is named as in its item's data, which can differ
+  // from the card's name: fetch those names once, then look again.
+  if (!sel && !gallery.dataTitles && !gallery.fetchingTitles && needsDataTitles(list, info)) {
+    gallery.fetchingTitles = true;
+    Promise.all(gallery.items.map((it) => restGet(`/sharing/rest/content/items/${it.id}/data`).then((d) => [it.id, (d && d.baseMap && d.baseMap.title) || ""], () => [it.id, ""])))
+      .then((pairs) => { gallery.dataTitles = new Map(pairs); }).finally(() => { gallery.fetchingTitles = false; syncGallerySelection(); });
+  }
+}
+function renderGallery() {
+  if (!gallery.items) return;
+  const grid = $("basemapsGrid"), list = galleryList();
+  const hadFocus = grid.contains(document.activeElement) ? document.activeElement.dataset.id : null;
+  grid.innerHTML = "";
+  for (const it of list) {
+    const li = document.createElement("li");
+    const b = document.createElement("button"); b.type = "button"; b.className = "bmg-card"; b.dataset.id = it.id;
+    const src = thumbnailUrl(PORTAL, it, 400);
+    const pic = document.createElement(src ? "img" : "span"); pic.className = "bmg-thumb";
+    if (src) { pic.alt = ""; pic.loading = "lazy"; pic.decoding = "async"; pic.src = src; } else pic.setAttribute("aria-hidden", "true");
+    const name = document.createElement("span"); name.className = "bmg-title"; name.textContent = String(it.title || "").trim() || S.untitled;
+    b.append(pic, name);
+    b.addEventListener("click", () => chooseBasemap(it));
+    li.appendChild(b); grid.appendChild(li);
+  }
+  $("basemapsStatus").textContent = list.length ? "" : S.basemapsNone;
+  syncGallerySelection();
+  if (hadFocus) { const f = grid.querySelector('.bmg-card[data-id="' + hadFocus + '"]'); if (f) f.focus(); }
+}
+async function ensureGallery() {
+  if (gallery.items) { renderGallery(); return; }
+  const st = $("basemapsStatus");
+  st.textContent = S.basemapsLoading; $("basemapsGrid").innerHTML = "";
+  if (await loadGalleryItems()) { renderGallery(); return; }
+  st.textContent = S.basemapsError;
+  const again = document.createElement("button"); again.type = "button"; again.className = "btn"; again.textContent = S.tryAgain;
+  again.addEventListener("click", () => { ensureGallery().then(() => { const f = $("basemapsGrid").querySelector(".bmg-card"); if (f) f.focus(); }); });
+  st.append(document.createElement("br"), again);
+}
+function chooseBasemap(it) {
+  const m = activeMap(), cur = m.basemap;
+  if (cur && cur.portalItem && cur.portalItem.id === it.id) return;
+  const bm = new Basemap({ portalItem: { id: it.id } });
+  m.basemap = bm;
+  markDirty();
+  syncGallerySelection();
+  bm.load().catch((e) => { console.error("Basemap failed", e); toast(S.basemapFailed); });
+}
+$("basemapsGrid").addEventListener("keydown", (e) => {
+  const cards = [...$("basemapsGrid").querySelectorAll(".bmg-card")], i = cards.indexOf(document.activeElement);
+  if (i < 0) return;
+  const cols = getComputedStyle($("basemapsGrid")).gridTemplateColumns.split(" ").filter(Boolean).length || 2;
+  const n = gridMove(i, cards.length, cols, e.key);
+  if (n == null) return;
+  e.preventDefault(); cards[n].focus();
+});
+// The selected card follows the map's basemap, wherever it changes (another map opened, a file, a new map).
+reactiveUtils.watch(() => { const b = mapView.map && mapView.map.basemap; return b ? ((b.portalItem && b.portalItem.id) || "") + "|" + (b.title || "") : ""; }, syncGallerySelection);
 const units = cfg.units === "imperial" ? "imperial" : "metric";
 function ensureMeasure() { if (!measurement) measurement = new Measurement({ view, container: "measureBody", linearUnit: units, areaUnit: units }); else measurement.view = view; }
 function measurePressed(id) { ["mDist", "mArea", "mCoord"].forEach((b) => $(b).setAttribute("aria-pressed", String(b === id))); }
@@ -798,7 +875,7 @@ async function setMode(m, opts) {
   mode = m; switching = false;
   $("tg2d").setAttribute("aria-pressed", String(m === "2d")); $("tg3d").setAttribute("aria-pressed", String(m === "3d"));
   sketchVM.view = view;
-  if (basemapGallery) basemapGallery.view = view;
+  if (gallery.items) renderGallery();   // 3D lists the group's 3D basemaps too
   if (measurement) measurement.view = view;
   if (elevationProfile) { stopProfile(); elevationProfile.view = view; if (openPanelName === "profile") startProfileSketch(); }
   if (coordWidget) coordWidget.view = view;
@@ -1392,6 +1469,7 @@ function setupTabs(tabs, onSwitch) {
 }
 const switchTab = setupTabs([["tabGroup", "paneGroup"], ["tabDevice", "paneDevice"], ["tabArcgis", "paneArcgis"]], (tabId) => {
   if (tabId === "tabGroup") { mapBrowser.start(); groupLoaded = true; }
+  if (tabId === "tabDevice") renderSavedMaps();
   if (tabId === "tabArcgis") loadAgolMaps(true);
 });
 function openOpenModal(tabId) { openModal("openModal"); switchTab(tabId || "tabGroup"); }
@@ -1763,7 +1841,8 @@ async function buildWebMapJson() {
     extent: ext ? ext.toJSON() : null, scale: mode === "2d" ? mapView.scale : null, rotation: mode === "2d" ? mapView.rotation || 0 : 0,
     appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false });
 }
-async function docBlob() { return new Blob([JSON.stringify(await buildWebMapJson())], { type: "application/json" }); }
+async function docText() { return JSON.stringify(await buildWebMapJson()); }
+async function docBlob() { return new Blob([await docText()], { type: "application/json" }); }
 function saveToDevice(forceNew) {
   if (!window.showSaveFilePicker) { openNameDialog(); return; }
   if (!forceNew && currentFileHandle && openedHandleUnsaved) {
@@ -1777,6 +1856,9 @@ async function writeToHandle(forceNew) {
   try {
     if (forceNew || !currentFileHandle) {
       currentFileHandle = await window.showSaveFilePicker({ suggestedName: titleSlug() + ".mmap", types: [{ description: S.mapFile, accept: { "application/json": [".mmap"] } }] });
+    } else if (currentFileHandle.queryPermission && (await currentFileHandle.queryPermission({ mode: "readwrite" })) !== "granted") {
+      // A map opened from the saved list: ask to write to its file now, while the click still counts.
+      if ((await currentFileHandle.requestPermission({ mode: "readwrite" })) !== "granted") { const d = new Error("Not allowed"); d.name = "NotAllowedError"; throw d; }
     }
     if (!($("docTitle").value || "").trim()) setTitle(titleFromFileName(currentFileHandle.name));
     const blob = await docBlob();
@@ -1784,6 +1866,7 @@ async function writeToHandle(forceNew) {
     await w.write(blob); await w.close();
     openedHandleUnsaved = false; markClean();
     toast(t("savedFile", { name: currentFileHandle.name || titleSlug() + ".mmap" }));
+    recordSave({ handle: currentFileHandle, fileName: currentFileHandle.name || titleSlug() + ".mmap" });
     if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
   } catch (err) {
     if (err && err.name === "AbortError") return;
@@ -1800,7 +1883,11 @@ async function confirmNameDialog() {
   const name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
   closeModal("nameModal");
   if (!($("docTitle").value || "").trim()) setTitle(titleFromFileName(name));
-  try { downloadBlob(await docBlob(), name + ".mmap"); markClean(); toast(t("savedDownload", { name: name + ".mmap" })); } catch (e) { console.error(e); toast(S.saveFailed); return; }
+  try {
+    const text = await docText();
+    downloadBlob(new Blob([text], { type: "application/json" }), name + ".mmap"); markClean(); toast(t("savedDownload", { name: name + ".mmap" }));
+    recordSave({ json: text, fileName: name + ".mmap" });
+  } catch (e) { console.error(e); toast(S.saveFailed); return; }
   if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
 }
 $("nameConfirm").addEventListener("click", confirmNameDialog);
@@ -1812,6 +1899,114 @@ $("shotTile").addEventListener("click", () => {
   view.takeScreenshot({ format: "png" }).then((s) => { fetch(s.dataUrl).then((r) => r.blob()).then((b) => { downloadBlob(b, titleSlug() + ".png"); toast(S.shotSaved); }); })
     .catch(() => toast(S.shotFailed));
 });
+
+// ============================================================ Saved maps on this device (Open map > On this device)
+// Every save adds the map to a list kept in this browser (lib/recent.js), newest first. In Chrome and Edge the list keeps
+// a handle to the file, so Open reads the file itself and Save goes on writing to it; browsers that can only download
+// (Safari, Firefox) keep a copy of the saved map instead, as they can't open a file again by themselves.
+let recentStore = null, recentFailed = false, savedSeq = 0;
+async function recentDb() {
+  if (recentStore || recentFailed) return recentStore;
+  try { recentStore = await openRecentStore(window.indexedDB, cfgName); }
+  catch (e) { console.warn("This browser isn't keeping a list of saved maps", e); recentFailed = true; }
+  return recentStore;
+}
+async function mapPicture() {
+  try { return (await view.takeScreenshot({ width: 300, height: 200, format: "jpg", quality: 72 })).dataUrl; } catch (e) { return null; }
+}
+async function recordSave(o) {
+  try {
+    const db = await recentDb();
+    if (!db) return;
+    const picture = mapPicture();   // taken now, while the map shows what was saved
+    const entry = makeEntry({ scope: cfgName, title: currentTitle(), fileName: o.fileName, handle: o.handle || null, json: o.json || null, appVersion: APP_VERSION });
+    const stored = await db.record(entry, o.handle ? (h) => h.isSameEntry(o.handle) : null);
+    const showing = () => !$("openModal").hidden && !$("paneDevice").hidden;
+    if (showing()) renderSavedMaps();
+    const thumb = await picture;
+    if (thumb) { await db.setThumb(stored.id, thumb); if (showing()) renderSavedMaps(); }
+  } catch (e) { console.warn("Couldn't add the map to the saved list", e); }
+}
+function savedWhen(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  try { return d.toLocaleString(cfg.locale || undefined, { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return d.toLocaleString(); }
+}
+function savedCard(r) {
+  const title = r.title || titleFromFileName(r.fileName) || S.untitled;
+  const li = document.createElement("li"); li.className = "cat-card"; li.dataset.id = r.id;
+  const top = document.createElement("div"); top.className = "cat-card-top";
+  const txt = document.createElement("div"); txt.className = "cat-card-text";
+  const h = document.createElement("h4"); h.className = "cat-card-title"; h.textContent = title;
+  const meta = document.createElement("p"); meta.className = "dev-meta"; meta.textContent = [t("savedOn", { date: savedWhen(r.savedAt) }), r.fileName].filter(Boolean).join(" · ");
+  const acts = document.createElement("div"); acts.className = "dev-acts";
+  const rm = document.createElement("button"); rm.type = "button"; rm.className = "cat-act quiet"; rm.textContent = S.removeFromList;
+  rm.setAttribute("aria-label", S.removeFromList + ": " + title);   // the visible words first, then the map
+  rm.addEventListener("click", () => removeSavedMap(r.id, title));
+  const open = document.createElement("button"); open.type = "button"; open.className = "cat-act"; open.textContent = S.openThisMap;
+  open.setAttribute("aria-label", S.openThisMap + ": " + title);
+  open.addEventListener("click", () => openSavedMap(r.id));
+  acts.append(rm, open);
+  txt.append(h, meta, acts);
+  const th = document.createElement("div"); th.className = "cat-thumb open" + (r.thumb ? "" : " blank"); th.setAttribute("aria-hidden", "true");
+  if (r.thumb) th.style.backgroundImage = "url('" + r.thumb + "')";   // a checked data: URL (lib/recent.js)
+  else th.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" focusable="false"><path d="M2.5 6.5 9 4l6 2.5L21.5 4v13.5L15 20l-6-2.5-6.5 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>';
+  th.addEventListener("click", () => openSavedMap(r.id));
+  top.append(txt, th);
+  li.appendChild(top);
+  return li;
+}
+async function renderSavedMaps(focusAfter) {
+  const seq = ++savedSeq, list = $("savedList"), status = $("savedStatus"), note = $("savedNote");
+  const db = await recentDb();
+  let rows = null;
+  if (db) { try { rows = await db.list(); } catch (e) { console.warn(e); } }
+  if (seq !== savedSeq) return;
+  list.innerHTML = "";
+  if (!rows) { status.textContent = S.savedMapsUnavailable; note.textContent = ""; return; }
+  status.textContent = !rows.length ? S.savedMapsNone : rows.length === 1 ? S.savedMapsCountOne : t("savedMapsCount", { n: rows.length });
+  note.textContent = !rows.length ? "" : rows.some((r) => !r.hasHandle) ? S.savedMapsNoteCopy : S.savedMapsNote;
+  for (const r of rows) list.appendChild(savedCard(r));
+  if (focusAfter != null) {
+    const cards = [...list.querySelectorAll(".cat-card")];
+    const f = cards[Math.min(focusAfter, cards.length - 1)];
+    (f ? f.querySelector(".cat-act:not(.quiet)") : $("browseDevice")).focus();
+  }
+}
+async function removeSavedMap(id, title) {
+  const db = await recentDb();
+  if (!db) return;
+  const index = [...$("savedList").querySelectorAll(".cat-card")].findIndex((li) => li.dataset.id === id);
+  try { await db.remove(id); toast(t("removedFromList", { title })); } catch (e) { console.warn(e); }
+  renderSavedMaps(Math.max(0, index));
+}
+async function openSavedMap(id) {
+  const db = await recentDb();
+  const r = db && await db.get(id).catch(() => null);
+  if (!r) { renderSavedMaps(); return; }
+  const name = (r.handle && r.handle.name) || r.fileName;
+  if (r.handle) {
+    let text;
+    try {
+      // The browser asks once whether this site may open the file again (it may remember the answer).
+      let perm = r.handle.queryPermission ? await r.handle.queryPermission({ mode: "read" }) : "granted";
+      if (perm !== "granted") perm = await r.handle.requestPermission({ mode: "read" });
+      if (perm !== "granted") { toast(t("savedMapDenied", { name }), 6000); return; }
+      text = await (await r.handle.getFile()).text();
+    } catch (e) {
+      if (e && e.name === "NotFoundError") toast(t("savedMapMissing", { name }), 7000);
+      else if (e && (e.name === "NotAllowedError" || e.name === "SecurityError")) toast(t("savedMapDenied", { name }), 6000);
+      else { console.error(e); toast(S.cantRead, 5000); }
+      return;
+    }
+    if (!confirmDiscard()) return;
+    if (await openDocText(text, name)) { currentFileHandle = r.handle; openedHandleUnsaved = false; }
+    return;
+  }
+  if (typeof r.json !== "string") { toast(S.cantRead, 5000); return; }
+  if (!confirmDiscard()) return;
+  if (await openDocText(r.json, name)) { currentFileHandle = null; openedHandleUnsaved = false; }
+}
 
 // ============================================================ Print (in the browser; nothing is sent to a print service)
 $("printTile").addEventListener("click", async () => {
@@ -2029,6 +2224,8 @@ $("agolUpdate").addEventListener("click", () => saveToArcGIS(true));
 function renderVersions() {
   const rows = [
     [cfg.appName + " (app)", APP_VERSION, "White-label build of the MapMaker app: every MapMaker tool, local save, CSV data, ArcGIS Online sign-in. Created by Jason Sawle."],
+    ["Basemaps", BASEMAPS_VERSION, "MapMaker's basemap cards: the basemap group's maps in the group's own order, two to a row; in 3D, its 3D basemaps first."],
+    ["Saved maps list (Open map, On this device)", RECENT_VERSION, "Maps saved on this device, newest first, kept in this browser. Chrome and Edge reopen the file itself; Safari and Firefox keep a copy of each saved map."],
     ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
     ["Elevation profile", PROFILE_VERSION, "Esri's Elevation Profile widget, opened from Measure and ready to draw: the height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],

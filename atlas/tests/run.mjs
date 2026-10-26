@@ -6,6 +6,8 @@ import * as doc from "../lib/doc.js";
 import * as catalog from "../lib/catalog.js";
 import * as addData from "../kit/add-data.js";
 import * as localSave from "../kit/local-save.js";
+import * as basemaps from "../lib/basemaps.js";
+import * as recent from "../lib/recent.js";
 import { DEFAULT_STRINGS } from "../lib/strings.js";
 
 let passed = 0;
@@ -375,6 +377,70 @@ test("kit: the whole map to a web map and back", async () => {
   const r = localSave.readWebMap(JSON.parse(JSON.stringify(json)));
   assert.ok(r.ok); assert.equal(r.layers[0].features.length, 3); assert.equal(r.graphics[0].attributes.color, "#d4572a");
   assert.equal(localSave.titleFromFileName("Field_trip-2.mmap"), "Field trip 2");
+});
+// ---------- Basemaps (MapMaker's card grid) ----------
+// The live basemap group (Basemaps for the Schools Living Atlas, October 2026), in its own order: date added, newest first.
+const BASEMAP_GROUP = [
+  { id: "46c8388da4c6485bb713da53d274deec", type: "Web Map", title: "OpenStreetMap Style", thumbnail: "thumbnail/ago_downloaded.png" },
+  { id: "048c8a152b764f61b626feff253b763e", type: "Web Map", title: "Ocean", thumbnail: "thumbnail/ago_downloaded.png" },
+  { id: "b7e903f67356416195cf1d91a2a682f2", type: "Web Scene", title: "3D Buildings", thumbnail: "thumbnail/ago_downloaded.png" },
+  { id: "0a5fc59c96e64f93929f8fd1b82d985b", type: "Web Map", title: "Black and White Outline", thumbnail: "thumbnail/thumbnail1709256941698.png" },
+  { id: "0d0c6a901f6042acaf8823f7d5ac8765", type: "Web Map", title: "Imagery (no labels) ", thumbnail: "thumbnail/ago_downloaded.png" },
+  { id: "a82ff7ce1c3a493f9d82aa89f5a1ddcf", type: "Web Map", title: "National Geographic Style", thumbnail: "thumbnail/ago_downloaded.png" },
+  { id: "ffffffffffffffffffffffffffffffff", type: "Web Mapping Application", title: "Not a basemap" },
+  { id: "048c8a152b764f61b626feff253b763e", type: "Web Map", title: "Ocean (again)" }];
+test("basemaps: 2D shows the group's web maps in its order; 3D puts 3D basemaps first", () => {
+  assert.deepEqual(basemaps.basemapItems(BASEMAP_GROUP, "2d").map((i) => i.title.trim()),
+    ["OpenStreetMap Style", "Ocean", "Black and White Outline", "Imagery (no labels)", "National Geographic Style"]);
+  assert.deepEqual(basemaps.basemapItems(BASEMAP_GROUP, "3d").map((i) => i.title.trim()).slice(0, 3), ["3D Buildings", "OpenStreetMap Style", "Ocean"]);
+  assert.deepEqual(basemaps.basemapItems(null, "2d"), []);
+});
+test("basemaps: the group's sort, thumbnails, which card is selected, arrow keys", () => {
+  assert.deepEqual(basemaps.groupSort({ sortField: "added", sortOrder: "desc" }), { sortField: "added", sortOrder: "desc" });
+  assert.deepEqual(basemaps.groupSort({ sortField: "TITLE", sortOrder: "asc" }), { sortField: "title", sortOrder: "asc" });
+  assert.deepEqual(basemaps.groupSort({ sortField: "nonsense" }), {});
+  assert.equal(basemaps.thumbnailUrl("https://www.arcgis.com/", BASEMAP_GROUP[3], 400),
+    "https://www.arcgis.com/sharing/rest/content/items/0a5fc59c96e64f93929f8fd1b82d985b/info/thumbnail/thumbnail1709256941698.png?w=400");
+  assert.equal(basemaps.thumbnailUrl("https://www.arcgis.com", { id: "a".repeat(32), thumbnail: "thumbnail/my pic.png" }), "https://www.arcgis.com/sharing/rest/content/items/" + "a".repeat(32) + "/info/thumbnail/my%20pic.png");
+  for (const bad of ["https://evil.example/x.png", "thumbnail/../../x", "../thumbnail/x.png", "thumbnail/x.png?y=1", ""]) assert.equal(basemaps.thumbnailUrl("https://www.arcgis.com", { id: "a".repeat(32), thumbnail: bad }), "", bad);
+  const two = basemaps.basemapItems(BASEMAP_GROUP, "2d");
+  assert.equal(basemaps.selectedId(two, { itemId: "048c8a152b764f61b626feff253b763e", title: "" }), "048c8a152b764f61b626feff253b763e");
+  assert.equal(basemaps.selectedId(two, { itemId: null, title: "imagery (no labels)" }), "0d0c6a901f6042acaf8823f7d5ac8765");   // a basemap from inside a web map
+  assert.equal(basemaps.selectedId(two, { itemId: "b7e903f67356416195cf1d91a2a682f2", title: "3D Buildings" }), null);   // 3D basemap, 2D list
+  assert.equal(basemaps.selectedId(two, null), null);
+  const inside = new Map([["048c8a152b764f61b626feff253b763e", "Oceans"]]);   // the title of the basemap inside the Ocean item
+  assert.equal(basemaps.needsDataTitles(two, { itemId: null, title: "Oceans" }), true);
+  assert.equal(basemaps.selectedId(two, { itemId: null, title: "Oceans" }, inside), "048c8a152b764f61b626feff253b763e");
+  assert.equal(basemaps.needsDataTitles(two, { itemId: null, title: "Ocean" }), false);   // the card's own name already matches
+  assert.equal(basemaps.needsDataTitles(two, { itemId: "048c8a152b764f61b626feff253b763e", title: "Ocean" }), false);
+  assert.equal(basemaps.gridMove(0, 5, 2, "ArrowRight"), 1); assert.equal(basemaps.gridMove(1, 5, 2, "ArrowDown"), 3);
+  assert.equal(basemaps.gridMove(3, 5, 2, "ArrowDown"), null); assert.equal(basemaps.gridMove(0, 5, 2, "ArrowLeft"), null);
+  assert.equal(basemaps.gridMove(2, 5, 2, "End"), 4); assert.equal(basemaps.gridMove(3, 5, 2, "Home"), 0); assert.equal(basemaps.gridMove(1, 5, 2, "a"), null);
+});
+
+// ---------- Saved maps on this device ----------
+test("saved maps: entries keep a handle or a copy, a checked picture, newest first", () => {
+  const pic = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==";
+  const h = { name: "trip.mmap" };
+  const a = recent.makeEntry({ scope: "mapmaker", title: " Trip ", fileName: "trip.mmap", savedAt: "2026-10-26T10:00:00.000Z", thumb: pic, handle: h, json: "{}" });
+  assert.equal(a.title, "Trip"); assert.equal(a.handle, h); assert.equal(a.json, null); assert.equal(a.thumb, pic); assert.ok(a.id);
+  const b = recent.makeEntry({ scope: "mapmaker", fileName: "b.mmap", savedAt: "2026-10-26T11:00:00.000Z", thumb: "javascript:alert(1)", json: "{\"x\":1}" });
+  assert.equal(b.thumb, null); assert.equal(b.handle, null); assert.equal(b.json, "{\"x\":1}");
+  assert.equal(recent.makeEntry({ thumb: "data:image/svg+xml;base64,PHN2Zz4=" }).thumb, null);   // only bitmap pictures
+  assert.equal(recent.makeEntry({ thumb: "data:image/png;base64,AAA=');background:url(x" }).thumb, null);
+  const c = recent.makeEntry({ scope: "mapmaker", fileName: "c.mmap", savedAt: "2026-10-25T09:00:00.000Z", json: "{}" });
+  assert.deepEqual(recent.sortEntries([a, c, b]).map((e) => e.fileName), ["b.mmap", "trip.mmap", "c.mmap"]);
+  const { keep, drop } = recent.pruneEntries([a, b, c], 2);
+  assert.deepEqual(keep.map((e) => e.fileName), ["b.mmap", "trip.mmap"]); assert.deepEqual(drop.map((e) => e.fileName), ["c.mmap"]);
+});
+test("saved maps: a new save may replace an entry with the same file name, kind and app", () => {
+  const list = [recent.makeEntry({ scope: "mapmaker", fileName: "a.mmap", handle: { name: "a.mmap" } }), recent.makeEntry({ scope: "mapmaker", fileName: "b.mmap", json: "{}" }),
+    recent.makeEntry({ scope: "default", fileName: "b.mmap", json: "{}" }), recent.makeEntry({ scope: "mapmaker", fileName: "a.mmap", json: "{}" })];
+  assert.deepEqual(recent.candidates(list, recent.makeEntry({ scope: "mapmaker", fileName: "a.mmap", handle: {} })), [list[0]]);   // then isSameEntry decides
+  assert.deepEqual(recent.candidates(list, recent.makeEntry({ scope: "mapmaker", fileName: "b.mmap", json: "{}" })), [list[1]]);  // a download: same name
+  assert.deepEqual(recent.candidates(list, recent.makeEntry({ scope: "mapmaker", fileName: "a.mmap", json: "{}" })), [list[3]]);
+  assert.deepEqual(recent.candidates(list, recent.makeEntry({ scope: "es", fileName: "b.mmap", json: "{}" })), []);
+  assert.equal(list[0].hasHandle, true); assert.equal(list[1].hasHandle, false);
 });
 test("every config translates only known strings", () => {
   for (const f of ["default", "mapmaker", "example-es"]) {

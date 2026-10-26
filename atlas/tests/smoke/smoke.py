@@ -11,7 +11,13 @@ from playwright.sync_api import sync_playwright
 HERE = pathlib.Path(__file__).resolve().parent
 ATLAS = HERE.parent.parent
 GROUP = "36443e9570294a1f883b5d2c5abfe6b5"
-CHROME = os.environ.get("CHROME", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
+def find_chrome():
+    """The newest Playwright Chromium on this machine (its folder name changes with each Playwright release)."""
+    found = sorted(pathlib.Path("/opt/pw-browsers").glob("chromium-*/chrome-linux*/chrome"), key=lambda q: int(re.sub(r"\D", "", q.parts[3]) or 0))
+    return str(found[-1]) if found else None
+
+
+CHROME = os.environ.get("CHROME") or find_chrome()
 
 # The live group's category list (Schools Living Atlas, October 2026).
 SCHEMA = {"categorySchema": [{"title": "Categories", "categories": [
@@ -110,6 +116,14 @@ TRIP_FILE = {"operationalLayers": [
   "initialState": {"viewpoint": {"targetGeometry": {"xmin": -1e6, "ymin": -1e6, "xmax": 1e6, "ymax": 1e6, "spatialReference": {"wkid": 102100}}}},
   "bookmarks": [{"name": "Camp", "extent": {"xmin": 0, "ymin": 0, "xmax": 100, "ymax": 100, "spatialReference": {"wkid": 102100}}, "thumbnail": {"url": PIXEL}}],
   "presentation": {"slides": [{"title": {"text": "Camp"}, "visibleLayers": [{"id": "parks"}, {"id": "__sketch_points"}]}]}}
+# The basemap group (Basemaps for the Schools Living Atlas, October 2026): its sort, and its items in no particular order.
+BASEMAP_GROUP = "406646c98d0f4c608a9438d40ce2df9e"
+BASEMAP_GROUP_INFO = {"id": BASEMAP_GROUP, "title": "Basemaps for the Schools Living Atlas (No Label)", "sortField": "added", "sortOrder": "desc"}
+BASEMAP_ITEMS = [{"id": i, "type": t, "title": n, "thumbnail": "thumbnail/ago_downloaded.png", "added": a} for i, t, n, a in [
+    ("46c8388da4c6485bb713da53d274deec", "Web Map", "OpenStreetMap Style", 9), ("048c8a152b764f61b626feff253b763e", "Web Map", "Ocean", 8),
+    ("b7e903f67356416195cf1d91a2a682f2", "Web Scene", "3D Buildings", 7), ("0a5fc59c96e64f93929f8fd1b82d985b", "Web Map", "Black and White Outline", 6),
+    ("0d0c6a901f6042acaf8823f7d5ac8765", "Web Map", "Imagery (no labels) ", 5), ("646feecfba1140cf8faa4cc8ef0b2c96", "Web Map", "Dark Gray", 4),
+    ("57fe4cebbabf4c77893bb570c8852bff", "Web Map", "Human Geography", 3), ("a82ff7ce1c3a493f9d82aa89f5a1ddcf", "Web Map", "National Geographic Style", 2)]]
 SPEC_ROOT = {"applicationProperties", "authoringApp", "authoringAppVersion", "background", "baseMap", "bookmarks", "geotriggersInfo", "initialState", "mapFloorInfo", "mapIPSInfo",
              "mapRangeInfo", "operationalLayers", "parcelFabric", "presentation", "referenceScale", "spatialReference", "tables", "timeZone", "utilityNetworks", "version", "widgets"}
 
@@ -156,6 +170,10 @@ def main():
             from urllib.parse import urlparse, parse_qs
             u = urlparse(url); params = {k: v[0] for k, v in parse_qs(u.query).items()}
             if u.path.endswith("/categorySchema"): body = SCHEMA
+            elif u.path.endswith(f"/community/groups/{BASEMAP_GROUP}"): body = BASEMAP_GROUP_INFO
+            elif u.path.endswith(f"/groups/{BASEMAP_GROUP}/search"):
+                res = sorted(BASEMAP_ITEMS, key=lambda x: x[params.get("sortField", "title")], reverse=params.get("sortOrder") == "desc")
+                body = {"total": len(res), "start": 1, "num": 100, "nextStart": -1, "results": res}
             elif u.path.endswith(f"/groups/{GROUP}/search"): body = search_response(params)
             elif re.search(r"/content/items/a82ff7ce1c3a493f9d82aa89f5a1ddcf/data$", u.path): body = BASEMAP_DATA
             elif re.search(r"/content/items/\w+/data$", u.path): body = MAP_DATA
@@ -209,7 +227,7 @@ def main():
             check(page.is_hidden("#hdrTitle > input"), "no title until a map is open")
             signin_visible = page.is_visible("#signInBtn")
             check(signin_visible == (cfg != "mapmaker"), f"header sign-in visible={signin_visible}")
-            check(page.inner_text("#verBtn") == "v1.5.0" and not page.query_selector(".credit") and "Jason Sawle" not in page.inner_text(".corner"), "version shown, no credit badge")
+            check(page.inner_text("#verBtn") == "v1.6.0" and not page.query_selector(".credit") and "Jason Sawle" not in page.inner_text(".corner"), "version shown, no credit badge")
             check(page.evaluate(OVERLAP_JS) == {"stack": False, "attribution": False, "corner": False}, "nothing under the toolbar (desktop)")
             page.screenshot(path=str(shots / f"{cfg}-desktop.png"))
             page.set_viewport_size({"width": 1280, "height": 800}); page.wait_for_timeout(500)
@@ -225,6 +243,19 @@ def main():
                 check(page.is_visible("#logoText") and page.inner_text("#logoText").strip() != "", "name shown instead of a logo")
             # Toolbar badges: nothing until there are layers or bookmarks
             check(page.is_hidden("#layersBadge") and page.is_hidden("#bookmarksDot") and page.inner_text("#tool-layers").strip() in ("Map layers", "Capas del mapa"), "no badge or dot on a new map")
+            # Basemaps: MapMaker's cards, the group's order (date added, newest first), the map's basemap selected
+            page.click("#tool-basemaps"); page.wait_for_selector("#basemapsGrid .bmg-card")
+            names = page.eval_on_selector_all("#basemapsGrid .bmg-title", "e => e.map(x => x.textContent)")
+            check(names == ["OpenStreetMap Style", "Ocean", "Black and White Outline", "Imagery (no labels)", "Dark Gray", "Human Geography", "National Geographic Style"], f"basemaps in the group's order {names}")
+            intro = {"mapmaker": "Select a basemap to refine the color of your map.", "default": "Choose the map underneath your layers.", "example-es": "Elige el mapa que va debajo de tus capas."}[cfg]
+            check(page.inner_text("#basemapsIntro") == intro, "basemaps line of text from the config")
+            check(page.eval_on_selector_all('.bmg-card[aria-pressed="true"]', "e => e.map(x => x.textContent)") == ["National Geographic Style"], "the default basemap is selected")
+            check(page.get_attribute("#basemapsGrid .bmg-thumb", "src").endswith("/content/items/46c8388da4c6485bb713da53d274deec/info/thumbnail/ago_downloaded.png?w=400"), "card picture from the item's thumbnail")
+            page.click('.bmg-card:has-text("Ocean")')
+            check(page.evaluate("window.__stub.views[0].map.basemap.portalItem.id") == "048c8a152b764f61b626feff253b763e"
+                  and page.eval_on_selector_all('.bmg-card[aria-pressed="true"]', "e => e.map(x => x.textContent)") == ["Ocean"], "choosing a card sets the basemap")
+            page.screenshot(path=str(shots / f"{cfg}-basemaps.png"))
+            page.click("#basemapsPanel [data-close]")
             # Measure opens a menu above it: Measure, Elevation profile
             page.click("#tool-measure")
             check(page.is_visible("#measureMenu") and page.get_attribute("#tool-measure", "aria-expanded") == "true", "measure menu opens")
@@ -409,6 +440,15 @@ def main():
             with page.expect_download() as dl:
                 page.click("#saveTile"); page.wait_for_selector("#nameModal:not([hidden])"); page.fill("#fileNameInput", "Field_trip_2"); page.click("#nameConfirm")
             saved = json.loads(pathlib.Path(dl.value.path()).read_text())
+            page.click("#tool-open"); page.click("#tabDevice")
+            page.wait_for_function("document.querySelectorAll('#savedList .cat-card').length === 1", timeout=10000)
+            card = page.inner_text("#savedList .cat-card")
+            check("Field trip" in card and "Field_trip_2.mmap" in card and page.is_visible("#savedNote"), "saved map listed under On this device: " + card.replace("\n", " | "))
+            page.add_script_tag(content=axe_js)
+            res = page.evaluate("axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))")
+            check(not res, f"axe (On this device) {res}")
+            page.screenshot(path=str(shots / f"{cfg}-device.png"))
+            page.keyboard.press("Escape")
             check(set(saved) <= SPEC_ROOT, f"only spec properties {sorted(set(saved) - SPEC_ROOT)}")
             check(all(k in saved for k in ("authoringApp", "authoringAppVersion", "baseMap", "spatialReference", "version")), "required web map properties")
             ids = [o["id"] for o in saved["operationalLayers"]]

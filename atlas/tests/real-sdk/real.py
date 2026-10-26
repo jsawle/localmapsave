@@ -25,7 +25,7 @@ ATLAS = HERE.parent.parent
 sys.path.insert(0, str(HERE.parent / "smoke"))
 import smoke  # noqa: E402  (fixtures: the group's categories, items, web map and basemap data)
 
-CHROME = os.environ.get("CHROME", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
+CHROME = smoke.CHROME
 SDK_VERSION = "5.1.0"
 ESBUILD_VERSION = "0.25.10"
 CDN = "https://js.arcgis.com/5.1/"
