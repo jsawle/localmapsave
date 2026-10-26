@@ -23,7 +23,7 @@ ATLAS = HERE.parent.parent
 sys.path.insert(0, str(HERE.parent / "smoke"))
 import smoke  # noqa: E402  (finds Chromium, fetches axe-core)
 
-APP_VERSION = "1.10.0"
+APP_VERSION = "1.9.1"
 # The live basemap group's web maps in its own order (date added, newest first), October 2026.
 GROUP_ORDER = ["OpenStreetMap Style", "Ocean", "Black and White Outline", "Imagery (no labels)", "Dark Gray", "Human Geography"]
 AXE = "axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))"

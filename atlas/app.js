@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.10.0";
+const APP_VERSION = "1.9.1";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -427,10 +427,8 @@ function panelClosing(name) {
   if (name === "measure") stopMeasuring();
   if (name === "profile") { stopProfile(); $("app").classList.remove("docked", "tools-shown"); syncToolsToggles(); setTimeout(layoutBottom, 0); }
   if (name === "data") {
-    const st = addState, ed = st && st.editing;
-    addState = null;
-    if (st && !dataDiscarding) { parkDraft(st); return; }   // another tool opened: set the data aside, don't lose it
-    removePreview(true);
+    const ed = addState && addState.editing;
+    addState = null; removePreview(true);
     if (ed) {   // editing a layer's style: put the layer back as it was, and go back to Map layers
       ed.layer.visible = ed.wasVisible;
       setTimeout(() => { if (!openPanelName) backToLayers(ed.layer.id); }, 0);
@@ -478,8 +476,7 @@ document.addEventListener("keydown", (e) => {
   if (!$("measureMenu").hidden) { closeToolMenu(true); return; }
   if (!$("userMenu").hidden) { closeUserMenu(true); return; }
   if (sketchPanelOpen && (drawing || placingText)) { setTool("select"); return; }
-  if (openPanelName === "data") discardData();
-  else if (openPanelName) closePanels();
+  if (openPanelName) closePanels();
 });
 
 // ============================================================ Pop-ups
@@ -934,7 +931,7 @@ function updateToolBadges() {
 function keepSketchOnTop() { const m = activeMap(); try { m.reorder(graphicsLayer, m.layers.length - 1); } catch (e) { /* ok */ } }
 function removeFromMaps(l) { for (const m of new Set([localMap, mapView.map, sceneView && sceneView.map])) { if (m) { try { m.remove(l); } catch (e) { /* not there */ } } } }
 function resetWorkspace() {
-  addState = null; removePreview(false); dropDraft();
+  addState = null; removePreview(false);
   dataLayers.splice(0).forEach(removeFromMaps);
   [...portalLayers.values()].forEach(removeFromMaps); portalLayers.clear();
   endSketchOps(); graphicsLayer.removeAll(); graphicsLayer.visible = true; selectedFeature = null;
@@ -1165,7 +1162,7 @@ function renderLayers() {
     if (isData || isPortal) {
       const d = document.createElement("button"); d.type = "button"; d.className = "mini"; d.innerHTML = ICON_TRASH; d.title = S.removeLayer; d.setAttribute("aria-label", S.removeLayer + ": " + title);
       d.addEventListener("click", () => {
-        if (isData) { if (parked && parked.editing && parked.editing.layer === l) dropDraft(); dataLayers.splice(dataLayers.indexOf(l), 1); removeFromMaps(l); markDirty(); toast(S.layerRemoved); renderLayers(); }
+        if (isData) { dataLayers.splice(dataLayers.indexOf(l), 1); removeFromMaps(l); markDirty(); toast(S.layerRemoved); renderLayers(); }
         else removePortalLayer(l.__item.itemId);
         if (catalogLoaded) refreshCatalogButtons();
       });
@@ -1531,15 +1528,7 @@ const addBrowser = createBrowser({ p: "al", query: '-type:"Web Map"', accept: (i
   } });
 function refreshCatalogButtons() { addBrowser.refreshActions(); }
 const switchAddTab = setupTabs([["tabLayers", "paneLayers"], ["tabOwnData", "paneOwnData"]], (tabId) => { if (tabId === "tabLayers") { addBrowser.start(); catalogLoaded = true; } });
-function openAddModal(tabId) {
-  closePanels(false);
-  const waiting = parked && !parked.editing;   // data set aside: open on Your own data, where it can be carried on
-  $("draftBox").hidden = !waiting;
-  if (waiting) $("draftText").textContent = t("draftWaiting", { name: parked.fileName || "" });
-  openModal("addModal", waiting ? $("draftResume") : null);
-  switchAddTab(waiting ? "tabOwnData" : tabId || "tabLayers");
-  if (waiting) setTimeout(() => $("draftResume").focus(), 0);
-}
+function openAddModal(tabId) { closePanels(false); openModal("addModal"); switchAddTab(tabId || "tabLayers"); }
 $("tool-add").addEventListener("click", () => openAddModal("tabLayers"));
 
 // ============================================================ Map and item information (ⓘ)
@@ -1625,7 +1614,6 @@ $("llUse").addEventListener("click", () => {
   continueCsv(p.name, p.parsed, la, lo);
 });
 function continueCsv(name, parsed, latIdx, lonIdx) {
-  dropDraft();   // a new file replaces data set aside earlier
   const data = buildLayerData(name, parsed, latIdx, lonIdx);
   if (!data.ok) { showDataError(t(data.code, data.params)); return; }
   addState = data;
@@ -1642,9 +1630,7 @@ function continueCsv(name, parsed, latIdx, lonIdx) {
 // Change the style of a spreadsheet layer already on the map: the same panel, filled in from the layer's definition.
 // The layer is hidden while the preview shows; Cancel puts it back, Apply replaces it in the same place with the same id.
 function editDataLayer(layer) {
-  if (parked && parked.editing && parked.editing.layer === layer) { resumeDraft(); return; }   // carry on where it was left
-  if (openPanelName === "data") discardData();
-  dropDraft();
+  if (openPanelName === "data") closePanels(false);
   const st = stateFromLayerDef(layer._srcDef);
   if (!st.ok) { toast(S.styleCantChange); return; }
   st.editing = { layer, wasVisible: layer.visible !== false };
@@ -1842,46 +1828,8 @@ function applyStyleEdit() {
   toast(t("styleChanged", { title: fl.title }));
 }
 $("dataSubmit").addEventListener("click", submitData);
-$("dataCancel").addEventListener("click", discardData);
-$("dataClose").addEventListener("click", discardData);
-
-// ---------- Data set aside (another tool opened while Add data or Change style was open)
-// Switching tools doesn't lose the work: the file and every setting are kept, the preview comes off the map (an edited
-// layer shows as it was), a message says so, and a dot shows on Add layer. Add layer opens on Your own data with
-// Carry on and Discard it; Change style on the same layer carries on. Only Cancel, x or Escape (or Discard it) discard.
-let parked = null, dataDiscarding = false;
-function discardData() { dataDiscarding = true; try { closePanels(); } finally { dataDiscarding = false; } }
-function syncDraftDot() {
-  const on = !!(parked && !parked.editing);
-  $("addDot").hidden = !on; $("addDotSr").textContent = on ? S.addDotSr : "";
-}
-function parkDraft(st) {
-  removePreview(false); prePreviewCam = null;
-  const ed = st.editing;
-  if (ed) ed.layer.visible = ed.wasVisible;
-  parked = st; syncDraftDot();
-  setTimeout(() => toast(ed ? t("styleParked", { title: ed.layer.title || "" }) : t("dataParked", { name: st.fileName || "" }), 6000), 0);
-}
-function dropDraft() { parked = null; syncDraftDot(); }
-function resumeDraft() {
-  const st = parked;
-  if (!st) return;
-  dropDraft();
-  closeModal("addModal");
-  if (st.editing) {
-    const ed = st.editing;
-    if (!dataLayers.includes(ed.layer)) { toast(S.styleCantChange); return; }   // the layer has gone since
-    ed.wasVisible = ed.layer.visible !== false; ed.layer.visible = false;
-  }
-  addState = st;
-  openPanel("data");
-  renderDataPanel();
-}
-$("draftResume").addEventListener("click", resumeDraft);
-$("draftDiscard").addEventListener("click", () => {
-  const name = parked ? parked.fileName || "" : "";
-  dropDraft(); $("draftBox").hidden = true; toast(t("draftDiscarded", { name })); $("csvPick").focus();
-});
+$("dataCancel").addEventListener("click", () => closePanels());
+$("dataClose").addEventListener("click", () => closePanels());
 $("dataSize").addEventListener("input", () => {
   const v = parseInt($("dataSize").value, 10) || 12;
   $("dataSizeVal").textContent = v + " px";
