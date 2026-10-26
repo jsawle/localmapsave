@@ -1,10 +1,10 @@
-// Saved maps are ArcGIS web maps: the same JSON (Web Map Specification) whether saved to a .mmap file on the
+// Saved maps are ArcGIS web maps: the same JSON (Web Map Specification) whether saved to an .amap file on the
 // device or to ArcGIS Online. This file writes and reads that JSON, and still reads the older .mmap documents.
 // Pure functions only (no ArcGIS SDK), so they can be unit-tested in Node.
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "2.0";        // 2.0 = the .mmap file is a web map; spec-only properties
+export const WEBMAP_WRITER_VERSION = "2.0";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties
 export const WEBMAP_SPEC_VERSION = "2.31";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
 export const DATA_LAYER_PREFIX = "__data_";        // spreadsheet (CSV) layers
@@ -335,7 +335,7 @@ export function specToBookmarks(list) {
 }
 
 /**
- * Build a web map (Web Map Specification) from the current document. Used for both the .mmap file and ArcGIS Online.
+ * Build a web map (Web Map Specification) from the current document. Used for both the .amap file and ArcGIS Online.
  * ctx: { baseMap, sourceLayers (operational layers of the opened map, with current visibility), portalLayers (JSON),
  *        extent, rotation, scale, appVersion, sketchTitle, sketchVisible }
  * Each bookmark's layers on/off are kept as a presentation slide with the same index (the spec's bookmark has no layer list).
@@ -463,7 +463,7 @@ function cleanTargetGeometry(g) {
 }
 
 /**
- * Read a web map (a .mmap file, any web map JSON, or an ArcGIS Online item's data).
+ * Read a web map (an .amap or .mmap file, any web map JSON, or an ArcGIS Online item's data).
  * Returns { ok:false, code } or { ok:true, webmap, graphics, layers, bookmarks, sketchVisible, skipped }:
  *  - webmap: JSON for the ArcGIS SDK without this app's own layers (and, from files, with every web address checked)
  *  - graphics / layers: this app's sketches and spreadsheet layers, rebuilt so they stay editable

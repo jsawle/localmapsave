@@ -7,9 +7,11 @@ import { docToWebMap, readWebMap, looksLikeWebMap, isOwnLayerJson, ITEM_LAYER_PR
 import { dataLayerDef } from "./add-data.js";
 
 export { readWebMap, looksLikeWebMap, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, SKETCH_GRAPHICS_ID, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, MAX_FEATURES };
-export const KIT_VERSION = "1.0";
-export const FILE_EXTENSION = ".mmap";
-const FILE_TYPES = [{ description: "Map", accept: { "application/json": [FILE_EXTENSION, ".json"] } }];
+export const KIT_VERSION = "1.1";   // 1.1: saves .amap files (opens .mmap too)
+export const FILE_EXTENSION = ".amap";   // Atlas map; .mmap files (the extension before Atlas 1.7) open too
+const OPEN_EXTENSIONS = [FILE_EXTENSION, ".mmap", ".json"];
+const FILE_TYPES = [{ description: "Map", accept: { "application/json": OPEN_EXTENSIONS } }];
+const SAVE_TYPES = [{ description: "Map", accept: { "application/json": [FILE_EXTENSION] } }];
 
 // ============================================================ Files on the device
 // Chrome and Edge: the File System Access API (choose a folder and name; Save overwrites the same file).
@@ -34,7 +36,7 @@ export async function saveWebMapFile(jsonOrBuilder, options) {
   if (canChooseFolder()) {
     let handle = o.saveAs ? null : o.handle || null;
     try {
-      if (!handle) handle = await window.showSaveFilePicker({ suggestedName: base + FILE_EXTENSION, types: FILE_TYPES });
+      if (!handle) handle = await window.showSaveFilePicker({ suggestedName: base + FILE_EXTENSION, types: SAVE_TYPES });
       const { blob, result } = await build();
       const w = await handle.createWritable(); await w.write(blob); await w.close();
       return { handle, name: handle.name, result };
@@ -64,7 +66,7 @@ export async function openWebMapFile() {
 }
 function pickWithInput() {
   return new Promise((resolve, reject) => {
-    const input = document.createElement("input"); input.type = "file"; input.accept = FILE_EXTENSION + ",.json,application/json";
+    const input = document.createElement("input"); input.type = "file"; input.accept = OPEN_EXTENSIONS.join(",") + ",application/json";
     input.addEventListener("change", async () => {
       const f = input.files && input.files[0];
       if (!f) { resolve(null); return; }
@@ -75,8 +77,8 @@ function pickWithInput() {
 }
 /** A dropped or chosen File -> { json, name }. */
 export async function readMapFile(file) { return { json: JSON.parse(await file.text()), name: file.name, handle: null }; }
-/** "Field_trip-2.mmap" -> "Field trip 2" (a web map has no title of its own; the file name is the map's name). */
-export const titleFromFileName = (name) => String(name || "").replace(/\.(mmap|json)$/i, "").replace(/[_-]+/g, " ").trim();
+/** "Field_trip-2.amap" -> "Field trip 2" (a web map has no title of its own; the file name is the map's name). */
+export const titleFromFileName = (name) => String(name || "").replace(/\.(amap|mmap|json)$/i, "").replace(/[_-]+/g, " ").trim();
 
 // ============================================================ Map -> web map JSON
 const LAYER_TYPE_JSON = { feature: "ArcGISFeatureLayer", "map-image": "ArcGISMapServiceLayer", tile: "ArcGISTiledMapServiceLayer", "vector-tile": "VectorTileLayer",

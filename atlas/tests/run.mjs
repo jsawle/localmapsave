@@ -376,7 +376,9 @@ test("kit: the whole map to a web map and back", async () => {
   assert.deepEqual(json.operationalLayers.map((o) => o.id), ["__data_t9", "__sketch_points"]);
   const r = localSave.readWebMap(JSON.parse(JSON.stringify(json)));
   assert.ok(r.ok); assert.equal(r.layers[0].features.length, 3); assert.equal(r.graphics[0].attributes.color, "#d4572a");
-  assert.equal(localSave.titleFromFileName("Field_trip-2.mmap"), "Field trip 2");
+  assert.equal(localSave.titleFromFileName("Field_trip-2.amap"), "Field trip 2");
+  assert.equal(localSave.titleFromFileName("Field_trip-2.mmap"), "Field trip 2");   // files from before 1.7
+  assert.equal(localSave.FILE_EXTENSION, ".amap");
 });
 // ---------- Basemaps (MapMaker's card grid) ----------
 // The live basemap group (Basemaps for the Schools Living Atlas, October 2026), in its own order: date added, newest first.

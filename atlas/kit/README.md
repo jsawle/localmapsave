@@ -7,7 +7,7 @@ Code for two features MapMaker (the Atlas Instant App) doesn't have today:
 
 It's taken from the white-label MapMaker app in this repository (`atlas/`), where both features run in full. The kit is the logic without that app's interface, so it can go into Atlas or any app built with the ArcGIS Maps SDK for JavaScript (4.x or 5.x).
 
-Kit version **1.0**. Created by Jason Sawle.
+Kit version **1.1** (saves `.amap` files; 1.0 saved `.mmap`, which still open). Created by Jason Sawle.
 
 ## What's in it
 
@@ -27,8 +27,8 @@ SDK classes are passed in, not imported, so the same code works with the CDN (`$
 CSV file ──readCsvData──► data ──layerDefFromData──► layer definition ──createDataLayer──► FeatureLayer on the map
                                                        (feature collection JSON)
 
-map + sketches + data layers + bookmarks ──mapToWebMapJson──► web map JSON ──saveWebMapFile──► file.mmap
-file.mmap ──openWebMapFile──► JSON ──loadWebMapJson (checks, WebMap.fromJSON)──► WebMap + sketches + data layers
+map + sketches + data layers + bookmarks ──mapToWebMapJson──► web map JSON ──saveWebMapFile──► file.amap
+file.amap ──openWebMapFile──► JSON ──loadWebMapJson (checks, WebMap.fromJSON)──► WebMap + sketches + data layers
 ```
 
 The saved file is ordinary web map JSON: the same JSON a web map item stores in ArcGIS Online. So a saved map can also be written to ArcGIS Online as a web map item, and a web map's JSON can be opened from a file.
