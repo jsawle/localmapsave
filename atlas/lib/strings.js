@@ -196,6 +196,13 @@ export const DEFAULT_STRINGS = {
   applyStyle: "Apply",
   styleChanged: "Changed the style of “{title}”.",
   styleCantChange: "This layer's style can't be changed here.",
+  dataParked: "“{name}” isn't on the map yet. Select Add layer to carry on.",
+  styleParked: "The new style for “{title}” isn't applied yet. Select Change style for it in Map layers to carry on.",
+  draftWaiting: "“{name}” isn't on the map yet.",
+  draftResume: "Carry on",
+  draftDiscard: "Discard it",
+  draftDiscarded: "Discarded “{name}”.",
+  addDotSr: ", data not added yet",
 
   // Legend
   legendEmpty: "Layers with a legend will appear here.",
