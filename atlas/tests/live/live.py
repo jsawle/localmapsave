@@ -23,7 +23,7 @@ ATLAS = HERE.parent.parent
 sys.path.insert(0, str(HERE.parent / "smoke"))
 import smoke  # noqa: E402  (finds Chromium, fetches axe-core)
 
-APP_VERSION = "1.9.0"
+APP_VERSION = "1.9.1"
 # The live basemap group's web maps in its own order (date added, newest first), October 2026.
 GROUP_ORDER = ["OpenStreetMap Style", "Ocean", "Black and White Outline", "Imagery (no labels)", "Dark Gray", "Human Geography"]
 AXE = "axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))"
@@ -161,7 +161,7 @@ def main():
         sug = page.evaluate("window.__picker.suggested")
         check(sug.split(" ")[0].endswith(".amap") and '[".amap"]' in sug, f"the save dialog suggests an .amap file {sug}")
         cards = open_device_tab(page, 1)
-        check(len(cards) == 1 and cards[0]["title"] == title and "battles.amap" in cards[0]["meta"] and cards[0]["meta"].startswith("Saved "), f"saved map listed {cards}")
+        check(len(cards) == 1 and cards[0]["title"] == "battles" and "battles.amap" in cards[0]["meta"] and cards[0]["meta"].startswith("Saved "), f"saved map listed {cards}")
         check(cards[0]["thumb"].startswith('url("data:image/jpeg'), "with a picture of the map")
         check(page.inner_text("#savedStatus") == "1 map saved in this browser" and "doesn't delete its file" in page.inner_text("#savedNote"), "count and note")
         page.screenshot(path=str(shots / "device-one.png"))

@@ -2,11 +2,13 @@
 // Pure functions only (no ArcGIS SDK), so they can be unit-tested in Node.
 // Nothing here sends the file anywhere: parsing happens in the browser.
 
-export const CSV_VERSION = "3.2";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
+export const CSV_VERSION = "3.3";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
                                     // multi-language lat/long names, manual column choice
                                     // 3.1: a layer's style can be changed after it's added (stateFromLayerDef)
                                     // 3.2: coordinates with N/S/E/W and degrees-minutes-seconds; whole-number codes
                                     //      (2-12 values) can be types; pie charts from chosen columns
+                                    // 3.3: "By type" uses text columns only again: whole numbers are always amounts
+                                    //      (a litter survey's counts looked like codes in a small file)
 
 export const PALETTE_HEX = ["#0079c1", "#d4572a", "#1a7f37", "#8250df", "#b4453a", "#9a6700", "#e3116c", "#2b2b2b"];
 export const PALETTE_RGB = [
@@ -250,12 +252,12 @@ export function buildLayerData(fileName, parsed, latIdx, lonIdx) {
 }
 
 /**
- * Which columns can be styled by number (size, shade) and which by type: text columns with 2 to 12 different values,
- * then whole-number columns with 2 to 12 different values (site or quadrat numbers), which stay numbers as well.
- * categoricalText is the text ones only (the automatic first choice prefers them).
+ * Which columns can be styled by number (size, shade) and which by type: text columns with 2 to 12 different values.
+ * Number columns are never types: in a small file, counts (litter tallies) can't be told from codes.
+ * categoricalText is the same list (kept for callers that ask for text categories).
  */
 export function columnKinds(fields, features, coordNames) {
-  const numeric = [], categoricalText = [], codes = [];
+  const numeric = [], categoricalText = [];
   const distinct = (name) => {
     const seen = new Set();
     for (const ft of features) {
@@ -269,13 +271,12 @@ export function columnKinds(fields, features, coordNames) {
     if (f.type === "esriFieldTypeOID" || f.name === "_pieTotal" || coordNames.includes(f.name)) continue;
     if (f.type !== "esriFieldTypeString") {
       numeric.push(f.name);
-      if (/Integer$/.test(f.type)) { const n = distinct(f.name).size; if (n >= 2 && n <= 12) codes.push(f.name); }
       continue;
     }
     const n = distinct(f.name).size;
     if (n >= 2 && n <= 12) categoricalText.push(f.name);
   }
-  return { numeric, categorical: categoricalText.concat(codes), categoricalText };
+  return { numeric, categorical: categoricalText.slice(), categoricalText };
 }
 
 // Columns that look like identifiers or dates rather than amounts: left out of a pie chart unless chosen.
@@ -348,7 +349,7 @@ export function styleAvailable(style, st) {
   return true;
 }
 export function pickAutoStyle(st) {
-  const text = { ...st, categorical: st.categoricalText || st.categorical };   // number codes are offered, not picked
+  const text = { ...st, categorical: st.categoricalText || st.categorical };
   for (const id of ["categorical_size", "categorical", "graduated", "simple"]) {
     const s = DATA_STYLES.find((x) => x.id === id);
     if (s && styleAvailable(s, text)) return s;

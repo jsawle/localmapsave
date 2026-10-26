@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.9.0";
+const APP_VERSION = "1.9.1";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -1979,7 +1979,7 @@ async function writeToHandle(forceNew) {
       // A map opened from the saved list: ask to write to its file now, while the click still counts.
       if ((await currentFileHandle.requestPermission({ mode: "readwrite" })) !== "granted") { const d = new Error("Not allowed"); d.name = "NotAllowedError"; throw d; }
     }
-    if (!($("docTitle").value || "").trim()) setTitle(titleFromFileName(currentFileHandle.name));
+    setTitle(titleFromFileName(currentFileHandle.name));   // a saved map is named by its file: the header shows what reopening shows
     const blob = await docBlob();
     const w = await currentFileHandle.createWritable();
     await w.write(blob); await w.close();
@@ -2001,7 +2001,7 @@ function openNameDialog() { $("fileNameInput").value = titleSlug(); openModal("n
 async function confirmNameDialog() {
   const name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
   closeModal("nameModal");
-  if (!($("docTitle").value || "").trim()) setTitle(titleFromFileName(name));
+  setTitle(titleFromFileName(name));   // as above
   try {
     const text = await docText();
     downloadBlob(new Blob([text], { type: "application/json" }), name + FILE_EXT); markClean(); toast(t("savedDownload", { name: name + FILE_EXT }));
@@ -2052,7 +2052,7 @@ function savedWhen(iso) {
   try { return d.toLocaleString(cfg.locale || undefined, { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return d.toLocaleString(); }
 }
 function savedCard(r) {
-  const title = r.title || titleFromFileName(r.fileName) || S.untitled;
+  const title = titleFromFileName(r.fileName) || r.title || S.untitled;   // the name the map opens with (from its file)
   const li = document.createElement("li"); li.className = "cat-card"; li.dataset.id = r.id;
   const top = document.createElement("div"); top.className = "cat-card-top";
   const txt = document.createElement("div"); txt.className = "cat-card-text";
