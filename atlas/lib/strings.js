@@ -79,7 +79,7 @@ export const DEFAULT_STRINGS = {
   loadMore: "Show more",
   openThisMap: "Open map",
   details: "Details",
-  deviceLead: "Maps you save are .mmap files on this device. No account and no cloud.",
+  deviceLead: "Maps you save are .amap files on this device. No account and no cloud.",
   savedMaps: "Saved maps",
   savedMapsCount: "{n} maps saved in this browser",
   savedMapsCountOne: "1 map saved in this browser",
@@ -166,7 +166,7 @@ export const DEFAULT_STRINGS = {
   csvTooMany: "That's {n} rows. This app can map up to {max}. Try a smaller file.",
   csvNoCoords: "None of the rows had usable latitude and longitude. Use decimal degrees, for example 51.5 and -0.12.",
   dropHere: "Drop your file to add it to the map",
-  dropWhat: "Drop a .csv file to add data, or a .mmap file to open a saved map.",
+  dropWhat: "Drop a .csv file to add data, or an .amap file to open a saved map.",
   pieIn3d: "Pie-chart layers only draw in 2D. Switch back to 2D to see them.",
   no3d: "The 3D view couldn't start on this device.",
 
@@ -248,7 +248,7 @@ export const DEFAULT_STRINGS = {
   saveAs: "Save as…",
   screenshot: "Screenshot",
   print: "Print",
-  saveNote: "No sign-in needed. Your map saves to a .mmap file on this device. Open map lists it under On this device, so you can carry on any time.",
+  saveNote: "No sign-in needed. Your map saves to an .amap file on this device. Open map lists it under On this device, so you can carry on any time.",
   openSaved: "Open a saved map",
   arcgisSection: "ArcGIS Online",
   arcgisSignedOut: "Sign in to save this map to your ArcGIS Online account.",
@@ -283,7 +283,7 @@ export const DEFAULT_STRINGS = {
   // Open / file
   openedFile: "Opened “{title}”: {n} feature(s).",
   skippedOnOpen: "{n} item(s) in the file couldn't be used and were left out.",
-  notMapFile: "That isn't a saved map (.mmap) or a web map file.",
+  notMapFile: "That isn't a saved map (.amap or .mmap) or a web map file.",
   cantRead: "Couldn't read that file.",
   mapFile: "Map",
 

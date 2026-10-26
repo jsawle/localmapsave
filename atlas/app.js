@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.6.0";
+const APP_VERSION = "1.7.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.0";
@@ -331,7 +331,9 @@ function currentTitle() { return ($("docTitle").value || "").trim() || S.untitle
 function updateTitleShown() { $("hdrTitle").classList.toggle("empty", !($("docTitle").value || "").trim() && document.activeElement !== $("docTitle")); }
 function setTitle(v) { $("docTitle").value = (v && String(v).trim()) || ""; sizeTitle(); updateTitleShown(); }
 $("docTitle").addEventListener("blur", updateTitleShown);
-const titleFromFileName = (name) => String(name || "").replace(/\.(mmap|json)$/i, "").replace(/[_-]+/g, " ").trim();
+// Saved maps are .amap files (Atlas map). .mmap files from versions before 1.7 open too.
+const FILE_EXT = ".amap", OPEN_EXTS = [".amap", ".mmap", ".json"];
+const titleFromFileName = (name) => String(name || "").replace(/\.(amap|mmap|json)$/i, "").replace(/[_-]+/g, " ").trim();
 sizeTitle(); updateTitleShown();
 // Keep the disclaimer and credit clear of the toolbar: lift them above it when they would overlap.
 function layoutCorner() {
@@ -1739,7 +1741,7 @@ window.addEventListener("drop", (e) => {
 function readText(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsText(file); }); }
 async function handleDroppedFile(f) {
   const name = f.name || "";
-  if (/\.(mmap|json)$/i.test(name)) {
+  if (/\.(amap|mmap|json)$/i.test(name)) {
     if (F.localSave === false) return;
     if (!confirmDiscard()) return;
     try { const txt = await readText(f); if (await openDocText(txt, name)) { currentFileHandle = null; openedHandleUnsaved = false; } } catch (e) { toast(S.cantRead); }
@@ -1752,7 +1754,7 @@ async function handleDroppedFile(f) {
   toast(S.dropWhat, 5000);
 }
 
-// ============================================================ Local save and open (.mmap)
+// ============================================================ Local save and open (.amap; older .mmap files open too)
 function currentViewpoint() { return { center: [view.center.longitude, view.center.latitude], zoom: view.zoom }; }
 function buildDocument() {
   const doc = {
@@ -1815,13 +1817,13 @@ async function openDocText(text, fileName) {
 function openFromDevice() {
   if (!confirmDiscard()) return;
   if (window.showOpenFilePicker) {
-    window.showOpenFilePicker({ multiple: false, types: [{ description: S.mapFile, accept: { "application/json": [".mmap", ".json"] } }] })
+    window.showOpenFilePicker({ multiple: false, types: [{ description: S.mapFile, accept: { "application/json": OPEN_EXTS } }] })
       .then(async ([h]) => { const f = await h.getFile(); if (await openDocText(await f.text(), h.name || f.name)) { currentFileHandle = h; openedHandleUnsaved = true; } })
       .catch((err) => { if (err && err.name === "AbortError") return; pickViaInput(); });
   } else pickViaInput();
 }
 function pickViaInput() {
-  const input = document.createElement("input"); input.type = "file"; input.accept = ".mmap,.json,application/json";
+  const input = document.createElement("input"); input.type = "file"; input.accept = OPEN_EXTS.join(",") + ",application/json";
   input.addEventListener("change", async () => {
     const f = input.files && input.files[0];
     if (!f) return;
@@ -1855,7 +1857,7 @@ function saveToDevice(forceNew) {
 async function writeToHandle(forceNew) {
   try {
     if (forceNew || !currentFileHandle) {
-      currentFileHandle = await window.showSaveFilePicker({ suggestedName: titleSlug() + ".mmap", types: [{ description: S.mapFile, accept: { "application/json": [".mmap"] } }] });
+      currentFileHandle = await window.showSaveFilePicker({ suggestedName: titleSlug() + FILE_EXT, types: [{ description: S.mapFile, accept: { "application/json": [FILE_EXT] } }] });
     } else if (currentFileHandle.queryPermission && (await currentFileHandle.queryPermission({ mode: "readwrite" })) !== "granted") {
       // A map opened from the saved list: ask to write to its file now, while the click still counts.
       if ((await currentFileHandle.requestPermission({ mode: "readwrite" })) !== "granted") { const d = new Error("Not allowed"); d.name = "NotAllowedError"; throw d; }
@@ -1865,8 +1867,8 @@ async function writeToHandle(forceNew) {
     const w = await currentFileHandle.createWritable();
     await w.write(blob); await w.close();
     openedHandleUnsaved = false; markClean();
-    toast(t("savedFile", { name: currentFileHandle.name || titleSlug() + ".mmap" }));
-    recordSave({ handle: currentFileHandle, fileName: currentFileHandle.name || titleSlug() + ".mmap" });
+    toast(t("savedFile", { name: currentFileHandle.name || titleSlug() + FILE_EXT }));
+    recordSave({ handle: currentFileHandle, fileName: currentFileHandle.name || titleSlug() + FILE_EXT });
     if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
   } catch (err) {
     if (err && err.name === "AbortError") return;
@@ -1885,8 +1887,8 @@ async function confirmNameDialog() {
   if (!($("docTitle").value || "").trim()) setTitle(titleFromFileName(name));
   try {
     const text = await docText();
-    downloadBlob(new Blob([text], { type: "application/json" }), name + ".mmap"); markClean(); toast(t("savedDownload", { name: name + ".mmap" }));
-    recordSave({ json: text, fileName: name + ".mmap" });
+    downloadBlob(new Blob([text], { type: "application/json" }), name + FILE_EXT); markClean(); toast(t("savedDownload", { name: name + FILE_EXT }));
+    recordSave({ json: text, fileName: name + FILE_EXT });
   } catch (e) { console.error(e); toast(S.saveFailed); return; }
   if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
 }
@@ -2229,8 +2231,8 @@ function renderVersions() {
     ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
     ["Elevation profile", PROFILE_VERSION, "Esri's Elevation Profile widget, opened from Measure and ready to draw: the height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
-    ["Saved map (.mmap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers, basemap, view and bookmarks. The same JSON is stored in ArcGIS Online."],
-    ["Older .mmap files (open only)", String(DOC_VERSION), "MapMakerLocalDocument versions 2 to 4, from earlier versions of this app, the local-save concept and Map Studio."],
+    ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers, basemap, view and bookmarks. The same JSON is stored in ArcGIS Online."],
+    ["Older .mmap files (open only)", String(DOC_VERSION), "MapMakerLocalDocument versions 2 to 4, from earlier versions of this app, the local-save concept and Map Studio. (.mmap files saved as web maps by versions 1.2 to 1.6 open like .amap files.)"],
     ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview."],
     ["Sketch", SKETCH_VERSION, "Points, lines, areas, circles and text, with pop-ups, images, colour, size and rotation; move, reshape and delete."],
     [S.configLabel, String(cfg.configVersion || 1), cfgName + ".json (schema " + CONFIG_SCHEMA + ")"],

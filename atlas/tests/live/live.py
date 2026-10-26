@@ -23,14 +23,14 @@ ATLAS = HERE.parent.parent
 sys.path.insert(0, str(HERE.parent / "smoke"))
 import smoke  # noqa: E402  (finds Chromium, fetches axe-core)
 
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.7.0"
 # The live basemap group's web maps in its own order (date added, newest first), October 2026.
 GROUP_ORDER = ["OpenStreetMap Style", "Ocean", "Black and White Outline", "Imagery (no labels)", "Dark Gray", "Human Geography"]
 AXE = "axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))"
 # Chrome's save and open dialogs, answered with files in the page's private file system (origin private file system).
 PICKERS = """
-window.__picker = { saves: 0, opens: 0, next: null, open: null };
-window.showSaveFilePicker = async (o) => { __picker.saves++; const d = await navigator.storage.getDirectory(); return d.getFileHandle(__picker.next || o.suggestedName, { create: true }); };
+window.__picker = { saves: 0, opens: 0, next: null, open: null, suggested: null };
+window.showSaveFilePicker = async (o) => { __picker.saves++; __picker.suggested = o.suggestedName + ' ' + JSON.stringify(o.types); const d = await navigator.storage.getDirectory(); return d.getFileHandle(__picker.next || o.suggestedName, { create: true }); };
 window.showOpenFilePicker = async () => { __picker.opens++; const d = await navigator.storage.getDirectory(); return [await d.getFileHandle(__picker.open)]; };
 window.__readFile = async (n) => { const d = await navigator.storage.getDirectory(); return (await (await d.getFileHandle(n)).getFile()).text(); };
 window.__deleteFile = async (n) => { const d = await navigator.storage.getDirectory(); await d.removeEntry(n); };
@@ -154,29 +154,31 @@ def main():
         page.click("#omList > li:first-child .cat-act")
         page.wait_for_function("t => document.querySelector('#docTitle').value === t", arg=title, timeout=30000); page.wait_for_timeout(4000)
         layers = page.inner_text("#layersBadge")
-        page.evaluate("window.__picker.next = 'battles.mmap'")
-        save_panel(page); page.click("#saveTile"); toast(page, "Saved battles.mmap")
+        page.evaluate("window.__picker.next = 'battles.amap'")
+        save_panel(page); page.click("#saveTile"); toast(page, "Saved battles.amap")
         wait_list(page, 1)
+        sug = page.evaluate("window.__picker.suggested")
+        check(sug.split(" ")[0].endswith(".amap") and '[".amap"]' in sug, f"the save dialog suggests an .amap file {sug}")
         cards = open_device_tab(page, 1)
-        check(len(cards) == 1 and cards[0]["title"] == title and "battles.mmap" in cards[0]["meta"] and cards[0]["meta"].startswith("Saved "), f"saved map listed {cards}")
+        check(len(cards) == 1 and cards[0]["title"] == title and "battles.amap" in cards[0]["meta"] and cards[0]["meta"].startswith("Saved "), f"saved map listed {cards}")
         check(cards[0]["thumb"].startswith('url("data:image/jpeg'), "with a picture of the map")
         check(page.inner_text("#savedStatus") == "1 map saved in this browser" and "doesn't delete its file" in page.inner_text("#savedNote"), "count and note")
         page.screenshot(path=str(shots / "device-one.png"))
         page.keyboard.press("Escape")
         # Save again: same file, same entry, no dialog
         page.click("#tool-basemaps"); page.wait_for_selector(".bmg-card"); page.click('.bmg-card:has-text("Dark Gray")'); page.wait_for_timeout(800)
-        save_panel(page); page.click("#saveTile"); toast(page, "Saved battles.mmap"); page.wait_for_timeout(1500)
+        save_panel(page); page.click("#saveTile"); toast(page, "Saved battles.amap"); page.wait_for_timeout(1500)
         check(page.evaluate("window.__picker.saves") == 1, "Save writes to the same file without asking again")
-        check(json.loads(page.evaluate("__readFile('battles.mmap')"))["baseMap"]["title"] == "Human Geography Dark", "the file has the change (the Dark Gray item's basemap)")
+        check(json.loads(page.evaluate("__readFile('battles.amap')"))["baseMap"]["title"] == "Human Geography Dark", "the file has the change (the Dark Gray item's basemap)")
         wait_list(page, 1); page.wait_for_timeout(500)
         cards = open_device_tab(page)
         check(len(cards) == 1, f"saving the same file again keeps one entry ({len(cards)})")
         page.keyboard.press("Escape")
         # Save as: a second file, listed first
-        page.evaluate("window.__picker.next = 'battles_copy.mmap'")
-        save_panel(page); page.click("#saveAsTile"); toast(page, "Saved battles_copy.mmap"); wait_list(page, 2)
+        page.evaluate("window.__picker.next = 'battles_copy.amap'")
+        save_panel(page); page.click("#saveAsTile"); toast(page, "Saved battles_copy.amap"); wait_list(page, 2)
         cards = open_device_tab(page, 2)
-        check([c["meta"].split(" · ")[-1] for c in cards] == ["battles_copy.mmap", "battles.mmap"], f"Save as adds one, newest first {[c['meta'] for c in cards]}")
+        check([c["meta"].split(" · ")[-1] for c in cards] == ["battles_copy.amap", "battles.amap"], f"Save as adds one, newest first {[c['meta'] for c in cards]}")
         page.add_script_tag(content=axe_js); res = page.evaluate(AXE)
         check(not res, f"axe (On this device) {res}")
         page.screenshot(path=str(shots / "device-two.png"))
@@ -191,19 +193,19 @@ def main():
         page.wait_for_function("document.querySelector('.bmg-card[aria-pressed=\"true\"]')", timeout=20000)
         check(page.eval_on_selector_all('.bmg-card[aria-pressed="true"]', "e => e.map(x => x.textContent)") == ["Dark Gray"], "with its basemap, found by the name inside the item")
         page.click('.bmg-card:has-text("Ocean")'); page.wait_for_timeout(800)
-        save_panel(page); page.click("#saveTile"); toast(page, "Saved battles.mmap"); page.wait_for_timeout(1500)
-        check(page.evaluate("window.__picker.saves") == 0 and json.loads(page.evaluate("__readFile('battles.mmap')"))["baseMap"]["title"] == "Oceans",
+        save_panel(page); page.click("#saveTile"); toast(page, "Saved battles.amap"); page.wait_for_timeout(1500)
+        check(page.evaluate("window.__picker.saves") == 0 and json.loads(page.evaluate("__readFile('battles.amap')"))["baseMap"]["title"] == "Oceans",
               "Save after opening from the list writes to that file")
         page.click("#tool-open"); page.click("#tabDevice")
-        page.wait_for_function("() => { const m = document.querySelector('#savedList .cat-card .dev-meta'); return m && m.textContent.endsWith('battles.mmap'); }", timeout=15000)
+        page.wait_for_function("() => { const m = document.querySelector('#savedList .cat-card .dev-meta'); return m && m.textContent.endsWith('battles.amap'); }", timeout=15000)
         check(True, "and moves it to the top")
         # Remove from the list: the file stays
         page.click('#savedList .cat-card:nth-child(2) .cat-act.quiet'); toast(page, "from the list")
         cards = saved_cards(page, 1)
-        check(len(cards) == 1 and page.evaluate("__files()") == ["battles.mmap", "battles_copy.mmap"], "removing from the list leaves the file")
+        check(len(cards) == 1 and page.evaluate("__files()") == ["battles.amap", "battles_copy.amap"], "removing from the list leaves the file")
         check(page.evaluate("document.activeElement.classList.contains('cat-act')"), "focus moves to the next card")
         # A file that has gone
-        page.evaluate("__deleteFile('battles.mmap')")
+        page.evaluate("__deleteFile('battles.amap')")
         page.click('#savedList .cat-card:first-child .cat-act:not(.quiet)'); toast(page, "isn't where it was saved")
         check(page.is_visible("#openModal"), "a missing file is reported and the dialog stays open")
         check(not errors, f"console errors (On this device) {errors[:3]}")
@@ -221,7 +223,7 @@ def main():
         downloaded = pathlib.Path(dl.value.path()).read_text()
         wait_list(page, 1)
         cards = open_device_tab(page, 1)
-        check(len(cards) == 1 and "field_trip.mmap" in cards[0]["meta"] and "keeps a copy" in page.inner_text("#savedNote"), f"download listed, with the note about the copy {cards}")
+        check(len(cards) == 1 and "field_trip.amap" in cards[0]["meta"] and "keeps a copy" in page.inner_text("#savedNote"), f"download listed, with the note about the copy {cards}")
         page.reload(); page.wait_for_function("document.querySelector('.esri-attribution')", timeout=90000); page.wait_for_timeout(2500)
         open_device_tab(page, 1)
         page.click('#savedList .cat-card:first-child .cat-act:not(.quiet)')
@@ -243,7 +245,7 @@ def main():
         check(fit and cols == 2, f"Basemaps fits the phone, two to a row ({cols})")
         page.screenshot(path=str(shots / "phone-basemaps.png"))
         page.click("#tool-basemaps")
-        page.evaluate("window.__picker.next = 'phone.mmap'"); save_panel(page); page.click("#saveTile"); toast(page, "Saved phone.mmap"); wait_list(page, 1)
+        page.evaluate("window.__picker.next = 'phone.amap'"); save_panel(page); page.click("#saveTile"); toast(page, "Saved phone.amap"); wait_list(page, 1)
         cards = open_device_tab(page, 1)
         check(len(cards) == 1 and page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "On this device lists it and fits the phone (private-mode context: the list never reads file handles)")
         page.screenshot(path=str(shots / "phone-device.png"))

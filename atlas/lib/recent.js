@@ -21,7 +21,7 @@ export function makeEntry({ id, scope, title, fileName, savedAt, thumb, handle, 
   const okThumb = typeof thumb === "string" && /^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb) && thumb.length < 400000;
   return {
     id: id || newId(), scope: String(scope || "default"),
-    title: String(title || "").trim().slice(0, 200), fileName: String(fileName || "map.mmap").slice(0, 200),
+    title: String(title || "").trim().slice(0, 200), fileName: String(fileName || "map.amap").slice(0, 200),
     savedAt: savedAt || new Date().toISOString(), thumb: okThumb ? thumb : null,
     hasHandle: !!handle, handle: handle || null, json: handle ? null : (typeof json === "string" ? json : null), appVersion: appVersion || ""
   };

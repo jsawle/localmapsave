@@ -230,7 +230,7 @@ export function buildLayerData(fileName, parsed, latIdx, lonIdx) {
   return { ok: true, fileName, features, fields, numeric, categorical, dropped, coordNames };
 }
 
-// ---------- Styling (renderers in ArcGIS REST JSON, so the same definition saves to .mmap and to a web map) ----------
+// ---------- Styling (renderers in ArcGIS REST JSON, so the same definition saves to an .amap file and to a web map) ----------
 
 export function styleAvailable(style, st) {
   const q = style.requires;

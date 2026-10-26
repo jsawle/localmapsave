@@ -2,11 +2,11 @@
 
 A configurable version of the National Geographic MapMaker app (an Atlas Instant App), built on ArcGIS Maps SDK for JavaScript 5.1. It has the same screen layout and tools, and adds three things MapMaker can't do today:
 
-- **Local save:** save to a `.mmap` file on the device and reopen it later, with no account. The file is a standard ArcGIS web map (see *Saved maps* below).
+- **Local save:** save to an `.amap` (Atlas map) file on the device and reopen it later, with no account. The file is a standard ArcGIS web map (see *Saved maps* below).
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.6.0**. Created by Jason Sawle.
+Version **1.7.0**. Created by Jason Sawle.
 
 **For developers:** the local save and add data logic is packaged on its own, with a minimal example, in [`kit/`](kit/README.md).
 
@@ -69,7 +69,9 @@ Groups should be **public**. Signed-in users can also see content shared with th
 
 ## Saved maps
 
-A saved map is an ArcGIS **web map**: JSON that follows Esri's [Web Map Specification](https://developers.arcgis.com/web-map-specification/) (version 2.31), with only properties the specification defines. Save (a `.mmap` file) and Save to ArcGIS Online write exactly the same JSON.
+A saved map is an ArcGIS **web map**: JSON that follows Esri's [Web Map Specification](https://developers.arcgis.com/web-map-specification/) (version 2.31), with only properties the specification defines. Save (an `.amap` file) and Save to ArcGIS Online write exactly the same JSON.
+
+The extension is `.amap`, for the Atlas Instant App the app is modelled on, so it isn't tied to MapMaker. Versions before 1.7 saved the same web map as `.mmap`; those files open as before (choose them in Browse this device, or drop them on the map).
 
 | What's in the map | How it's written |
 |---|---|
@@ -82,9 +84,9 @@ A saved map is an ArcGIS **web map**: JSON that follows Esri's [Web Map Specific
 | Bookmarks | `bookmarks`, with a thumbnail. Which layers each one turns on is kept in a matching presentation slide (`presentation.slides`, `visibleLayers`), because a bookmark has no layer list in the specification |
 
 Opening:
-- **Any web map JSON** opens: a `.mmap` from this app, or the data of a web map from ArcGIS Online saved to a file. This app's sketches and spreadsheet layers come back editable.
+- **Any web map JSON** opens: an `.amap` (or older `.mmap`) from this app, or the data of a web map from ArcGIS Online saved to a file. This app's sketches and spreadsheet layers come back editable.
 - **Files are checked first.** Layers must load from `https` addresses and be a layer type the specification defines. Pictures must be embedded or come from `https`. Picture symbols that would load from anywhere else are replaced, and files are capped at 5,000 features. Anything left out is counted in a message.
-- **Older `.mmap` files** (saved before version 1.2) still open.
+- **Older `.mmap` files** still open: web maps saved by versions 1.2 to 1.6, and the older document format from before 1.2.
 - A web map is a 2D document, so saved maps reopen in 2D.
 
 **On this device.** Every save also puts the map in a list kept in this browser, which Open map shows under *On this device*: title, when it was saved, the file name and a picture of the map, newest first (up to 30). Saving the same file again updates its entry; Save as adds a new one.
@@ -138,13 +140,13 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.6.0 |
+| App | 1.7.0: saved maps are `.amap` files |
 | Basemaps | 2.0: MapMaker's card grid (1.x was Esri's Basemap Gallery widget) |
 | Saved maps list (Open map, On this device) | 1.0 |
 | Collection browser (Open map, Add layer) | 2.0 |
 | Compass | 1.0 |
 | Elevation profile | 2.0: land and sea floor (TopoBathy 3D), ready to draw on opening |
-| Saved map (.mmap and ArcGIS Online) | 2.0: a web map (Web Map Specification 2.31) |
+| Saved map (.amap and ArcGIS Online) | 2.0: a web map (Web Map Specification 2.31) |
 | Older .mmap files (open only) | 4. Also opens versions 2 and 3 from the local-save concept, and Map Studio files |
 | CSV import | 3.0 |
 | Sketch | 1.0 |
