@@ -116,6 +116,17 @@ TRIP_FILE = {"operationalLayers": [
   "initialState": {"viewpoint": {"targetGeometry": {"xmin": -1e6, "ymin": -1e6, "xmax": 1e6, "ymax": 1e6, "spatialReference": {"wkid": 102100}}}},
   "bookmarks": [{"name": "Camp", "extent": {"xmin": 0, "ymin": 0, "xmax": 100, "ymax": 100, "spatialReference": {"wkid": 102100}}, "thumbnail": {"url": PIXEL}}],
   "presentation": {"slides": [{"title": {"text": "Camp"}, "visibleLayers": [{"id": "parks"}, {"id": "__sketch_points"}]}]}}
+# A map like MapMaker's "1775-1776 Revolutionary Battles": a plain layer, a group of two, and a labelled layer only drawn
+# when zoomed in (out of scale at the start), bottom first.
+LAYERS_FILE = {"operationalLayers": [
+    {"id": "rivers", "title": "Rivers", "layerType": "ArcGISFeatureLayer", "url": "https://services.arcgis.com/r/arcgis/rest/services/Rivers/FeatureServer/0", "visibility": True},
+    {"id": "g", "title": "Battlefields", "layerType": "GroupLayer", "visibility": True, "layers": [
+        {"id": "g1", "title": "Boundary", "layerType": "ArcGISFeatureLayer", "url": "https://services.arcgis.com/b/arcgis/rest/services/B/FeatureServer/0"},
+        {"id": "g2", "title": "Core areas", "layerType": "ArcGISFeatureLayer", "url": "https://services.arcgis.com/b/arcgis/rest/services/B/FeatureServer/1"}]},
+    {"id": "turning", "title": "Turning Points", "layerType": "ArcGISFeatureLayer", "url": "https://services.arcgis.com/t/arcgis/rest/services/T/FeatureServer/0", "showLabels": True,
+     "layerDefinition": {"minScale": 3600000, "drawingInfo": {"labelingInfo": [{"labelExpressionInfo": {"expression": "$feature.NAME"}, "symbol": {"type": "esriTS", "color": [0, 0, 0, 255]}}]}}}],
+  "baseMap": {"baseMapLayers": [{"id": "img", "layerType": "ArcGISTiledMapServiceLayer", "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"}], "title": "Imagery"},
+  "spatialReference": {"wkid": 102100}, "version": "2.31", "authoringApp": "Somewhere", "authoringAppVersion": "1"}
 # The basemap group (Basemaps for the Schools Living Atlas, October 2026): its sort, and its items in no particular order.
 BASEMAP_GROUP = "406646c98d0f4c608a9438d40ce2df9e"
 BASEMAP_GROUP_INFO = {"id": BASEMAP_GROUP, "title": "Basemaps for the Schools Living Atlas (No Label)", "sortField": "added", "sortOrder": "desc"}
@@ -227,7 +238,7 @@ def main():
             check(page.is_hidden("#hdrTitle > input"), "no title until a map is open")
             signin_visible = page.is_visible("#signInBtn")
             check(signin_visible == (cfg != "mapmaker"), f"header sign-in visible={signin_visible}")
-            check(page.inner_text("#verBtn") == "v1.11.0" and not page.query_selector(".credit") and "Jason Sawle" not in page.inner_text(".corner"), "version shown, no credit badge")
+            check(page.inner_text("#verBtn") == "v1.12.0" and not page.query_selector(".credit") and "Jason Sawle" not in page.inner_text(".corner"), "version shown, no credit badge")
             check(page.evaluate(OVERLAP_JS) == {"stack": False, "attribution": False, "corner": False}, "nothing under the toolbar (desktop)")
             page.screenshot(path=str(shots / f"{cfg}-desktop.png"))
             page.set_viewport_size({"width": 1280, "height": 800}); page.wait_for_timeout(500)
@@ -463,6 +474,66 @@ def main():
             vis = sorted(v["id"] for v in saved["presentation"]["slides"][0]["visibleLayers"])
             check(vis == ["__sketch_points", "parks"], f"bookmark's layers on/off {vis}")
             check(saved["initialState"]["viewpoint"]["targetGeometry"]["spatialReference"]["wkid"] == 102100 and saved["initialState"]["viewpoint"].get("scale"), "view saved")
+            # Map layers: MapMaker's layer tools
+            lf = shots / "Battles.amap"; lf.write_text(json.dumps(LAYERS_FILE))
+            page.click("#tool-open"); page.click("#tabDevice")
+            with page.expect_file_chooser() as fc: page.click("#browseDevice")
+            fc.value.set_files(str(lf)); page.wait_for_timeout(800)
+            page.click("#tool-layers"); page.wait_for_timeout(300)
+            rows = page.eval_on_selector_all("#layersList > li.lyr .li-title", "ts => ts.map(t => t.textContent)")
+            check(rows[1:] == ["Turning Points", "Battlefields", "Rivers"], f"layers listed top first {rows}")
+            tools = page.eval_on_selector_all("#layersList > li.lyr:nth-child(2) .lyr-tools > button", "bs => bs.map(b => b.title)")
+            check(tools in (["Zoom to layer", "Show legend", "Adjust transparency", "Swipe", "Table", "Layer's description", "Labels", "Remove layer"],
+                            ["Acercar a la capa", "Mostrar leyenda", "Ajustar transparencia", "Deslizar", "Tabla", "Descripción de la capa", "Etiquetas", "Quitar capa"]), f"MapMaker's tools, Labels only where there are labels {tools}")
+            gtools = page.eval_on_selector_all("#layersList > li.lyr:nth-child(3) .lyr-tools > button", "bs => bs.length")
+            check(gtools == 4, f"a group has Zoom to, Transparency, Description and Remove ({gtools})")
+            tp = "#layersList > li.lyr:nth-child(2)"
+            check(page.is_visible(tp + " .lyr-scale") and "off" in page.get_attribute(tp + " .li-title", "class") and page.is_hidden("#layersList > li.lyr:nth-child(4) .lyr-scale"), "a layer out of its scale range is greyed with an information button")
+            page.click(tp + " .lyr-scale")
+            check(page.is_visible(tp + " .lyr-note") and page.get_attribute(tp + " .lyr-scale", "aria-expanded") == "true", "which says it isn't visible at this scale: " + page.inner_text(tp + " .lyr-note"))
+            page.click(tp + " [data-key$=':labels']")
+            check(page.get_attribute(tp + " [data-key$=':labels']", "aria-pressed") == "false" and page.evaluate("document.activeElement.dataset.key.endsWith(':labels')"), "Labels turns the labels off; focus stays on the button")
+            page.click(tp + " .lyr-toggle")
+            check(page.is_hidden(tp + " .lyr-tools") and page.get_attribute(tp + " .lyr-toggle", "aria-expanded") == "false", "the chevron hides a layer's tools")
+            page.click(tp + " .lyr-toggle")
+            gp = "#layersList > li.lyr:nth-child(3)"
+            page.click(gp + " .lyr-open")
+            subs = page.eval_on_selector_all(gp + " .lyr-subs > li .li-title", "ts => ts.map(t => t.textContent)")
+            check(subs == ["Core areas", "Boundary"] and page.get_attribute(gp + " .lyr-open", "aria-expanded") == "true", f"a group opens to its layers, top first {subs}")
+            check(page.eval_on_selector_all(gp + " .lyr-subs > li:first-child .lyr-tools > button", "bs => bs.length") == 7, "each layer in a group has its own tools")
+            rv = "#layersList > li.lyr:nth-child(4)"
+            page.click(rv + " [data-key$=':legend']")
+            check(page.is_visible(rv + " .lyr-legend.esri-legend") and page.get_attribute(rv + " [data-key$=':legend']", "aria-pressed") == "true", "Show legend shows the layer's legend under it")
+            page.click(rv + " [data-key$=':transp']")
+            page.eval_on_selector(rv + " .lyr-transp input", "r => { r.value = '40'; r.dispatchEvent(new Event('input', { bubbles: true })); }")
+            check(page.evaluate("window.__stub.views[0].map.layers.toArray().find(l => l.id === 'rivers').opacity") == 0.6 and page.get_attribute(rv + " .lyr-transp input", "aria-valuetext") == "40%", "Adjust transparency: 40% transparent")
+            page.add_script_tag(content=axe_js)
+            res = page.evaluate("axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))")
+            check(not res, f"axe (Map layers with tools open) {res}")
+            page.screenshot(path=str(shots / f"{cfg}-layers.png"))
+            page.click(rv + " [data-key$=':swipe']"); page.wait_for_timeout(200)
+            check(page.evaluate("window.__stub.swipe && window.__stub.swipe.leading.join()") == "rivers" and page.get_attribute(rv + " [data-key$=':swipe']", "aria-pressed") == "true", "Swipe shows the layer on one side of the line")
+            page.click(rv + " [data-key$=':swipe']"); page.wait_for_timeout(100)
+            check(page.query_selector(".esri-swipe") is None, "Swipe again ends it")
+            page.click(rv + " [data-key$=':table']"); page.wait_for_timeout(200)
+            check(page.is_visible("#tableDock") and page.evaluate("window.__stub.table") == "rivers" and "docked" in page.get_attribute("#app", "class"), "Table opens the layer's attributes under the map")
+            page.click("#tableClose"); page.wait_for_timeout(100)
+            check(page.is_hidden("#tableDock") and "docked" not in page.get_attribute("#app", "class") and page.evaluate("document.activeElement.dataset.key.endsWith(':table')"), "closing the table goes back to its button")
+            page.click(rv + " [data-key$=':info']"); page.wait_for_timeout(100)
+            check(page.is_visible(rv + " .lyr-info") and page.inner_text(rv + " .lyr-info-h") in ("Layer's description", "Descripción de la capa"), "Layer's description under the layer")
+            page.focus(rv + " .lyr-drag"); page.keyboard.press("ArrowUp"); page.wait_for_timeout(100)
+            rows = page.eval_on_selector_all("#layersList > li.lyr > .lyr-head .li-title", "ts => ts.map(t => t.textContent)")
+            check(rows[1:] == ["Turning Points", "Rivers", "Battlefields"] and page.evaluate("document.activeElement.classList.contains('lyr-drag')") and "2" in page.inner_text("#layersLive"), f"arrow keys on the handle move a layer: {rows} / {page.inner_text('#layersLive')}")
+            page.click("#layersList > li.lyr:nth-child(4) .lyr-subs > li:last-child [data-key$=':remove']"); page.wait_for_timeout(100)
+            subs = page.eval_on_selector_all("#layersList > li.lyr:nth-child(4) .lyr-subs > li .li-title", "ts => ts.map(t => t.textContent)")
+            check(subs == ["Core areas"] and page.evaluate("document.activeElement.dataset.key.endsWith(':remove')"), f"Remove takes a layer out of its group, focus on the next Remove {subs}")
+            page.click("#tool-save")
+            with page.expect_download() as dl:
+                page.click("#saveTile"); page.wait_for_selector("#nameModal:not([hidden])"); page.fill("#fileNameInput", "Battles_2"); page.click("#nameConfirm")
+            saved4 = json.loads(pathlib.Path(dl.value.path()).read_text())
+            ops4 = {o["id"]: o for o in saved4["operationalLayers"]}
+            check([o["id"] for o in saved4["operationalLayers"]] == ["g", "rivers", "turning"], f"saved in the new drawing order {[o['id'] for o in saved4['operationalLayers']]}")
+            check(ops4["rivers"]["opacity"] == 0.6 and ops4["turning"]["showLabels"] is False and [x["id"] for x in ops4["g"]["layers"]] == ["g2"], "transparency, labels off and the removed layer saved")
             # a collection map plus a layer from Add layer, saved and reopened
             page.click("#tool-open"); page.click("#tabGroup"); page.wait_for_selector("#omList .cat-act"); page.click("#omList > li:first-child .cat-act"); page.wait_for_timeout(600)
             page.click("#tool-add"); page.wait_for_selector("#alList .cat-act"); page.fill("#alSearch", "annual average"); page.wait_for_timeout(300)

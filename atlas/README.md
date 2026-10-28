@@ -6,7 +6,7 @@ A configurable version of the National Geographic MapMaker app (an Atlas Instant
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.11.0**. Created by Jason Sawle.
+Version **1.12.0**. Created by Jason Sawle.
 
 **For developers:** the local save and add data logic is packaged on its own, with a minimal example, in [`kit/`](kit/README.md).
 
@@ -30,7 +30,7 @@ The toolbar is in MapMaker's order: Basemaps, Open map, Map layers, Add layer, L
 | Header | Logo (wide, plus a compact version on tablets and phones), help links, partner logos. The map title with ⓘ (description and credits) appears once a map is open. A Sign in button is optional (`signIn.headerButton`); MapMaker signs in from Save |
 | Open map | MapMaker's browser for the collection's maps: search, a **Categories** tree (the content group's categories, with arrows for sub-categories, a reset button, and a Categories button to hide the tree), wide cards with an expandable description, and page numbers. Counts show how many maps each category holds, and the search looks inside the chosen category. Maps whose categories aren't in the group's list appear under *Other*. *On this device* lists every map saved in this browser, newest first, with a picture of each, and *Browse this device* opens any other file (see *Saved maps*). When signed in, *My ArcGIS maps*. Plus *Start a new blank map* |
 | Add layer | A dialog like MapMaker's: the same browser for the collection's layers, each card with **Add layer** (then **Remove layer**). A second tab, *Your own data*, adds a spreadsheet (CSV). *Your own data*: coordinates can be decimal degrees (51.5, -0.12), with N/S/E/W (51.5N, 0.12W) or in degrees, minutes and seconds (51°30'15"N); a **Swap latitude and longitude** button fixes columns the wrong way round; **pie charts** use the columns ticked (2 to 8; ID-like columns such as "Site ID" or "Year" start unticked), each pie sized by their total; *By type* uses text columns (number columns are always amounts). Excel files get a message to save them as CSV first. Opening another tool before **Add to map** asks *Discard your data?* (**Keep editing** or **Discard data**); Cancel, × and Escape in the panel discard straight away, and opening or starting a map counts the unadded file as unsaved work |
-| Map layers | Turn layers on and off, zoom to a layer, remove layers you added. Spreadsheet (CSV) layers have a **Change style** button (palette icon) that reopens the styling panel with the layer's current settings: map style, columns, shape, colours, size and labels, with a live preview; **Apply** updates the layer in place (bookmarks still find it), Cancel or Escape leaves it as it was; opening another tool with changes not applied asks *Discard your style changes?* first. It also works for spreadsheet layers in a map opened from a file. As in MapMaker, the button shows how many layers the map has: its top-level layers, so a group counts once (MapMaker shows 6 for "1777-1778 Revolutionary Battles": four layers and two groups). It updates as layers are added or removed |
+| Map layers | As in MapMaker: each layer has a drag handle, its name, a chevron that shows or hides its tools, and a check box. The tools: **Zoom to**, **Show legend** (the layer's legend under it), **Adjust transparency** (0–100% slider), **Swipe** (2D: the layer shows on the left of a line you drag across the map), **Table** (the layer's attributes docked under the map, with the toolbar tucked away as for Elevation profile), **Layer's description** (from its item), **Labels** (only for layers that have labels) and **Remove** (any layer, straight away). A group opens with its arrow to show its layers, each with the same tools; a group itself has Zoom to, transparency, description and Remove. A layer outside its scale range is greyed, with an ⓘ that says *This layer is not visible at the current map scale*. Drag the handle to change the drawing order, or focus it and use the up and down arrow keys (the new position is announced). The sketch layer stays on top. Order, transparency, labels on/off and removed layers are kept when you save. Spreadsheet (CSV) layers also have a **Change style** button (palette icon) that reopens the styling panel with the layer's current settings: map style, columns, shape, colours, size and labels, with a live preview; **Apply** updates the layer in place (bookmarks still find it), Cancel or Escape leaves it as it was; opening another tool with changes not applied asks *Discard your style changes?* first. It also works for spreadsheet layers in a map opened from a file. As in MapMaker, the button shows how many layers the map has: its top-level layers, so a group counts once (MapMaker shows 6 for "1777-1778 Revolutionary Battles": four layers and two groups). It updates as layers are added or removed |
 | Legend | Legend for every layer |
 | Basemaps | As in MapMaker: a line of text, then the basemap group as a grid of cards, two to a row, with a picture above each name, in the group's own order (MapMaker's group: date added, newest first). The map's basemap is selected. In 3D the group's 3D basemaps (web scenes) come first. New maps start on the configured default |
 | Measure | Opens a small menu above the tool, as in MapMaker: **Measure** (distance, area and coordinates; direct-line distance in 3D) and **Elevation profile**, which docks across the bottom of the screen with the map above it, as in MapMaker. It's ready to draw as soon as it opens: click on the map to start the line, double-click to finish. It shows the height of the land and the sea floor (Esri's World Elevation TopoBathy 3D, credited in the panel) along the line, or along a line you've sketched. The panel is a short strip (under a third of the screen) with the chart on the left and the settings, legend and buttons on the right, so nothing needs scrolling; on phones the buttons come first. While it's open the toolbar is tucked away; the button under the scale bar brings it back |
@@ -75,9 +75,9 @@ The extension is `.amap`, for the Atlas Instant App the app is modelled on, so i
 
 | What's in the map | How it's written |
 |---|---|
-| The map you opened from the collection | Its own operational layers, with your layers on/off and transparency. The file no longer depends on the collection map staying the same |
+| The map you opened from the collection | Its own operational layers as they are in Map layers: on/off, transparency, labels on/off (`showLabels`), drawing order, and any you removed (including layers inside a group) left out. The file no longer depends on the collection map staying the same |
 | Layers from Add layer | Operational layers that keep their item ID and address (layer id `__item_<item id>`) |
-| Your spreadsheet data | A feature collection layer with its style, labels and pop-up (layer id `__data_…`) |
+| Your spreadsheet data | A feature collection layer with its style, labels (on or off) and pop-up (layer id `__data_…`) |
 | Your sketches | Feature collection layers for points, lines, areas and text (layer ids `__sketch_…`). Pop-ups show the title, description and picture in other ArcGIS apps too |
 | Basemap | The full basemap definition |
 | View | `initialState.viewpoint`: extent, scale and rotation |
@@ -124,6 +124,7 @@ Notes:
 - Escape closes the top dialog or panel and returns focus to the button that opened it. Focus stays inside dialogs while they're open.
 - Toolbar buttons report open/closed and on/off states. Messages are read out by screen readers.
 - The layer count and the bookmarks dot are part of the buttons' names for screen readers ("Map layers, 6 layers", "Bookmarks, 1 bookmark"), and stay visible in Windows high-contrast mode.
+- Map layers: every tool is a button named with its layer ("Swipe: Revolutionary War Battles"); Show legend, transparency, Swipe, Table, description and Labels say whether they're on (`aria-pressed`). Reordering never needs dragging: the handle moves a layer with the up and down arrow keys and the new position is announced. Greyed names (off, or out of scale) stay at 5:1 contrast or more, lighter than MapMaker's grey for that reason.
 - In Open map and Add layer, each category's name includes its number of maps or layers, the arrow buttons say which branch they open, page buttons are labelled, the result count is announced when the list changes, and changing page moves focus to the list.
 - The compass is a button whose name says which way the map faces.
 - Measure opens a menu: arrow keys move between Measure and Elevation profile, and Escape closes it and returns to the tool.
@@ -141,13 +142,13 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.11.0: opening another tool while Add data or Change style has unfinished work asks before discarding it (replaces 1.10.0's set-aside data and dot on Add layer). 1.9.1: *By type* is for text columns only again; saved maps are shown under their file's name. 1.9.0: fixes from Esri's code review (CSV coordinates, swap, pie columns; rotation; US wording; 3D bookmarks; newer-file warning) |
+| App | 1.12.0: MapMaker's layer tools in Map layers (drag to reorder, show/hide tools, Zoom to, legend, transparency, Swipe, Table, description, Labels, Remove; groups open to their layers; out-of-scale ⓘ). 1.11.0: opening another tool while Add data or Change style has unfinished work asks before discarding it (replaces 1.10.0's set-aside data and dot on Add layer). 1.9.1: *By type* is for text columns only again; saved maps are shown under their file's name. 1.9.0: fixes from Esri's code review (CSV coordinates, swap, pie columns; rotation; US wording; 3D bookmarks; newer-file warning) |
 | Basemaps | 2.0: MapMaker's card grid (1.x was Esri's Basemap Gallery widget) |
 | Saved maps list (Open map, On this device) | 1.0 |
 | Collection browser (Open map, Add layer) | 2.0 |
 | Compass | 1.0 |
 | Elevation profile | 2.0: land and sea floor (TopoBathy 3D), ready to draw on opening |
-| Saved map (.amap and ArcGIS Online) | 2.0: a web map (Web Map Specification 2.31) |
+| Saved map (.amap and ArcGIS Online) | 2.1: layers in the map's drawing order, labels on/off. 2.0: a web map (Web Map Specification 2.31) |
 | Older .mmap files (open only) | 4. Also opens versions 2 and 3 from the local-save concept, and Map Studio files |
 | CSV import | 3.3: N/S/E/W and degrees-minutes-seconds, pie columns, stray quotes inside a cell read as text; *By type* from text columns only |
 | Sketch | 1.1: rotation for text only |
@@ -155,8 +156,12 @@ The app version, plus a version for each part, is shown under the version button
 
 ## Known limits
 
-- **Esri widgets:** Measure, Elevation profile, Legend, Search, Home and Scale bar use Esri widgets. Esri marks these as deprecated from SDK 5.0 in favour of web components. They work in 5.1 but should move to components in a later version.
+- **Esri widgets:** Measure, Elevation profile, Legend, Swipe, Table, Search, Home and Scale bar use Esri widgets. Esri marks these as deprecated from SDK 5.0 in favour of web components. They work in 5.1 but should move to components in a later version.
 - **Pie-chart layers** only draw in 2D.
+- **Swipe** works in 2D only (the SDK's Swipe is for 2D maps), so the button isn't shown in 3D and switching to 3D ends a swipe.
+- **Table** uses Esri's FeatureTable widget (also deprecated from SDK 5.0 in favour of a component). With the map view attached, as here so rows selected in the table are highlighted on the map, SDK 5.1 logs an unhandled error in the browser console for each layer in the map that failed to load. Nothing shows to the user.
+- **Layer's description** comes from the layer's item. A group without an item, and a layer added from a spreadsheet, say so instead.
+- **The sketch layer** (My sketches) has Zoom to only, and can't be dragged: it always draws on top, as before.
 - **Hemisphere letters** are N, S, E and W only. "O" for west (Spanish, French) isn't read, because in German "O" means east (Ost).
 - **3D bookmarks** keep their tilt and heading only while the app is open. The web map specification's bookmark viewpoint hasn't been confirmed to allow a camera, and saved maps keep to the specification.
 - **A map saved by a newer version** of the app opens with a note that some parts may not show.

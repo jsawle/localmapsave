@@ -526,6 +526,30 @@ test("whole numbers are amounts, never types (Community Litter Survey)", () => {
   const q = csv.readCsv("Quadrat,Latitude,Longitude,Count\n1,51.1,-0.1,4\n2,51.2,-0.2,7\n1,51.3,-0.3,2\n");
   assert.deepEqual(csv.buildLayerData("q.csv", q, q.latIdx, q.lonIdx).categorical, []);   // not even site or quadrat numbers
 });
+test("Map layers changes are saved: drawing order, labels off, a group's layers", () => {
+  const d = { graphics: [], layers: [{ id: "csv1", title: "Trees", geometryType: "point", objectIdField: "ObjectId", fields: [{ name: "ObjectId", type: "esriFieldTypeOID" }, { name: "N", type: "esriFieldTypeString" }],
+    renderer: { type: "simple", symbol: { type: "esriSMS", style: "esriSMSCircle", color: [0, 0, 0, 255], size: 8 } },
+    labelingInfo: [{ labelExpressionInfo: { expression: "$feature.N" }, symbol: { type: "esriTS", color: [0, 0, 0, 255] } }],
+    features: [{ geometry: pt, attributes: { ObjectId: 1, N: "Oak" } }], showLabels: false }] };
+  const group = { id: "g", title: "Battlefields", layerType: "GroupLayer", visibility: true, opacity: 0.5,
+    layers: [{ id: "g2", title: "Core", layerType: "ArcGISFeatureLayer", url: "https://services.arcgis.com/c/FeatureServer/0", visibility: false }] };
+  const wm = doc.docToWebMap(d, { baseMap: { baseMapLayers: [], title: "B" },
+    sourceLayers: [{ id: "lyrA", title: "Rivers", layerType: "ArcGISFeatureLayer", url: "https://services.arcgis.com/a/FeatureServer/0", showLabels: false }, group],
+    portalLayers: [{ id: "__item_" + "a".repeat(32), title: "Biomes", layerType: "ArcGISFeatureLayer", itemId: "a".repeat(32), url: "https://services.arcgis.com/b/FeatureServer/0" }],
+    order: ["__data_csv1", "__item_" + "a".repeat(32), "g", "lyrA"], sketchTitle: "My sketches" });
+  assert.deepEqual(wm.operationalLayers.map((o) => o.id), ["__data_csv1", "__item_" + "a".repeat(32), "g", "lyrA"]);   // bottom first, as on the map
+  assert.equal(wm.operationalLayers[0].showLabels, false);
+  const r = doc.readWebMap(JSON.parse(JSON.stringify(wm)));
+  assert.ok(r.ok);
+  assert.deepEqual(r.webmap.operationalLayers.map((o) => o.id), ["__item_" + "a".repeat(32), "g", "lyrA"]);
+  assert.equal(r.webmap.operationalLayers[2].showLabels, false);
+  const g = r.webmap.operationalLayers[1];
+  assert.equal(g.opacity, 0.5); assert.deepEqual(g.layers.map((x) => [x.id, x.visibility]), [["g2", false]]);
+  assert.equal(r.layers[0].showLabels, false);   // a spreadsheet layer's labels stay off when it opens again
+  // with no order the old arrangement stays: the map's own layers, then collection layers, then spreadsheets
+  const plain = doc.docToWebMap(d, { baseMap: { baseMapLayers: [], title: "B" }, sourceLayers: [{ id: "lyrA", layerType: "ArcGISFeatureLayer", url: "https://x/0" }], portalLayers: [] });
+  assert.deepEqual(plain.operationalLayers.map((o) => o.id), ["lyrA", "__data_csv1"]);
+});
 test("every config translates only known strings", () => {
   for (const f of ["default", "mapmaker", "example-es"]) {
     const c = JSON.parse(readFileSync(new URL("../config/" + f + ".json", import.meta.url)));

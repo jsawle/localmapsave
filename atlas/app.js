@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.11.0";
+const APP_VERSION = "1.12.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -267,6 +267,8 @@ function addViewUI(v, is3d) {
   tt.addEventListener("click", () => { $("app").classList.toggle("tools-shown"); syncToolsToggles(); layoutBottom(); });
   stack.appendChild(tt);
   v.ui.add(stack, "bottom-left");
+  // Map layers greys a layer outside its scale range: check again whenever this view stops moving
+  reactiveUtils.watch(() => v.stationary, (st) => { if (st && v === view && !$("layersPanel").hidden) updateScaleStates(); });
   syncToolsToggles();
 }
 function syncToolsToggles() {
@@ -421,7 +423,7 @@ function panelOpening(name) {
   if (name === "legend") ensureLegend();
   if (name === "basemaps") ensureGallery();
   if (name === "measure") ensureMeasure();
-  if (name === "profile") { $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles(); ensureProfile(); }
+  if (name === "profile") { closeTable(false); $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles(); ensureProfile(); }
 }
 function panelClosing(name) {
   if (name === "sketch") { endSketchOps(); sketchPanelOpen = false; placingText = false; currentTool = null; selectedFeature = null; updateToolButtons(); }
@@ -897,6 +899,9 @@ async function setMode(m, opts) {
   if (elevationProfile) { stopProfile(); elevationProfile.view = view; if (openPanelName === "profile") startProfileSketch(); }
   if (coordWidget) coordWidget.view = view;
   if (legend) legend.view = view;
+  if (m === "3d") endSwipe();   // Swipe is for 2D maps
+  if (table) table.widget.view = view;
+  if (!$("layersPanel").hidden) renderLayers({ keepFocus: true });
   updatePopupEnabled();
   watchBottom(0);
   if (m === "3d" && dataLayers.some((l) => l.renderer && l.renderer.type === "pie-chart")) toast(S.pieIn3d);
@@ -907,6 +912,7 @@ $("tg3d").addEventListener("click", () => setMode("3d"));
 // ============================================================ Maps and layers
 function setActiveMap(m) {
   const old = view.map;
+  endLayerTools(null);
   if (old && old !== m) { try { old.remove(graphicsLayer); } catch (e) { /* not there */ } }
   if (!m.layers.includes(graphicsLayer)) m.add(graphicsLayer);
   mapView.map = m;
@@ -933,6 +939,7 @@ function keepSketchOnTop() { const m = activeMap(); try { m.reorder(graphicsLaye
 function removeFromMaps(l) { for (const m of new Set([localMap, mapView.map, sceneView && sceneView.map])) { if (m) { try { m.remove(l); } catch (e) { /* not there */ } } } }
 function resetWorkspace() {
   addState = null; removePreview(false);
+  endLayerTools(null);
   dataLayers.splice(0).forEach(removeFromMaps);
   [...portalLayers.values()].forEach(removeFromMaps); portalLayers.clear();
   endSketchOps(); graphicsLayer.removeAll(); graphicsLayer.visible = true; selectedFeature = null;
@@ -1081,6 +1088,7 @@ async function addPortalLayer(info, opts) {
 function removePortalLayer(itemId) {
   const l = portalLayers.get(itemId);
   if (!l) return;
+  endLayerTools(l);
   removeFromMaps(l); portalLayers.delete(itemId); markDirty();
   toast(t("removedLayer", { title: l.__item.title }));
   if (!$("layersPanel").hidden) renderLayers();
@@ -1108,8 +1116,8 @@ function buildDataLayer(ld) {
   if (ld.labelingInfo && ld.labelingInfo.length) props.labelingInfo = ld.labelingInfo.map((l) => (l && l.symbol && l.symbol.type === "esriTS" ? LabelClass.fromJSON(l) : l));
   if (ld.popupInfo) props.popupTemplate = { title: ld.popupInfo.title || "", content: ld.popupInfo.content || [{ type: "fields", fieldInfos: ld.popupInfo.fieldInfos || [] }], fieldInfos: ld.popupInfo.fieldInfos || [] };
   const fl = new FeatureLayer(props);
-  fl.labelsVisible = true;
-  const def = { ...ld }; delete def.visible; delete def.opacity;
+  fl.labelsVisible = ld.showLabels !== false;
+  const def = { ...ld }; delete def.visible; delete def.opacity; delete def.showLabels;
   fl._srcDef = def;
   return fl;
 }
@@ -1125,10 +1133,6 @@ function addDataLayer(def, opts) {
 }
 
 // ============================================================ Map layers panel
-const ICON_ZOOM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="M8 10.5h5M10.5 8v5"/></svg>';
-const ICON_STYLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.7-.8 1.7-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.1" fill="currentColor"/><circle cx="9.8" cy="7.4" r="1.1" fill="currentColor"/><circle cx="14.6" cy="7.4" r="1.1" fill="currentColor"/><circle cx="17" cy="11.3" r="1.1" fill="currentColor"/></svg>';
-const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m3 0-1 13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 7"/><path d="M10 11v6M14 11v6"/></svg>';
-const ICON_INFO = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>';
 function eachToggleableLayer(fn) {
   fn(graphicsLayer, "__sketch", S.sketchLayer);
   activeMap().layers.toArray().slice().reverse().forEach((l) => { if (l !== graphicsLayer && l !== previewLayer) fn(l, l.id, l.title || l.id); });
@@ -1138,41 +1142,284 @@ function zoomToLayer(l) {
   if (l.queryExtent) { l.when().then(() => l.queryExtent()).then((r) => { if (r && r.extent) goToSafe(r.extent.expand(1.2)); }).catch(() => {}); return; }
   if (l.fullExtent) goToSafe(l.fullExtent);
 }
-function renderLayers() {
-  const list = $("layersList"); list.innerHTML = "";
-  let n = 0;
-  eachToggleableLayer((l, id, title) => {
-    n++;
-    const li = document.createElement("li"); li.className = "li";
-    const cbId = "lyr-" + n;
-    const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = cbId; cb.checked = l.visible !== false;
-    const main = document.createElement("label"); main.className = "li-main"; main.htmlFor = cbId;
-    const tt = document.createElement("span"); tt.className = "li-title" + (l.visible === false ? " off" : ""); tt.textContent = title;
-    main.appendChild(tt);
-    cb.addEventListener("change", () => { l.visible = cb.checked; tt.className = "li-title" + (cb.checked ? "" : " off"); markDirty(); });
-    const z = document.createElement("button"); z.type = "button"; z.className = "mini"; z.innerHTML = ICON_ZOOM; z.title = S.zoomTo; z.setAttribute("aria-label", S.zoomTo + ": " + title);
-    z.addEventListener("click", () => zoomToLayer(l));
-    li.append(main, z);
-    const isData = dataLayers.includes(l), isPortal = !!l.__item && portalLayers.get(l.__item.itemId) === l;
-    if (isData) {   // change the map style (type, colours, size, labels) of a spreadsheet layer
-      const sb = document.createElement("button"); sb.type = "button"; sb.className = "mini"; sb.innerHTML = ICON_STYLE; sb.title = S.changeStyle;
-      sb.setAttribute("aria-label", S.changeStyle + ": " + title); sb.dataset.styleFor = l.id;
-      sb.addEventListener("click", () => editDataLayer(l));
-      li.appendChild(sb);
+// Map layers, after MapMaker's: each layer has a drag handle, its name, a chevron that shows or hides its tools, and
+// its check box; under it a row of tools (Zoom to, Show legend, Adjust transparency, Swipe, Table, Layer's description,
+// Labels when the layer has labels, Change style for spreadsheet layers, Remove). A group opens to show its layers, each
+// with the same tools. A layer outside its visible scale range is greyed with an ⓘ that says so.
+// The icons are the SDK's own Calcite icons, as in MapMaker; each tool is a plain button with its own accessible name.
+const ICON_STYLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.7-.8 1.7-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.1" fill="currentColor"/><circle cx="9.8" cy="7.4" r="1.1" fill="currentColor"/><circle cx="14.6" cy="7.4" r="1.1" fill="currentColor"/><circle cx="17" cy="11.3" r="1.1" fill="currentColor"/></svg>';
+const calIcon = (name) => '<calcite-icon icon="' + name + '" scale="s" aria-hidden="true"></calcite-icon>';
+const TABLE_TYPES = new Set(["feature", "csv", "geojson", "wfs", "ogc-feature"]);
+const LEGEND_TYPES = new Set(["feature", "csv", "geojson", "wfs", "ogc-feature", "map-image", "imagery", "imagery-tile", "tile", "vector-tile", "wms", "kml", "scene", "stream"]);
+const layerUi = new WeakMap();            // per layer: { collapsed, open (sublayers shown), legend, transp, info }
+const uiOf = (l) => { let u = layerUi.get(l); if (!u) { u = { collapsed: false, open: false, legend: false, transp: false, info: false, scale: false }; layerUi.set(l, u); } return u; };
+let layerKeySeq = 0;
+const layerKeys = new WeakMap();
+const keyOf = (l) => { let k = layerKeys.get(l); if (!k) { k = "k" + (++layerKeySeq); layerKeys.set(l, k); } return k; };
+let rowWidgets = [], rowRefs = [], swipe = null, table = null;
+const isGroup = (l) => l && l.type === "group" && l.layers;
+function outOfScale(l) {
+  const s = view && view.scale;
+  if (!(s > 0)) return false;
+  const min = l.minScale || 0, max = l.maxScale || 0;
+  return (min > 0 && s > min) || (max > 0 && s < max);
+}
+function hasLabels(l) { const li = l.labelingInfo; return l !== graphicsLayer && !!li && li.length > 0; }
+// The layers listed at one level, top first (as drawn), and the collection that holds them.
+function siblingsOf(owner) {
+  const coll = owner === "map" ? activeMap().layers : owner.layers;
+  return coll.toArray().filter((x) => x !== graphicsLayer && x !== previewLayer && x.listMode !== "hide").reverse();
+}
+function ownerColl(owner) { return owner === "map" ? activeMap() : owner; }
+function moveLayer(l, owner, to) {
+  const sibs = siblingsOf(owner), from = sibs.indexOf(l);
+  if (from < 0 || to < 0 || to >= sibs.length || to === from) return;
+  const coll = ownerColl(owner), target = coll.layers.indexOf(sibs[to]);
+  try { coll.reorder(l, target); } catch (e) { console.error(e); return; }
+  if (owner === "map") keepSketchOnTop();
+  markDirty();
+  renderLayers({ focusKey: keyOf(l) + ":move" });
+  $("layersLive").textContent = t("layerMoved", { title: l.title || "", n: to + 1, total: sibs.length });
+}
+function endSwipe() {
+  if (!swipe) return;
+  try { mapView.ui.remove(swipe.widget); swipe.widget.destroy(); } catch (e) { /* gone */ }
+  swipe = null;
+}
+async function toggleSwipe(l) {
+  if (swipe && swipe.layer === l) { endSwipe(); renderLayers({ keepFocus: true }); return; }
+  endSwipe();
+  try {
+    const [Swipe] = await $arcgis.import(["@arcgis/core/widgets/Swipe.js"]);
+    if (mode !== "2d") return;
+    const w = new Swipe({ view: mapView, leadingLayers: [l], trailingLayers: [], direction: "horizontal", position: 50 });
+    mapView.ui.add(w);
+    swipe = { widget: w, layer: l };
+    toast(t("swipeOn", { title: l.title || "" }));
+  } catch (e) { console.error(e); toast(S.swipeFailed); }
+  renderLayers({ keepFocus: true });
+}
+function closeTable(restoreFocus) {
+  if (!table) return;
+  const l = table.layer;
+  try { table.widget.destroy(); } catch (e) { /* gone */ }
+  table = null;
+  $("tableDock").hidden = true; $("tableBody").innerHTML = "";
+  if (openPanelName !== "profile") { $("app").classList.remove("docked", "tools-shown"); syncToolsToggles(); }
+  setTimeout(layoutBottom, 0);
+  if (!$("layersPanel").hidden) renderLayers({ focusKey: restoreFocus ? keyOf(l) + ":table" : null, keepFocus: !restoreFocus });
+}
+async function openTable(l) {
+  if (table && table.layer === l) { closeTable(true); return; }
+  if (openPanelName === "profile") { closePanels(false); openPanel("layers", { focus: false }); }
+  if (table) closeTable(false);
+  try {
+    const [FeatureTable] = await $arcgis.import(["@arcgis/core/widgets/FeatureTable.js"]);
+    const c = document.createElement("div"); c.className = "table-host";
+    $("tableBody").replaceChildren(c);
+    $("tableH").textContent = t("tableOf", { title: l.title || "" });
+    $("tableDock").hidden = false;
+    $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles();
+    const w = new FeatureTable({ view, layer: l, container: c });
+    table = { widget: w, layer: l };
+    setTimeout(layoutBottom, 0);
+  } catch (e) { console.error(e); toast(S.tableFailed); closeTable(false); return; }
+  renderLayers({ keepFocus: true });
+}
+$("tableClose").addEventListener("click", () => closeTable(true));
+// Anything that ends with a layer gone (removed, a new map) also ends its swipe and table.
+function endLayerTools(l) {
+  const within = (x) => x && (x === l || (isGroup(l) && l.allLayers && l.allLayers.includes(x)));
+  if (!l || within(swipe && swipe.layer)) endSwipe();
+  if (!l || within(table && table.layer)) closeTable(false);
+}
+async function fillLayerInfo(l, box) {
+  const h = document.createElement("h3"); h.className = "lyr-info-h"; h.textContent = S.layerDescription;
+  const body = document.createElement("div"); body.className = "lyr-info-body";
+  box.replaceChildren(h, body);
+  const item = l.portalItem;
+  let frag = null;
+  if (item && item.id) {
+    try {
+      if (item.load) await item.load();
+      if (item.description) frag = safeFragment(item.description);
+      else if (item.snippet) { frag = document.createElement("p"); frag.textContent = item.snippet; }
+    } catch (e) { /* no description */ }
+  }
+  if (!frag) { frag = document.createElement("p"); frag.textContent = dataLayers.includes(l) ? t("dataLayerInfo", { n: ((l._srcDef && l._srcDef.features) || []).length }) : S.noLayerDescription; }
+  body.appendChild(frag);
+}
+function toolButton(key, icon, label, title, onClick, pressed) {
+  const b = document.createElement("button"); b.type = "button"; b.className = "lt"; b.dataset.key = key;
+  b.innerHTML = icon; b.title = label; b.setAttribute("aria-label", label + ": " + title);
+  if (pressed !== undefined) b.setAttribute("aria-pressed", String(!!pressed));
+  b.addEventListener("click", onClick);
+  return b;
+}
+function layerRow(l, owner, depth, pos, count) {
+  const title = l === graphicsLayer ? S.sketchLayer : (l.title || l.id), k = keyOf(l), u = uiOf(l), group = isGroup(l);
+  const li = document.createElement("li"); li.className = "li lyr" + (depth ? " sub" : "") + (l === graphicsLayer ? " fixed" : ""); li.dataset.key = k;
+  const head = document.createElement("div"); head.className = "lyr-head";
+  // drag handle: drag it, or use the arrow keys on it, to change the drawing order (the sketch layer always stays on top)
+  if (l !== graphicsLayer && count > 1) {
+    const h = document.createElement("button"); h.type = "button"; h.className = "lyr-drag"; h.dataset.key = k + ":move";
+    h.innerHTML = calIcon("drag"); h.setAttribute("aria-label", t("moveLayer", { title })); h.setAttribute("aria-describedby", "layersMoveHint");
+    h.title = S.moveLayerTip;
+    h.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowUp" && pos > 0) { e.preventDefault(); moveLayer(l, owner, pos - 1); }
+      else if (e.key === "ArrowDown" && pos < count - 1) { e.preventDefault(); moveLayer(l, owner, pos + 1); }
+    });
+    h.addEventListener("pointerdown", (e) => startDrag(e, l, owner, li));
+    head.appendChild(h);
+  } else if (depth === 0) { const sp = document.createElement("span"); sp.className = "lyr-drag-sp"; head.appendChild(sp); }
+  if (group) {
+    const g = document.createElement("button"); g.type = "button"; g.className = "lyr-open"; g.dataset.key = k + ":open";
+    g.innerHTML = calIcon(u.open ? "chevron-down" : "chevron-right"); g.setAttribute("aria-expanded", String(u.open));
+    g.setAttribute("aria-label", t("groupLayers", { title }));
+    g.addEventListener("click", () => { u.open = !u.open; renderLayers({ focusKey: k + ":open" }); });
+    head.appendChild(g);
+  }
+  const cbId = "lyr-" + k;
+  const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = cbId; cb.checked = l.visible !== false; cb.dataset.key = k + ":cb";
+  const main = document.createElement("label"); main.className = "li-main"; main.htmlFor = cbId;
+  const tt = document.createElement("span"); tt.className = "li-title"; tt.textContent = title; tt.title = title;
+  main.appendChild(tt);
+  head.appendChild(main);
+  const sc = document.createElement("button"); sc.type = "button"; sc.className = "lyr-scale"; sc.dataset.key = k + ":scale";
+  sc.innerHTML = calIcon("information"); sc.setAttribute("aria-label", S.outOfScaleShort + ": " + title); sc.setAttribute("aria-expanded", String(u.scale));
+  const note = document.createElement("p"); note.className = "lyr-note"; note.id = "lyrnote-" + k; note.textContent = S.outOfScale; note.hidden = !u.scale;
+  sc.setAttribute("aria-controls", note.id);
+  sc.addEventListener("click", () => { u.scale = !u.scale; note.hidden = !u.scale; sc.setAttribute("aria-expanded", String(u.scale)); });
+  head.appendChild(sc);
+  const toolsId = "lyrtools-" + k;
+  const tg = document.createElement("button"); tg.type = "button"; tg.className = "lyr-toggle"; tg.dataset.key = k + ":tools";
+  tg.innerHTML = calIcon(u.collapsed ? "chevron-down" : "chevron-up"); tg.setAttribute("aria-expanded", String(!u.collapsed)); tg.setAttribute("aria-controls", toolsId);
+  tg.setAttribute("aria-label", t("layerTools", { title })); tg.title = S.layerToolsTip;
+  tg.addEventListener("click", () => { u.collapsed = !u.collapsed; renderLayers({ focusKey: k + ":tools" }); });
+  head.appendChild(tg);
+  head.appendChild(cb);
+  const setState = () => {
+    const oos = l !== graphicsLayer && outOfScale(l);
+    tt.classList.toggle("off", l.visible === false || oos);
+    sc.hidden = !oos; if (!oos) note.hidden = true;
+  };
+  cb.addEventListener("change", () => { l.visible = cb.checked; setState(); markDirty(); });
+  setState(); rowRefs.push(setState);
+  li.append(head, note);
+
+  const tools = document.createElement("div"); tools.className = "lyr-tools"; tools.id = toolsId; tools.hidden = u.collapsed;
+  tools.setAttribute("role", "group"); tools.setAttribute("aria-label", t("layerTools", { title }));
+  const extra = document.createElement("div"); extra.className = "lyr-extra";
+  tools.appendChild(toolButton(k + ":zoom", calIcon("layer-zoom-to"), S.zoomTo, title, () => zoomToLayer(l)));
+  if (l !== graphicsLayer) {
+    if (!group && LEGEND_TYPES.has(l.type)) tools.appendChild(toolButton(k + ":legend", calIcon("legend"), S.showLegend, title, () => { u.legend = !u.legend; renderLayers({ focusKey: k + ":legend" }); }, u.legend));
+    tools.appendChild(toolButton(k + ":transp", calIcon("transparency"), S.adjustTransparency, title, () => { u.transp = !u.transp; renderLayers({ focusKey: k + ":transp" }); }, u.transp));
+    if (!group && mode === "2d") tools.appendChild(toolButton(k + ":swipe", calIcon("compare"), S.swipe, title, () => toggleSwipe(l), !!(swipe && swipe.layer === l)));
+    if (!group && TABLE_TYPES.has(l.type)) tools.appendChild(toolButton(k + ":table", calIcon("table"), S.table, title, () => openTable(l), !!(table && table.layer === l)));
+    tools.appendChild(toolButton(k + ":info", calIcon("information"), S.layerDescription, title, () => { u.info = !u.info; renderLayers({ focusKey: k + ":info" }); }, u.info));
+    if (!group && hasLabels(l)) {
+      const on = l.labelsVisible !== false;
+      tools.appendChild(toolButton(k + ":labels", calIcon(on ? "label" : "label-off"), S.labels, title, () => { l.labelsVisible = !(l.labelsVisible !== false); markDirty(); renderLayers({ focusKey: k + ":labels" }); }, on));
     }
-    if (isData || isPortal) {
-      const d = document.createElement("button"); d.type = "button"; d.className = "mini"; d.innerHTML = ICON_TRASH; d.title = S.removeLayer; d.setAttribute("aria-label", S.removeLayer + ": " + title);
-      d.addEventListener("click", () => {
-        if (isData) { dataLayers.splice(dataLayers.indexOf(l), 1); removeFromMaps(l); markDirty(); toast(S.layerRemoved); renderLayers(); }
-        else removePortalLayer(l.__item.itemId);
-        if (catalogLoaded) refreshCatalogButtons();
-      });
-      li.appendChild(d);
+    if (dataLayers.includes(l)) {   // change the map style (type, colours, size, labels) of a spreadsheet layer
+      const sb = toolButton(k + ":style", ICON_STYLE, S.changeStyle, title, () => editDataLayer(l));
+      sb.dataset.styleFor = l.id; sb.classList.add("lt-svg");
+      tools.appendChild(sb);
     }
-    li.appendChild(cb);
-    list.appendChild(li);
-  });
-  if (n <= 1 && !graphicsLayer.graphics.length) { const p = document.createElement("li"); p.className = "empty"; p.textContent = S.noLayers; list.appendChild(p); }
+    tools.appendChild(toolButton(k + ":remove", calIcon("trash"), S.removeLayer, title, () => removeLayer(l, owner, pos)));
+  }
+  li.appendChild(tools);
+  if (!u.collapsed && l !== graphicsLayer) {
+    if (u.legend && !group) {
+      const box = document.createElement("div"); box.className = "lyr-legend";
+      extra.appendChild(box);
+      try { rowWidgets.push(new Legend({ view, container: box, layerInfos: [{ layer: l, title: "" }], respectLayerVisibility: false, hideLayersNotInCurrentView: false })); }
+      catch (e) { box.textContent = S.noLegend; }
+    }
+    if (u.transp) {
+      const row = document.createElement("div"); row.className = "lyr-transp";
+      const v = Math.round((1 - (typeof l.opacity === "number" ? l.opacity : 1)) * 100);
+      const lo = document.createElement("span"); lo.textContent = "0%"; lo.setAttribute("aria-hidden", "true");
+      const hi = document.createElement("span"); hi.textContent = "100%"; hi.setAttribute("aria-hidden", "true");
+      const r = document.createElement("input"); r.type = "range"; r.min = "0"; r.max = "100"; r.step = "1"; r.value = String(v); r.dataset.key = k + ":range";
+      r.setAttribute("aria-label", t("transparencyOf", { title })); r.setAttribute("aria-valuetext", v + "%");
+      r.addEventListener("input", () => { const n = Number(r.value) || 0; l.opacity = Math.round((1 - n / 100) * 100) / 100; r.setAttribute("aria-valuetext", n + "%"); r.title = n + "%"; markDirty(); });
+      r.title = v + "%";
+      row.append(lo, r, hi);
+      extra.appendChild(row);
+    }
+    if (u.info) { const box = document.createElement("div"); box.className = "lyr-info"; extra.appendChild(box); fillLayerInfo(l, box); }
+    if (extra.childNodes.length) li.appendChild(extra);
+  }
+  if (group && u.open) {
+    const ul = document.createElement("ul"); ul.className = "list lyr-subs";
+    const subs = siblingsOf(l);
+    subs.forEach((s, i) => ul.appendChild(layerRow(s, l, depth + 1, i, subs.length)));
+    li.appendChild(ul);
+  }
+  return li;
+}
+function removeLayer(l, owner, pos) {
+  const title = l.title || "";
+  endLayerTools(l);
+  if (dataLayers.includes(l)) { dataLayers.splice(dataLayers.indexOf(l), 1); removeFromMaps(l); }
+  else if (l.__item && portalLayers.get(l.__item.itemId) === l) { removeFromMaps(l); portalLayers.delete(l.__item.itemId); }
+  else if (owner !== "map") { try { owner.remove(l); } catch (e) { /* gone */ } }
+  else removeFromMaps(l);
+  markDirty();
+  toast(t("removedLayer", { title }));
+  if (catalogLoaded) refreshCatalogButtons();
+  // focus the layer that took its place (or the one above it), else the panel heading
+  const sibs = siblingsOf(owner), next = sibs[Math.min(pos, sibs.length - 1)];
+  renderLayers({ focusKey: next ? keyOf(next) + ":remove" : (owner !== "map" ? keyOf(owner) + ":open" : null) });
+  if (!next && owner === "map") { const h = $("layersH"); if (h) h.focus(); }
+}
+// Dragging a row by its handle: the rows of the same level make room, and the layer is dropped where the line shows.
+function startDrag(e, l, owner, li) {
+  if (e.button !== 0) return;
+  const h = e.currentTarget, list = li.parentElement, y0 = e.clientY;
+  let dragging = false, target = -1;
+  const rows = () => [...list.children].filter((x) => x.classList.contains("lyr") && !x.classList.contains("fixed"));   // the sketch row stays on top
+  const from = rows().indexOf(li);
+  const clear = () => rows().forEach((r) => r.classList.remove("drop-before", "drop-after"));
+  const move = (ev) => {
+    if (!dragging && Math.abs(ev.clientY - y0) < 5) return;
+    dragging = true; li.classList.add("dragging");
+    const rs = rows();
+    target = rs.length - 1;
+    for (let i = 0; i < rs.length; i++) { const b = rs[i].getBoundingClientRect(); if (ev.clientY < b.top + b.height / 2) { target = i; break; } }
+    clear();
+    if (target !== from) { const r = rs[target]; r.classList.add(target < from ? "drop-before" : "drop-after"); }
+  };
+  const up = () => {
+    h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up); h.removeEventListener("pointercancel", cancel);
+    li.classList.remove("dragging"); clear();
+    if (dragging && target >= 0 && target !== from) moveLayer(l, owner, target);
+  };
+  const cancel = () => { dragging = false; up(); };
+  try { h.setPointerCapture(e.pointerId); } catch (err) { /* capture not available */ }
+  h.addEventListener("pointermove", move); h.addEventListener("pointerup", up); h.addEventListener("pointercancel", cancel);
+}
+function updateScaleStates() { rowRefs.forEach((f) => f()); }
+function renderLayers(opts) {
+  opts = opts || {};
+  const list = $("layersList");
+  const ae = document.activeElement;
+  const focusKey = opts.focusKey || ((opts.keepFocus || list.contains(ae)) && ae && ae.dataset ? ae.dataset.key : null);
+  rowWidgets.forEach((w) => { try { w.destroy(); } catch (e) { /* gone */ } });
+  rowWidgets = []; rowRefs = [];
+  list.innerHTML = "";
+  const top = siblingsOf("map");
+  list.appendChild(layerRow(graphicsLayer, "map", 0, -1, 0));
+  top.forEach((l, i) => list.appendChild(layerRow(l, "map", 0, i, top.length)));
+  if (!top.length && !graphicsLayer.graphics.length) { const p = document.createElement("li"); p.className = "empty"; p.textContent = S.noLayers; list.appendChild(p); }
+  if (focusKey) { const el = list.querySelector('[data-key="' + focusKey + '"]'); if (el) el.focus(); }
+  // labels show only once a layer has loaded its label classes: list again when the ones still loading are ready
+  const pending = top.filter((l) => !l.loaded && l.when && !l.__lyrWaited);
+  if (pending.length) {
+    pending.forEach((l) => { l.__lyrWaited = true; });
+    Promise.allSettled(pending.map((l) => l.when())).then(() => { if (!$("layersPanel").hidden) renderLayers({ keepFocus: true }); });
+  }
 }
 
 // ============================================================ Bookmarks
@@ -1815,6 +2062,7 @@ function submitData() {
 }
 function applyStyleEdit() {
   const { layer: old, wasVisible } = addState.editing, src = old._srcDef;
+  endLayerTools(old);
   const def = buildLayerDef(addState, src.id, src.title || old.title);
   removePreview(false);
   let fl;
@@ -1917,7 +2165,7 @@ function buildDocument() {
     portalLayers: [...portalLayers.values()].map((l) => ({ ...l.__item, visible: l.visible !== false, opacity: l.opacity })),
     sketchVisible: graphicsLayer.visible !== false,
     graphics: graphicsLayer.graphics.toArray().map((g) => ({ geometry: g.geometry.toJSON(), attributes: { ...g.attributes } })),
-    layers: dataLayers.map((fl) => ({ ...fl._srcDef, visible: fl.visible !== false, opacity: fl.opacity }))
+    layers: dataLayers.map((fl) => ({ ...fl._srcDef, visible: fl.visible !== false, opacity: fl.opacity, showLabels: fl.labelsVisible !== false }))
   };
   if (bookmarks.length) doc.bookmarks = bookmarks.map((b) => ({ title: b.title, viewpoint: b.viewpoint, layers: b.layers || [], thumb: b.thumb || null }));
   return doc;
@@ -1992,7 +2240,8 @@ async function buildWebMapJson() {
   unsavedLayers = added.filter((x) => !x).length;
   return docToWebMap(doc, { baseMap: await currentBaseMapJson(), sourceLayers: sourceLayersJson(), portalLayers: added.filter(Boolean),
     extent: ext ? ext.toJSON() : null, scale: mode === "2d" ? mapView.scale : null, rotation: mode === "2d" ? mapView.rotation || 0 : 0,
-    appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false });
+    appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false,
+    order: activeMap().layers.toArray().filter((l) => l !== graphicsLayer && l !== previewLayer).map((l) => l.id) });
 }
 async function docText() { return JSON.stringify(await buildWebMapJson()); }
 async function docBlob() { return new Blob([await docText()], { type: "application/json" }); }
@@ -2291,10 +2540,21 @@ const LAYER_TYPE_JSON = { feature: "ArcGISFeatureLayer", "map-image": "ArcGISMap
   imagery: "ArcGISImageServiceLayer", "imagery-tile": "ArcGISTiledImageServiceLayer", csv: "CSV", geojson: "GeoJSON", kml: "KML", wms: "WMS", wfs: "WFS",
   "web-tile": "WebTiledLayer", "geo-rss": "GeoRSS", stream: "ArcGISStreamLayer", "ogc-feature": "OGCFeatureLayer" };
 // Operational layer JSON for a layer added from the collection. A layer that came from a saved map keeps its saved JSON.
+// A layer's web map JSON as it is now: shown or not, transparency, labels on or off, and for a group its layers in
+// their current order (any removed in Map layers left out).
+function patchOpJson(op, l) {
+  const out = { ...op, visibility: l.visible !== false, opacity: typeof l.opacity === "number" ? l.opacity : 1 };
+  if (hasLabels(l)) out.showLabels = l.labelsVisible !== false;
+  if (isGroup(l) && Array.isArray(op.layers)) {
+    out.layers = l.layers.toArray().map((s) => { const o = op.layers.find((x) => x && x.id === s.id); return o ? patchOpJson(o, s) : layerToJson(s); }).filter(Boolean);
+  }
+  return out;
+}
 function layerToJson(l) {
   const visibility = l.visible !== false, opacity = typeof l.opacity === "number" ? l.opacity : 1;
-  if (l.__opJson) return { ...l.__opJson, id: l.id, title: l.title || l.__opJson.title, visibility, opacity };
+  if (l.__opJson) return { ...patchOpJson(l.__opJson, l), id: l.id, title: l.title || l.__opJson.title };
   const base = { id: l.id, title: l.title, visibility, opacity };
+  if (hasLabels(l)) base.showLabels = l.labelsVisible !== false;
   if (l.type === "group") { const layers = l.layers.toArray().map(layerToJson).filter(Boolean); return layers.length ? { ...base, layerType: "GroupLayer", layers } : null; }
   const layerType = LAYER_TYPE_JSON[l.type];
   if (!layerType) { console.warn("Can't save a layer of type", l.type, l.title); return null; }
@@ -2315,13 +2575,11 @@ async function currentBaseMapJson() {
   try { const d = await restGet(`/sharing/rest/content/items/${cfg.defaultBasemap}/data`); if (d && d.baseMap) return d.baseMap; } catch (e) { /* offline */ }
   return null;   // the file still opens: the app's default basemap is used
 }
+// The opened map's own layers as they are now, in map order; layers removed in Map layers are left out.
 function sourceLayersJson() {
   if (!currentSource || !currentSource.data) return [];
-  const live = activeMap().layers;
-  return (currentSource.data.operationalLayers || []).filter((op) => !isOwnLayerJson(op)).map((op) => {
-    const l = live.find((x) => x.id === op.id);
-    return l ? { ...op, visibility: l.visible !== false, opacity: l.opacity } : op;
-  });
+  const ops = (currentSource.data.operationalLayers || []).filter((op) => !isOwnLayerJson(op));
+  return sourceLayers().map((l) => { const op = ops.find((o) => o.id === l.id); return op ? patchOpJson(op, l) : null; }).filter(Boolean);
 }
 async function screenshotBlob(w, h) {
   try { const s = await view.takeScreenshot({ width: w, height: h, format: "png" }); return await (await fetch(s.dataUrl)).blob(); } catch (e) { return null; }

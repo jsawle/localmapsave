@@ -190,12 +190,55 @@
     .li-main{ flex:1 1 auto; min-width:0; }
     .li-title{ font-size:14px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
     .li-sub{ font-size:12px; color:var(--muted); display:block; }
-    .li-title.off{ color:#9a9a9a; }
+    .li-title.off{ color:#6b6b6b; }
     .mini{ border:none; background:none; cursor:pointer; color:#555; padding:5px; border-radius:4px; line-height:0; }
     .mini:hover{ background:var(--soft); color:var(--ink); }
     .mini svg{ width:17px; height:17px; }
     .li input[type=checkbox]{ width:18px; height:18px; accent-color:var(--brand); cursor:pointer; flex:0 0 auto; }
     .empty{ font-size:13px; color:var(--muted); line-height:1.5; padding:6px 2px; }
+
+    /* Map layers, after MapMaker's: name row, then a row of tools; groups open to their layers */
+    .panel.lyr-panel{ width:440px; }
+    .lyr-panel .panel-body{ padding-left:8px; padding-right:8px; }
+    .lyr{ display:block; padding:6px 0 4px; border-bottom:1px solid #e9e9e9; }
+    .lyr.sub{ border-bottom:none; border-top:1px solid #f0f0f0; padding-left:30px; }
+    .lyr-head{ display:flex; align-items:center; gap:4px; min-height:40px; }
+    .lyr-head .li-main{ flex:0 1 auto; padding:0 4px; cursor:pointer; }
+    .lyr-head .lyr-toggle{ margin-left:auto; }   /* the ⓘ for "not visible at this scale" sits right after the name, as in MapMaker */
+    .lyr-head .li-title{ font-size:16px; }
+    .lyr.sub .lyr-head .li-title{ font-size:15px; }
+    .lyr-drag, .lyr-open, .lyr-scale, .lyr-toggle, .lt{ flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0;
+      border:1px solid transparent; border-radius:2px; background:none; color:#4a4a4a; cursor:pointer; }
+    .lyr-drag-sp{ flex:0 0 32px; }
+    .lyr-drag{ cursor:grab; touch-action:none; }
+    .lyr-scale{ width:24px; margin-left:-2px; color:#4a4a4a; }
+    .lyr-drag:hover, .lyr-open:hover, .lyr-scale:hover, .lyr-toggle:hover, .lt:hover{ background:#f3f3f3; color:#151515; }
+    .lt[aria-pressed="true"]{ border-color:var(--brand); color:#151515; }
+    .lt[data-key$=":labels"][aria-pressed="true"]{ border-color:transparent; }   /* Labels shows on/off by its icon, as in MapMaker */
+    .lyr-head input[type=checkbox]{ width:18px; height:18px; margin:0 6px 0 4px; accent-color:#151515; cursor:pointer; flex:0 0 auto; }
+    .lyr-note{ margin:0 0 4px 36px; font-size:13px; color:#4a4a4a; }
+    .lyr-tools{ display:flex; flex-wrap:wrap; gap:4px 12px; padding:2px 0 6px 40px; }
+    .lyr-tools[hidden]{ display:none; }
+    .lt calcite-icon, .lyr-head calcite-icon{ width:16px; height:16px; }
+    .lt.lt-svg svg{ width:17px; height:17px; }
+    .lyr-extra{ padding:0 6px 8px 40px; }
+    .lyr-transp{ display:flex; align-items:center; gap:10px; font-size:13px; color:#4a4a4a; }
+    .lyr-transp input[type=range]{ flex:1 1 auto; accent-color:var(--brand); }
+    .lyr-legend{ font-size:12px; }
+    .lyr-legend.esri-legend, .lyr-legend .esri-legend{ padding:0; background:none; }
+    .lyr-legend .esri-legend__service-label, .lyr-legend .esri-legend__layer-caption{ display:none; }
+    .lyr-info-h{ font-size:14px; font-weight:600; margin:8px 0 6px; }
+    .lyr-info-body{ font-size:14px; line-height:1.55; color:#323232; }
+    .lyr-info-body p{ margin:0 0 10px; }
+    .lyr-info-body img{ max-width:100%; height:auto; }
+    .lyr-subs{ margin-top:2px; }
+    .lyr.dragging{ opacity:.55; }
+    .lyr.drop-before{ box-shadow:inset 0 2px 0 var(--brand); }
+    .lyr.drop-after{ box-shadow:inset 0 -2px 0 var(--brand); }
+    .table-dock{ height:clamp(240px, 42vh, 460px); }
+    .table-dock .panel-head h2{ font-size:14px; font-weight:500; }
+    .table-dock .dock-body, .table-host{ height:100%; }
+    @media (forced-colors: active){ .lt[aria-pressed="true"]{ border-color:Highlight; } }
 
     /* bookmarks */
     .bm{ display:flex; align-items:center; gap:10px; padding:6px; border-radius:6px; }
@@ -408,7 +451,10 @@
       .rose text{ font-size:15px; }
       .ll-stack{ gap:8px; }
       .map-wrap .esri-attribution__powered-by{ white-space:normal; max-width:60%; }
-      .panel, .panel.wide, .panel.bmg-panel{ left:8px; right:8px; width:auto; top:auto; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 14px); max-height:58%; }
+      .lyr-tools{ gap:2px 2px; padding-left:30px; }
+      .lyr-extra{ padding-left:30px; }
+      .lyr.sub{ padding-left:14px; }
+      .panel, .panel.wide, .panel.bmg-panel, .panel.lyr-panel{ left:8px; right:8px; width:auto; top:auto; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 14px); max-height:58%; }
       .open-card{ height:calc(100vh - 40px); max-height:none; }
       .modal.top{ padding-top:20px; }
     }
@@ -521,9 +567,9 @@
         <div class="panel-foot"><button class="btn" type="button" id="dataCancel" data-i18n="cancel">Cancel</button><button class="btn primary" type="button" id="dataSubmit" data-i18n="addToMap">Add to map</button></div>
       </section>
 
-      <section class="panel" id="layersPanel" hidden aria-labelledby="layersH">
+      <section class="panel lyr-panel" id="layersPanel" hidden aria-labelledby="layersH">
         <div class="panel-head"><h2 id="layersH" tabindex="-1" data-i18n="mapLayers">Map layers</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
-        <div class="panel-body"><p class="hint" data-i18n="layersIntro">Turn layers on and off. Bookmarks remember these settings.</p><ul class="list" id="layersList"></ul></div>
+        <div class="panel-body"><p class="hint" data-i18n="layersIntro">Turn layers on and off. Bookmarks remember these settings.</p><ul class="list" id="layersList"></ul><p class="sr-only" id="layersMoveHint" data-i18n="moveLayerHint">Drag the handle, or press the up and down arrow keys on it, to change the drawing order.</p><p class="sr-only" id="layersLive" role="status" aria-live="polite"></p></div>
       </section>
 
       <section class="panel" id="legendPanel" hidden aria-labelledby="legendH">
@@ -636,6 +682,10 @@
       <div class="drop-overlay" id="dropOverlay" hidden><div class="drop-inner" data-i18n="dropHere">Drop your file to add it to the map</div></div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
     </main>
+    <section class="dock table-dock" id="tableDock" hidden aria-labelledby="tableH">
+      <div class="panel-head"><h2 id="tableH" tabindex="-1"></h2><button class="x-btn" type="button" id="tableClose" data-i18n-aria="closeTable">&times;</button></div>
+      <div class="dock-body" id="tableBody"></div>
+    </section>
     <section class="dock" id="profilePanel" hidden aria-labelledby="profileH">
       <div class="panel-head"><h2 id="profileH" tabindex="-1" data-i18n="elevationProfile">Elevation profile</h2><span class="dock-source" id="profileSource"></span><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
       <div class="dock-body" id="profileBody"></div>
