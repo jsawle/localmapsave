@@ -28,8 +28,18 @@ class EsriMap extends Accessor {
   add(l, i) { this.layers.add(l, i); } remove(l) { this.layers.remove(l); } reorder(l, i) { this.layers.reorder(l, i); }
 }
 // Operational layer JSON -> a layer object with the same id (as the SDK does).
-const layerFromJson = (op) => new FeatureLayer({ id: op.id, title: op.title || op.id, visible: op.visibility !== false, opacity: op.opacity ?? 1, url: op.url,
-  type: op.layerType === "GroupLayer" ? "group" : "feature", portalItem: op.itemId ? { id: op.itemId } : null });
+const layerFromJson = (op) => {
+  const ld = op.layerDefinition || {}, li = ld.drawingInfo && ld.drawingInfo.labelingInfo;
+  const l = new FeatureLayer({ id: op.id, title: op.title || op.id, visible: op.visibility !== false, opacity: op.opacity ?? 1, url: op.url,
+    type: op.layerType === "GroupLayer" ? "group" : "feature", portalItem: op.itemId ? { id: op.itemId } : null,
+    minScale: ld.minScale || 0, maxScale: ld.maxScale || 0, labelingInfo: li || null, labelsVisible: op.showLabels !== false });
+  if (op.layerType === "GroupLayer") {   // a group: its layers, which can be removed and reordered
+    l.layers = new Collection((op.layers || []).map(layerFromJson));
+    l.add = (x, i) => l.layers.add(x, i); l.remove = (x) => l.layers.remove(x); l.reorder = (x, i) => l.layers.reorder(x, i);
+    l.allLayers = l.layers;
+  }
+  return l;
+};
 class WebMap extends EsriMap {
   constructor(p) { super(); this.portalItem = p && p.portalItem; this.initialViewProperties = { viewpoint: null }; this.bookmarks = new Collection(); }
   static fromJSON(j) {
@@ -57,6 +67,7 @@ class Widget extends Accessor {
     this.el.classList.add("esri-widget", cls);
     if (html) this.el.innerHTML = html;
   }
+  destroy() { this.destroyed = true; if (!this.container) this.el.remove(); else this.el.innerHTML = ""; }
 }
 const btn = (label, glyph) => `<div class="esri-widget--button" role="button" tabindex="0" aria-label="${label}" title="${label}">${glyph}</div>`;
 class Home extends Widget { constructor(p) { super(p, "esri-home", btn("Default map view", "⌂")); } }
@@ -70,6 +81,8 @@ class ScaleBar extends Widget {
   }
 }
 class Legend extends Widget { constructor(p) { super(p, "esri-legend", "<p>Legend</p>"); } }
+class Swipe extends Widget { constructor(p) { super(p, "esri-swipe", btn("Swipe handle", "‖")); window.__stub.swipe = { leading: (p.leadingLayers || []).map((l) => l.id), position: p.position }; } }
+class FeatureTable extends Widget { constructor(p) { super(p, "esri-feature-table", "<p>" + ((p.layer && p.layer.title) || "") + " (Total: 1 | Selection: 0)</p>"); window.__stub.table = p.layer && p.layer.id; } }
 class BasemapGallery extends Widget { constructor(p) { super(p, "esri-basemap-gallery", "<p>Basemaps</p>"); this.activeBasemap = null; } }
 class Measurement extends Widget { constructor(p) { super(p, "esri-measurement", ""); } clear() {} }
 class ElevationProfile extends Widget {
@@ -124,12 +137,13 @@ class UI {
     });
   }
   get components() { return this._components || []; }
+  remove(comp) { const el = comp instanceof HTMLElement ? comp : comp && comp.el; if (el) el.remove(); }
   add(comp, pos) {
     const position = typeof pos === "string" ? pos : (pos && pos.position) || "manual";
     const index = pos && typeof pos === "object" ? pos.index : undefined;
     const el = comp instanceof HTMLElement ? comp : comp.el;
     el.classList.add("esri-component"); el.style.pointerEvents = "auto";
-    const corner = this.corners[position];
+    const corner = this.corners[position] || this.view.root;   // "manual": on the view itself
     const kids = [...corner.children];
     if (index != null && kids[index]) corner.insertBefore(el, kids[index]); else corner.appendChild(el);
   }
@@ -204,7 +218,7 @@ const MODULES = {
   "@arcgis/core/widgets/ElevationProfile.js": ElevationProfile, "@arcgis/core/layers/ElevationLayer.js": ElevationLayer,
   "@arcgis/core/widgets/CoordinateConversion.js": CoordinateConversion, "@arcgis/core/widgets/ScaleBar.js": ScaleBar, "@arcgis/core/widgets/Search.js": Search,
   "@arcgis/core/widgets/Expand.js": Expand, "@arcgis/core/widgets/Home.js": Home, "@arcgis/core/widgets/NavigationToggle.js": NavigationToggle,
-  "@arcgis/core/widgets/Legend.js": Legend, "@arcgis/core/layers/Layer.js": Layer, "@arcgis/core/layers/support/Field.js": Field,
+  "@arcgis/core/widgets/Legend.js": Legend, "@arcgis/core/widgets/Swipe.js": Swipe, "@arcgis/core/widgets/FeatureTable.js": FeatureTable, "@arcgis/core/layers/Layer.js": Layer, "@arcgis/core/layers/support/Field.js": Field,
   "@arcgis/core/layers/support/LabelClass.js": LabelClass, "@arcgis/core/renderers/support/jsonUtils.js": rendererJsonUtils,
   "@arcgis/core/geometry/Extent.js": Extent, "@arcgis/core/config.js": esriConfig, "@arcgis/core/intl.js": intl,
   "@arcgis/core/identity/IdentityManager.js": IdentityManager, "@arcgis/core/identity/OAuthInfo.js": OAuthInfo, "@arcgis/core/portal/Portal.js": Portal,

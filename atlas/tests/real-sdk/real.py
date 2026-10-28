@@ -248,6 +248,30 @@ def main():
         page.evaluate("window.__views[0].map.add(window.__removed, 0)")
         check(wait("document.querySelector('#layersBadge').textContent === '6'", label="count after adding it back"), "6 again after adding it back")
         page.wait_for_timeout(1500); page.screenshot(path=str(shots / "real-open-map.png"))
+        # Map layers tools on a spreadsheet layer (the fixture services don't answer): legend, swipe, table, labels, icons
+        page.evaluate("""() => { const dt = new DataTransfer(); dt.items.add(new File(['Site,Latitude,Longitude,Type,Count\\nA,40.71,-74.0,Fort,12\\nB,39.95,-75.16,Town,5\\nC,42.36,-71.06,Fort,9\\n'], 'forts.csv', { type: 'text/csv' }));
+          for (const t of ['dragenter','dragover','drop']) window.dispatchEvent(new DragEvent(t, { dataTransfer: dt, bubbles: true, cancelable: true })); }""")
+        page.wait_for_selector("#dataSubmit:not([disabled])", timeout=20000); page.click("#dataSubmit"); page.wait_for_timeout(1500)
+        if page.is_hidden("#layersPanel"): page.click("#tool-layers")
+        page.wait_for_timeout(1000)
+        row = "#layersList > li.lyr:has(button[data-style-for])"
+        icons = page.evaluate("() => [...document.querySelectorAll('#layersList > li.lyr:nth-child(2) calcite-icon')].filter(i => i.offsetParent).map(i => !!(i.shadowRoot && i.shadowRoot.querySelector('path') && i.shadowRoot.querySelector('path').getAttribute('d')))")
+        check(icons and all(icons), f"Calcite icons drawn on the layer tools {icons}")
+        page.click(row + " [data-key$=':legend']")
+        check(wait("document.querySelector('#layersList .lyr-legend .esri-legend__layer-row, #layersList .lyr-legend .esri-legend__symbol')", label="row legend"), "Show legend draws the layer's own legend")
+        page.click(row + " [data-key$=':swipe']")
+        check(wait("document.querySelector('#viewDiv .esri-swipe')", label="swipe"), "Swipe adds the SDK's swipe line to the 2D map")
+        page.wait_for_timeout(800); page.screenshot(path=str(shots / "real-layers-swipe.png"))
+        page.click(row + " [data-key$=':swipe']"); page.wait_for_timeout(300)
+        check(not page.query_selector("#viewDiv .esri-swipe"), "Swipe again removes it")
+        # The fixture services never answer, so those layers failed to load; with a view, FeatureTable leaves an unhandled
+        # rejection for each such layer in the map (SDK 5.1). Take them out so the check below is about the app.
+        page.evaluate("(() => { const m = window.__views[0].map; m.layers.toArray().filter(l => l.loadStatus === 'failed' || (l.type === 'group' && l.layers.some(x => x.loadStatus === 'failed'))).forEach(l => m.remove(l)); })()")
+        page.click(row + " [data-key$=':table']")
+        check(wait("document.querySelector('#tableBody .esri-feature-table') && document.querySelector('#tableBody').textContent.includes('Fort')", 0, "table rows"), "Table shows the spreadsheet's rows under the map")
+        page.wait_for_timeout(800); page.screenshot(path=str(shots / "real-layers-table.png"))
+        page.click("#tableClose"); page.wait_for_timeout(300)
+        check(page.is_hidden("#tableDock"), "the table closes")
         check(not errors, f"no uncaught errors {errors[:3]}")
         browser.close()
     if console: print("  (console errors, for information:", len(console), ";", "; ".join(sorted(set(console))[:4]) + ")")

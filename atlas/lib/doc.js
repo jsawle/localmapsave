@@ -4,7 +4,7 @@
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "2.0";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties
+export const WEBMAP_WRITER_VERSION = "2.1";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off
 export const WEBMAP_SPEC_VERSION = "2.31";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
 export const DATA_LAYER_PREFIX = "__data_";        // spreadsheet (CSV) layers
@@ -102,7 +102,7 @@ export function cleanDataLayer(ld, budget) {
     labelingInfo: Array.isArray(ld.labelingInfo) ? scrubSymbols(ld.labelingInfo, 0) : null,
     popupInfo: cleanPopupInfo(ld.popupInfo, fields),
     features: feats,
-    visible: ld.visible !== false, opacity: clamp(ld.opacity, 0, 1, 1)
+    visible: ld.visible !== false, opacity: clamp(ld.opacity, 0, 1, 1), showLabels: ld.showLabels !== false
   };
 }
 function cleanViewpoint(vp) {
@@ -276,7 +276,7 @@ export function dataDefToOperationalLayer(def, visible, opacity) {
   if (def.labelingInfo) drawingInfo.labelingInfo = def.labelingInfo;
   return {
     id: DATA_LAYER_PREFIX + def.id, title: def.title, layerType: "ArcGISFeatureLayer", visibility: visible !== false, opacity: finite(opacity) ? opacity : 1,
-    showLabels: !!def.labelingInfo,
+    showLabels: !!def.labelingInfo && def.showLabels !== false,
     featureCollection: { layers: [{
       layerDefinition: { name: def.title, type: "Feature Layer", geometryType: ESRI_GEOM[gtype] || gtype, objectIdField: def.objectIdField || "ObjectId",
         fields: def.fields, drawingInfo },
@@ -293,7 +293,8 @@ export function operationalLayerToDataDef(op, budget) {
   return cleanDataLayer({
     id: String(op.id || "").replace(/^__data_/, ""), title: op.title || ld.name, geometryType: ld.geometryType, objectIdField: ld.objectIdField,
     fields: ld.fields, renderer: ld.drawingInfo && ld.drawingInfo.renderer, labelingInfo: ld.drawingInfo && ld.drawingInfo.labelingInfo,
-    popupInfo: lyr.popupInfo, features: lyr.featureSet && lyr.featureSet.features, visible: op.visibility !== false, opacity: op.opacity
+    popupInfo: lyr.popupInfo, features: lyr.featureSet && lyr.featureSet.features, visible: op.visibility !== false, opacity: op.opacity,
+    showLabels: op.showLabels !== false
   }, budget || { left: MAX_FEATURES });
 }
 export function isOwnLayerJson(op) { return !!op && typeof op.id === "string" && (op.id.startsWith(SKETCH_LAYER_PREFIX) || op.id.startsWith(DATA_LAYER_PREFIX)); }
@@ -343,10 +344,16 @@ export function specToBookmarks(list) {
 export function docToWebMap(doc, ctx) {
   const dataOps = (doc.layers || []).map((ld) => dataDefToOperationalLayer(ld, ld.visible, ld.opacity));
   const sketchOps = sketchToOperationalLayers(doc.graphics || [], ctx.sketchTitle, ctx.sketchVisible);
-  const operationalLayers = []
+  let ops = []
     .concat((ctx.sourceLayers || []).filter((op) => !isOwnLayerJson(op)))
     .concat(ctx.portalLayers || [])
-    .concat(dataOps, sketchOps);
+    .concat(dataOps);
+  // ctx.order: the layer ids as drawn on the map, bottom first (Map layers can reorder them); sketches stay on top
+  if (Array.isArray(ctx.order) && ctx.order.length) {
+    const rank = new Map(ctx.order.map((id, i) => [id, i]));
+    ops = ops.map((op, i) => [op, rank.has(op.id) ? rank.get(op.id) : ctx.order.length + i]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
+  }
+  const operationalLayers = ops.concat(sketchOps);
   const wm = {
     operationalLayers,
     baseMap: ctx.baseMap && Array.isArray(ctx.baseMap.baseMapLayers) ? ctx.baseMap : { baseMapLayers: [], title: "Basemap" },
