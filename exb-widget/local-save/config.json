@@ -1,0 +1,8 @@
+{
+  "includeDrawings": true,
+  "warnBeforeLeaving": true,
+  "respectUserPrivileges": true,
+  "maxFeaturesPerLayer": 5000,
+  "maxFileSizeMB": 10,
+  "defaultFileName": "my-map"
+}
