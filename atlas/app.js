@@ -2,16 +2,17 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.14.1";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js";
-import { DEFAULT_STRINGS } from "./lib/strings.js";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.14.1";
+// Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.14.1";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.14.1";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.14.1";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.14.1";
 
-const APP_VERSION = "1.14.0";
+const APP_VERSION = "1.14.1";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
