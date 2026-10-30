@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.13.0";
+const APP_VERSION = "1.13.1";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)

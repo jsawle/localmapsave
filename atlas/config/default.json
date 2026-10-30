@@ -15,7 +15,7 @@
   "units": "metric",
   "scalebar": "dual",
   "disclaimer": "Basemaps and map layers may not reflect the official map policy of this programme.",
-  "signIn": { "clientId": "", "popup": true, "onboardingTitle": "Sign in with ArcGIS", "onboardingHtml": "<p>Use your ArcGIS account to sign in. Signing in lets you save maps to your ArcGIS Online account.</p><p>You don't need an account to use the app or to save maps on this device.</p>" },
+  "signIn": { "clientId": "MUSDSIajsXZwJeZQ", "popup": true, "onboardingTitle": "Sign in with ArcGIS", "onboardingHtml": "<p>Use your ArcGIS account to sign in. Signing in lets you save maps to your ArcGIS Online account.</p><p>You don't need an account to use the app or to save maps on this device.</p>" },
   "agolTags": ["school map"],
   "csvMaxRows": 1000,
   "features": { "openMap": true, "addLayer": true, "csv": true, "layers": true, "legend": true, "basemaps": true, "measure": true, "sketch": true, "bookmarks": true, "threeD": true, "save": true, "localSave": true, "screenshot": true, "print": true, "search": true, "signIn": true, "compass": true, "elevationProfile": true },

@@ -238,7 +238,7 @@ def main():
             check(page.is_hidden("#hdrTitle > input"), "no title until a map is open")
             signin_visible = page.is_visible("#signInBtn")
             check(signin_visible == (cfg != "mapmaker"), f"header sign-in visible={signin_visible}")
-            check(page.inner_text("#verBtn") == "v1.13.0" and not page.query_selector(".credit") and "Jason Sawle" not in page.inner_text(".corner"), "version shown, no credit badge")
+            check(page.inner_text("#verBtn") == "v1.13.1" and not page.query_selector(".credit") and "Jason Sawle" not in page.inner_text(".corner"), "version shown, no credit badge")
             check(page.evaluate(OVERLAP_JS) == {"stack": False, "attribution": False, "corner": False}, "nothing under the toolbar (desktop)")
             page.screenshot(path=str(shots / f"{cfg}-desktop.png"))
             page.set_viewport_size({"width": 1280, "height": 800}); page.wait_for_timeout(500)
