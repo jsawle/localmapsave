@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.13.2";
+const APP_VERSION = "1.14.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -2299,8 +2299,8 @@ async function confirmNameDialog() {
 }
 $("nameConfirm").addEventListener("click", confirmNameDialog);
 $("fileNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") confirmNameDialog(); });
-$("saveTile").addEventListener("click", () => saveToDevice(false));
-$("saveAsTile").addEventListener("click", () => saveToDevice(true));
+$("saveTile").addEventListener("click", () => (portalUser ? saveToAgol(false) : saveToDevice(false)));
+$("saveAsTile").addEventListener("click", () => (portalUser ? saveToAgol(true) : saveToDevice(true)));
 $("openSavedLink").addEventListener("click", () => { closePanels(false); openOpenModal("tabDevice"); });
 $("openSavedLink2").addEventListener("click", () => { closePanels(false); openOpenModal("tabDevice"); });
 $("shotTile").addEventListener("click", () => {
@@ -2455,11 +2455,12 @@ async function onSignedIn() {
   renderUser();
   return portalUser;
 }
-// Signed out, Save writes a file on this device. Signed in, Save goes to the user's ArcGIS Online account instead,
-// so the file can't carry a map that includes content only that account can see. Opening a file works either way.
+// Signed out, Save and Save as write a file on this device. Signed in, the same two tiles go to the user's ArcGIS Online account instead
+// (Save overwrites the map's own item, Save as asks for a new name), so a file can't carry a map that includes content only that account can see.
+// Opening a file works either way.
 function applySaveMode() {
   const local = F.localSave !== false, signed = !!portalUser;
-  for (const id of ["saveTile", "saveAsTile"]) $(id).hidden = !local || signed;
+  for (const id of ["saveTile", "saveAsTile"]) $(id).hidden = !(local || signed);
   const note = document.querySelector("#savePanel p.note[data-feature='localSave']:not(#saveSignedInNote)");
   if (note) note.hidden = !local || signed;
   $("saveSignedInNote").hidden = !local || !signed;
@@ -2485,9 +2486,6 @@ function renderUser() {
 function renderAgol() {
   const on = !!portalUser;
   $("agolSignedOut").hidden = on; $("agolSignedIn").hidden = !on;
-  const canUpdate = on && currentAgolItem && currentAgolItem.owner === portalUser.username;
-  $("agolUpdate").hidden = !canUpdate;
-  if (canUpdate) $("agolUpdate").textContent = t("updateArcgis", { title: currentAgolItem.title });
 }
 function startSignIn() {
   if (!signInConfigured) {
@@ -2618,7 +2616,9 @@ async function saveToArcGIS(update) {
     const sw = xyToLonLat(ext.xmin, ext.ymin), ne = xyToLonLat(ext.xmax, ext.ymax);
     const form = new FormData();
     form.append("f", "json");
-    form.append("title", update ? currentAgolItem.title : ($("agolTitle").value.trim() || currentTitle()));
+    // Save overwrites the map's own item and keeps the title in the header; Save as takes the name typed in the dialog.
+    const title = update ? currentTitle() : ($("agolTitle").value.trim() || currentTitle());
+    form.append("title", title);
     if (!update) {
       form.append("type", "Web Map");
       form.append("typeKeywords", "ArcGIS Online,Explorer Web Map,Map,Online Map,Web Map," + AUTHORING_APP);
@@ -2635,15 +2635,14 @@ async function saveToArcGIS(update) {
     const d = r.data || {};
     if (d.error || d.success === false) throw new Error((d.error && d.error.message) || "error");
     const id = d.id || (currentAgolItem && currentAgolItem.id);
-    currentAgolItem = { id, owner: user, title: update ? currentAgolItem.title : form.get("title") };
-    if (!update) setTitle(currentAgolItem.title);   // the name given in the Save dialog becomes the map's name in the header
+    currentAgolItem = { id, owner: user, title };
+    setTitle(title);   // the name given in the Save dialog becomes the map's name in the header
     markClean();
     renderAgol();
     const box = document.createElement("span");
     box.appendChild(document.createTextNode(S.arcgisSaved + " "));
-    const a1 = document.createElement("a"); a1.href = `${PORTAL}/apps/mapviewer/index.html?webmap=${id}`; a1.target = "_blank"; a1.rel = "noopener"; a1.textContent = S.openMapViewer;
     const a2 = document.createElement("a"); a2.href = `${PORTAL}/home/item.html?id=${id}`; a2.target = "_blank"; a2.rel = "noopener"; a2.textContent = S.openItemPage;
-    box.append(a1, document.createTextNode(" · "), a2);
+    box.append(a2);
     agolStatus(box);
     toast(S.arcgisSaved);
     if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
@@ -2652,9 +2651,13 @@ async function saveToArcGIS(update) {
     const s = document.createElement("span"); s.textContent = t("arcgisFailed", { msg: e.message || e.name || "" }); agolStatus(s);
   }
 }
-$("agolSaveNew").addEventListener("click", () => { $("agolTitle").value = currentTitle(); $("agolSummary").value = ""; openModal("agolModal", $("agolTitle")); });
+// Signed in: Save overwrites the map's own ArcGIS Online item (a map with none yet, or one that isn't the user's, asks for a name like Save as).
+// Save as always opens the dialog and makes a new item.
+function saveToAgol(asNew) {
+  if (!asNew && currentAgolItem && currentAgolItem.owner === portalUser.username) { saveToArcGIS(true); return; }
+  $("agolTitle").value = currentTitle(); $("agolSummary").value = ""; openModal("agolModal", $("agolTitle"));
+}
 $("agolConfirm").addEventListener("click", () => { closeModal("agolModal"); saveToArcGIS(false); });
-$("agolUpdate").addEventListener("click", () => saveToArcGIS(true));
 
 // ============================================================ Versions
 function renderVersions() {
