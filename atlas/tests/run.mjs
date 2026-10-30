@@ -17,6 +17,17 @@ const test = (name, fn) => {
   catch (e) { console.error("FAIL:", name); throw e; }
 };
 
+// ---------- Release: every module address carries the app version ----------
+test("index.html and app.js load modules tagged with APP_VERSION", () => {
+  const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const ver = app.match(/const APP_VERSION = "([^"]+)"/)[1];
+  assert.match(html, new RegExp('src="\\./app\\.js\\?v=' + ver.replace(/\./g, "\\.") + '"'));
+  const libs = [...app.matchAll(/from "\.\/lib\/[a-z]+\.js(\?v=[^"]*)?"/g)];
+  assert.ok(libs.length >= 6);
+  for (const m of libs) assert.equal(m[1], "?v=" + ver, m[0]);
+});
+
 // ---------- CSV ----------
 test("sniff comma / semicolon / tab", () => {
   assert.equal(csv.sniffDelimiter("a,b,c\n1,2,3\n"), ",");
