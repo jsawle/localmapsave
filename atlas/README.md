@@ -6,7 +6,7 @@ A configurable version of the National Geographic MapMaker app (an Atlas Instant
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.13.1**. Created by Jason Sawle.
+Version **1.13.2**. Created by Jason Sawle.
 
 **For developers:** the local save and add data logic is packaged on its own, with a minimal example, in [`kit/`](kit/README.md).
 
@@ -148,7 +148,7 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.13.1: the sign-in client ID is set in the default and MapMaker configs (the example-es config stays blank: each distributor registers their own). 1.13.0: signed in, Save goes to ArcGIS Online and the file Save and Save as are hidden (opening a file still works); a map opened from a private ArcGIS Online map never has its layers written to a file; the map counts as saved after Save to ArcGIS Online; a role that can't create items is told so. 1.12.0: MapMaker's layer tools in Map layers (drag to reorder, show/hide tools, Zoom to, legend, transparency, Swipe, Table, description, Labels, Remove; groups open to their layers; out-of-scale ⓘ). 1.11.0: opening another tool while Add data or Change style has unfinished work asks before discarding it (replaces 1.10.0's set-aside data and dot on Add layer). 1.9.1: *By type* is for text columns only again; saved maps are shown under their file's name. 1.9.0: fixes from Esri's code review (CSV coordinates, swap, pie columns; rotation; US wording; 3D bookmarks; newer-file warning) |
+| App | 1.13.2: after Save to ArcGIS Online the map's title shows in the header. 1.13.1: the sign-in client ID is set in the default and MapMaker configs (the example-es config stays blank: each distributor registers their own). 1.13.0: signed in, Save goes to ArcGIS Online and the file Save and Save as are hidden (opening a file still works); a map opened from a private ArcGIS Online map never has its layers written to a file; the map counts as saved after Save to ArcGIS Online; a role that can't create items is told so. 1.12.0: MapMaker's layer tools in Map layers (drag to reorder, show/hide tools, Zoom to, legend, transparency, Swipe, Table, description, Labels, Remove; groups open to their layers; out-of-scale ⓘ). 1.11.0: opening another tool while Add data or Change style has unfinished work asks before discarding it (replaces 1.10.0's set-aside data and dot on Add layer). 1.9.1: *By type* is for text columns only again; saved maps are shown under their file's name. 1.9.0: fixes from Esri's code review (CSV coordinates, swap, pie columns; rotation; US wording; 3D bookmarks; newer-file warning) |
 | Basemaps | 2.0: MapMaker's card grid (1.x was Esri's Basemap Gallery widget) |
 | Saved maps list (Open map, On this device) | 1.0 |
 | Collection browser (Open map, Add layer) | 2.0 |

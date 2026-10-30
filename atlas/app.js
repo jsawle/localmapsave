@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.13.1";
+const APP_VERSION = "1.13.2";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -2636,6 +2636,7 @@ async function saveToArcGIS(update) {
     if (d.error || d.success === false) throw new Error((d.error && d.error.message) || "error");
     const id = d.id || (currentAgolItem && currentAgolItem.id);
     currentAgolItem = { id, owner: user, title: update ? currentAgolItem.title : form.get("title") };
+    if (!update) setTitle(currentAgolItem.title);   // the name given in the Save dialog becomes the map's name in the header
     markClean();
     renderAgol();
     const box = document.createElement("span");
