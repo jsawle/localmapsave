@@ -11,7 +11,7 @@ import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topi
 import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js";
 import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js";
 
-const APP_VERSION = "1.12.0";
+const APP_VERSION = "1.13.0";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -990,7 +990,8 @@ async function openWebMapItem(itemId, opts) {
     if (!opts.keepWorkspace) resetWorkspace();
     for (const op of (data.operationalLayers || []).filter(isOwnLayerJson)) { const l = wm.layers.find((x) => x.id === op.id); if (l) wm.remove(l); }
     setActiveMap(wm);
-    currentSource = { itemId, title: item.title, item, data: parsed.webmap };
+    // A map that isn't public, opened while signed in, can hold layers only that account can see. Its layers are never written to a file.
+    currentSource = { itemId, title: item.title, item, data: parsed.webmap, restricted: !!portalUser && !!item.access && item.access !== "public" };
     if (portalUser && item.owner === portalUser.username) currentAgolItem = { id: itemId, owner: item.owner, title: item.title };
     if (!opts.keepWorkspace) {
       applyParsedWebMap(parsed);
@@ -2232,20 +2233,22 @@ function pickViaInput() {
 }
 function downloadBlob(blob, filename) { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); }
 // The saved file is an ArcGIS web map (Web Map Specification): the same JSON that Save to ArcGIS Online stores.
-let unsavedLayers = 0;
-async function buildWebMapJson() {
+let unsavedLayers = 0, privateLeftOut = 0;
+async function buildWebMapJson(toFile) {
+  privateLeftOut = 0;
   const doc = buildDocument();
   const ext = view.extent ? view.extent.clone() : null;
   const added = [...portalLayers.values()].map(layerToJson);
   unsavedLayers = added.filter((x) => !x).length;
-  return docToWebMap(doc, { baseMap: await currentBaseMapJson(), sourceLayers: sourceLayersJson(), portalLayers: added.filter(Boolean),
+  return docToWebMap(doc, { baseMap: await currentBaseMapJson(toFile), sourceLayers: sourceLayersJson(toFile), portalLayers: added.filter(Boolean),
     extent: ext ? ext.toJSON() : null, scale: mode === "2d" ? mapView.scale : null, rotation: mode === "2d" ? mapView.rotation || 0 : 0,
     appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false,
     order: activeMap().layers.toArray().filter((l) => l !== graphicsLayer && l !== previewLayer).map((l) => l.id) });
 }
-async function docText() { return JSON.stringify(await buildWebMapJson()); }
+async function docText() { return JSON.stringify(await buildWebMapJson(true)); }
 async function docBlob() { return new Blob([await docText()], { type: "application/json" }); }
 function saveToDevice(forceNew) {
+  if (portalUser) return;   // signed in: maps save to ArcGIS Online (see applySaveMode)
   if (!window.showSaveFilePicker) { openNameDialog(); return; }
   if (!forceNew && currentFileHandle && openedHandleUnsaved) {
     $("firstSaveText").textContent = t("firstSaveText", { name: currentFileHandle.name || "" });
@@ -2270,6 +2273,7 @@ async function writeToHandle(forceNew) {
     toast(t("savedFile", { name: currentFileHandle.name || titleSlug() + FILE_EXT }));
     recordSave({ handle: currentFileHandle, fileName: currentFileHandle.name || titleSlug() + FILE_EXT });
     if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
+    if (privateLeftOut) setTimeout(() => toast(t("privateLayersLeftOut", { n: privateLeftOut }), 6000), 3500);
   } catch (err) {
     if (err && err.name === "AbortError") return;
     if (err && (err.name === "NotAllowedError" || err.name === "NoModificationAllowedError") && !forceNew) { toast(S.readOnlyFile, 5000); currentFileHandle = null; return writeToHandle(true); }
@@ -2291,12 +2295,14 @@ async function confirmNameDialog() {
     recordSave({ json: text, fileName: name + FILE_EXT });
   } catch (e) { console.error(e); toast(S.saveFailed); return; }
   if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
+  if (privateLeftOut) setTimeout(() => toast(t("privateLayersLeftOut", { n: privateLeftOut }), 6000), 3500);
 }
 $("nameConfirm").addEventListener("click", confirmNameDialog);
 $("fileNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") confirmNameDialog(); });
 $("saveTile").addEventListener("click", () => saveToDevice(false));
 $("saveAsTile").addEventListener("click", () => saveToDevice(true));
 $("openSavedLink").addEventListener("click", () => { closePanels(false); openOpenModal("tabDevice"); });
+$("openSavedLink2").addEventListener("click", () => { closePanels(false); openOpenModal("tabDevice"); });
 $("shotTile").addEventListener("click", () => {
   view.takeScreenshot({ format: "png" }).then((s) => { fetch(s.dataUrl).then((r) => r.blob()).then((b) => { downloadBlob(b, titleSlug() + ".png"); toast(S.shotSaved); }); })
     .catch(() => toast(S.shotFailed));
@@ -2449,6 +2455,15 @@ async function onSignedIn() {
   renderUser();
   return portalUser;
 }
+// Signed out, Save writes a file on this device. Signed in, Save goes to the user's ArcGIS Online account instead,
+// so the file can't carry a map that includes content only that account can see. Opening a file works either way.
+function applySaveMode() {
+  const local = F.localSave !== false, signed = !!portalUser;
+  for (const id of ["saveTile", "saveAsTile"]) $(id).hidden = !local || signed;
+  const note = document.querySelector("#savePanel p.note[data-feature='localSave']:not(#saveSignedInNote)");
+  if (note) note.hidden = !local || signed;
+  $("saveSignedInNote").hidden = !local || !signed;
+}
 function renderUser() {
   const on = !!portalUser;
   $("signInBtn").hidden = on || F.signIn === false || SIGN.headerButton === false;
@@ -2465,6 +2480,7 @@ function renderUser() {
     try { if (portalUser.thumbnailUrl) { av.style.backgroundImage = "url('" + portalUser.thumbnailUrl + "')"; av.textContent = ""; } } catch (e) { /* initials */ }
   }
   renderAgol();
+  applySaveMode();
 }
 function renderAgol() {
   const on = !!portalUser;
@@ -2533,7 +2549,8 @@ $("signOutBtn").addEventListener("click", () => {
   renderUser();
   if (!$("tabArcgis").hidden) switchTab("tabGroup");
   ($("signInBtn").hidden ? $("tool-save") : $("signInBtn")).focus();
-  toast(S.signedOut);
+  if (currentSource && currentSource.restricted) toast(S.signedOutPrivateLayers, 8000);   // replaces "Signed out." so it isn't missed
+  else toast(S.signedOut);
 });
 
 const LAYER_TYPE_JSON = { feature: "ArcGISFeatureLayer", "map-image": "ArcGISMapServiceLayer", tile: "ArcGISTiledMapServiceLayer", "vector-tile": "VectorTileLayer",
@@ -2566,9 +2583,10 @@ function layerToJson(l) {
   else if (l.url) out.url = l.url;
   return out.url || out.styleUrl || out.templateUrl || out.itemId ? out : null;
 }
-async function currentBaseMapJson() {
+async function currentBaseMapJson(toFile) {
   const b = activeMap().basemap;
   const id = b && b.portalItem && b.portalItem.id;
+  if (toFile && !id && currentSource && currentSource.restricted) return null;   // a private map's own basemap: the file uses the default one
   if (id) { try { const d = await restGet(`/sharing/rest/content/items/${id}/data`); if (d && d.baseMap) return d.baseMap; } catch (e) { /* fall through */ } }
   if (currentSource && currentSource.data && currentSource.data.baseMap && !id) return currentSource.data.baseMap;
   try { const j = b.toJSON(); if (j && j.baseMapLayers && j.baseMapLayers.length) return j; } catch (e) { /* fall through */ }
@@ -2576,9 +2594,10 @@ async function currentBaseMapJson() {
   return null;   // the file still opens: the app's default basemap is used
 }
 // The opened map's own layers as they are now, in map order; layers removed in Map layers are left out.
-function sourceLayersJson() {
+function sourceLayersJson(toFile) {
   if (!currentSource || !currentSource.data) return [];
   const ops = (currentSource.data.operationalLayers || []).filter((op) => !isOwnLayerJson(op));
+  if (toFile && currentSource.restricted) { privateLeftOut = ops.length; return []; }
   return sourceLayers().map((l) => { const op = ops.find((o) => o.id === l.id); return op ? patchOpJson(op, l) : null; }).filter(Boolean);
 }
 async function screenshotBlob(w, h) {
@@ -2588,6 +2607,10 @@ function agolStatus(html) { $("agolStatus").innerHTML = ""; if (html) $("agolSta
 async function saveToArcGIS(update) {
   if (!portalUser) { startSignIn(); return; }
   const user = portalUser.username;
+  // A role without the create-content privilege can't add items. The portal lists a user's privileges; if it doesn't, the server's own error is shown instead.
+  if (!update && Array.isArray(portalUser.privileges) && portalUser.privileges.length && !portalUser.privileges.includes("portal:user:createItem")) {
+    const s = document.createElement("span"); s.textContent = S.arcgisNoPrivilege; agolStatus(s); return;
+  }
   const p = document.createElement("span"); p.textContent = S.arcgisSaving; agolStatus(p);
   try {
     const ext = view.extent.clone();
@@ -2613,6 +2636,7 @@ async function saveToArcGIS(update) {
     if (d.error || d.success === false) throw new Error((d.error && d.error.message) || "error");
     const id = d.id || (currentAgolItem && currentAgolItem.id);
     currentAgolItem = { id, owner: user, title: update ? currentAgolItem.title : form.get("title") };
+    markClean();
     renderAgol();
     const box = document.createElement("span");
     box.appendChild(document.createTextNode(S.arcgisSaved + " "));

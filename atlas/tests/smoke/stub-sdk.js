@@ -188,8 +188,11 @@ class Field extends Accessor { static fromJSON(j) { return j; } }
 class LabelClass extends Accessor { static fromJSON(j) { return j; } }
 class Extent extends Accessor { static fromJSON(j) { return j; } }
 class OAuthInfo extends Accessor {}
-class Portal extends Accessor {}
-const IdentityManager = { registerOAuthInfos() {}, checkSignInStatus: () => Promise.reject(new Error("not signed in")), findCredential: () => null, getCredential: () => Promise.reject(null), destroyCredentials() {} };
+// A signed-in user for tests that set window.__stubAuth = { signedIn, privileges } before the page loads.
+class Portal extends Accessor {
+  async load() { const a = window.__stubAuth || {}; this.user = a.signedIn ? { username: "teacher", fullName: "Test Teacher", privileges: a.privileges || ["portal:user:createItem"] } : null; }
+}
+const IdentityManager = { registerOAuthInfos() {}, checkSignInStatus: () => (window.__stubAuth && window.__stubAuth.signedIn ? Promise.resolve({}) : Promise.reject(new Error("not signed in"))), findCredential: () => null, getCredential: () => Promise.reject(null), destroyCredentials() {} };
 const rendererJsonUtils = { fromJSON: (j) => j };
 const esriConfig = {};
 const intl = { setLocale(l) { window.__stub.locale = l; } };

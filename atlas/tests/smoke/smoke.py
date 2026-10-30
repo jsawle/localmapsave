@@ -238,7 +238,7 @@ def main():
             check(page.is_hidden("#hdrTitle > input"), "no title until a map is open")
             signin_visible = page.is_visible("#signInBtn")
             check(signin_visible == (cfg != "mapmaker"), f"header sign-in visible={signin_visible}")
-            check(page.inner_text("#verBtn") == "v1.12.0" and not page.query_selector(".credit") and "Jason Sawle" not in page.inner_text(".corner"), "version shown, no credit badge")
+            check(page.inner_text("#verBtn") == "v1.13.0" and not page.query_selector(".credit") and "Jason Sawle" not in page.inner_text(".corner"), "version shown, no credit badge")
             check(page.evaluate(OVERLAP_JS) == {"stack": False, "attribution": False, "corner": False}, "nothing under the toolbar (desktop)")
             page.screenshot(path=str(shots / f"{cfg}-desktop.png"))
             page.set_viewport_size({"width": 1280, "height": 800}); page.wait_for_timeout(500)
@@ -665,6 +665,57 @@ def main():
             check(page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "Open map fits the phone")
             page.screenshot(path=str(shots / f"{cfg}-phone-open.png"))
             ctx.close()
+        # Signed in (a stand-in user; the config gets a client ID): Save goes to ArcGIS Online, a private map's layers never reach a file
+        print("== signed in")
+        PRIVATE_ID = "f" * 32
+        def signed_in_page(privs, webmap=None):
+            ctx = browser.new_context(viewport={"width": 1910, "height": 937}, accept_downloads=True)
+            ctx.add_init_script("delete window.showSaveFilePicker; delete window.showOpenFilePicker; window.__stubAuth = " + json.dumps({"signedIn": True, "privileges": privs}) + ";")
+            pg = ctx.new_page(); pg.route("**/*", route)
+            def extra(r):
+                u = r.request.url
+                if u.split("?")[0].endswith("/config/default.json"):
+                    cj = json.loads((ATLAS / "config" / "default.json").read_text()); cj["signIn"]["clientId"] = "stubclient1234"
+                    return r.fulfill(status=200, content_type="application/json", body=json.dumps(cj))
+                if "/addItem" in u: return r.fulfill(status=200, content_type="application/json", body=json.dumps({"success": True, "id": "e" * 32}))
+                if u.split("?")[0].endswith(f"/content/items/{PRIVATE_ID}"):
+                    return r.fulfill(status=200, content_type="application/json", body=json.dumps({"id": PRIVATE_ID, "title": "Private map", "type": "Web Map", "owner": "someone_else", "access": "private"}))
+                return r.fallback()
+            pg.route("**/*", extra)
+            errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
+            pg.on("dialog", lambda d: d.accept())
+            pg.goto(f"{base}/index.html?config=default" + (f"&webmap={webmap}" if webmap else "")); pg.wait_for_function("window.__stub && window.__stub.views.length > 0")
+            pg.wait_for_selector("#userWrap:not([hidden])", timeout=8000); pg.wait_for_timeout(600)
+            return ctx, pg, errs
+        # A: a role that can create items
+        ctx, page, errs = signed_in_page(["portal:user:createItem"])
+        page.click("#tool-save")
+        check(page.is_hidden("#saveTile") and page.is_hidden("#saveAsTile"), "signed in: no Save or Save as to a file")
+        check(page.is_visible("#saveSignedInNote") and page.is_visible("#openSavedLink2") and page.is_visible("#agolSaveNew"), "signed in: note, Open a saved map and Save to ArcGIS Online show")
+        page.click("#agolSaveNew"); page.click("#agolConfirm"); page.wait_for_function("document.querySelector('#agolStatus').textContent.includes('Saved to ArcGIS Online')", timeout=6000)
+        check(True, "signed in: Save to ArcGIS Online works")
+        page.click("#openSavedLink2"); check(page.is_visible("#paneDevice") or page.is_visible("#browseDevice"), "signed in: a saved file can still be opened")
+        page.keyboard.press("Escape")
+        page.click("#userBtn"); page.click("#signOutBtn"); page.wait_for_timeout(300); page.click("#tool-save")
+        check(page.is_visible("#saveTile") and page.is_visible("#saveAsTile") and page.is_hidden("#saveSignedInNote"), "signed out again: file Save and Save as are back")
+        check(not errs, f"console errors (signed in) {errs[:3]}")
+        ctx.close()
+        # B: a role that can't create items is told so
+        ctx, page, errs = signed_in_page(["portal:user:viewOrgUsers"])
+        page.click("#tool-save"); page.click("#agolSaveNew"); page.click("#agolConfirm"); page.wait_for_timeout(400)
+        check("can't create items" in page.inner_text("#agolStatus"), "no create-content privilege: " + page.inner_text("#agolStatus"))
+        ctx.close()
+        # C: a private map opened while signed in; once signed out, its layers are not written to a file
+        ctx, page, errs = signed_in_page(["portal:user:createItem"], webmap=PRIVATE_ID)
+        page.wait_for_timeout(800)
+        page.click("#userBtn"); page.click("#signOutBtn"); page.wait_for_timeout(300)
+        page.click("#tool-save")
+        with page.expect_download() as dl:
+            page.click("#saveTile"); page.wait_for_selector("#nameModal:not([hidden])"); page.fill("#fileNameInput", "From_private"); page.click("#nameConfirm")
+        savedp = json.loads(pathlib.Path(dl.value.path()).read_text())
+        check(not [o for o in savedp["operationalLayers"] if o["id"] == "rivers"], f"private map's layers left out of the file {[o['id'] for o in savedp['operationalLayers']]}")
+        check(not any(l.get("url") for l in savedp["baseMap"]["baseMapLayers"] if "World_Topo" in str(l.get("url"))), "private map's own basemap not written")
+        ctx.close()
         # Developer kit example (kit/example): add a CSV, save to a file, open it again
         print("== kit example")
         ctx = browser.new_context(viewport={"width": 1280, "height": 800}, accept_downloads=True)

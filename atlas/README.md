@@ -6,7 +6,7 @@ A configurable version of the National Geographic MapMaker app (an Atlas Instant
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.12.0**. Created by Jason Sawle.
+Version **1.13.0**. Created by Jason Sawle.
 
 **For developers:** the local save and add data logic is packaged on its own, with a minimal example, in [`kit/`](kit/README.md).
 
@@ -90,6 +90,12 @@ Opening:
 - A web map is a 2D document, so saved maps reopen in 2D.
 - A web map file has no title of its own: a saved map is named by its file. After saving, the header shows the file's name, and *On this device* lists the map under it, so both match what reopening shows.
 
+**Signed in.** Save and Save as are replaced by Save to ArcGIS Online (and Update, for a map of your own). Opening a saved `.amap` file still works, so a map started on a device can be finished and saved to the account. The reason for the split: a signed-in user can have layers only their account can see, and a file would carry those outside ArcGIS Online's access control. So:
+- A map opened from a private ArcGIS Online map while signed in never has its layers written to a file, even after signing out (the sketches and spreadsheet data still are). The app says how many were left out.
+- The file never holds an ArcGIS Online item ID. A starter file posted by a teacher therefore can't point a student's Save at the teacher's item. Update only appears for an item the signed-in user owns.
+- Saving needs a role with the create-content privilege. If the portal says the role lacks it, the app says so instead of failing.
+- After Save to ArcGIS Online the map counts as saved, so closing the tab doesn't ask about unsaved changes.
+
 **On this device.** Every save also puts the map in a list kept in this browser, which Open map shows under *On this device*: title, when it was saved, the file name and a picture of the map, newest first (up to 30). Saving the same file again updates its entry; Save as adds a new one.
 - **Chrome and Edge** keep a link to the file itself. Open reads the file as it is now (the browser may ask once whether the app can open it again), and Save then goes on writing to that file. If the file has been moved, renamed or deleted, the app says so.
 - **Safari and Firefox** can only download, and can't open a file again by themselves, so the list keeps a copy of each map saved, in the browser on this device. The downloaded file is the same map.
@@ -114,7 +120,7 @@ Notes:
 - **Without sign-in:** nothing a student adds, draws or saves leaves the device. CSV files are read in the browser, and saved maps are files on the device. Printing happens in the browser, so no print service is used.
 - **The saved-maps list** stays in the browser on the device (in Safari and Firefox with a copy of each map). Anyone using the same browser on the same device can see it, which the list itself says; *Remove from list* clears an entry.
 - **What the app does load:** basemap tiles and collection content come from ArcGIS Online, and search terms go to Esri's geocoder.
-- **With sign-in:** saving to ArcGIS Online creates a private item that only the signed-in user can see.
+- **With sign-in:** saving to ArcGIS Online creates a private item that only the signed-in user can see. Signing in is optional and is never asked for: the map, CSV data and saving to a device all work without it. Without sign-in the statements above hold; with it, the account belongs to the user's organization.
 - **Opening a saved map loads its layers** from the web addresses written in it (only `https`). A file from someone else can therefore contact the servers its layers come from, just as a web map in ArcGIS Online does.
 - **Opened files are checked first** (see *Saved maps*).
 
@@ -142,7 +148,7 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.12.0: MapMaker's layer tools in Map layers (drag to reorder, show/hide tools, Zoom to, legend, transparency, Swipe, Table, description, Labels, Remove; groups open to their layers; out-of-scale ⓘ). 1.11.0: opening another tool while Add data or Change style has unfinished work asks before discarding it (replaces 1.10.0's set-aside data and dot on Add layer). 1.9.1: *By type* is for text columns only again; saved maps are shown under their file's name. 1.9.0: fixes from Esri's code review (CSV coordinates, swap, pie columns; rotation; US wording; 3D bookmarks; newer-file warning) |
+| App | 1.13.0: signed in, Save goes to ArcGIS Online and the file Save and Save as are hidden (opening a file still works); a map opened from a private ArcGIS Online map never has its layers written to a file; the map counts as saved after Save to ArcGIS Online; a role that can't create items is told so. 1.12.0: MapMaker's layer tools in Map layers (drag to reorder, show/hide tools, Zoom to, legend, transparency, Swipe, Table, description, Labels, Remove; groups open to their layers; out-of-scale ⓘ). 1.11.0: opening another tool while Add data or Change style has unfinished work asks before discarding it (replaces 1.10.0's set-aside data and dot on Add layer). 1.9.1: *By type* is for text columns only again; saved maps are shown under their file's name. 1.9.0: fixes from Esri's code review (CSV coordinates, swap, pie columns; rotation; US wording; 3D bookmarks; newer-file warning) |
 | Basemaps | 2.0: MapMaker's card grid (1.x was Esri's Basemap Gallery widget) |
 | Saved maps list (Open map, On this device) | 1.0 |
 | Collection browser (Open map, Add layer) | 2.0 |
@@ -168,6 +174,7 @@ The app version, plus a version for each part, is shown under the version button
 - **Choosing a folder** for local save needs Chrome or Edge. Safari and Firefox save to Downloads instead.
 - **Private browsing:** in Playwright's private-mode test sessions, Chromium crashes when it reads a stored file link back from browser storage (normal profiles are fine). The list therefore never reads those links to show itself, only to open the one map chosen. Real Chrome Incognito hasn't been tried; in a private window the list is in any case wiped when the window closes.
 - **3D basemaps in 2D:** the group's 3D Buildings basemap is only offered in 3D. If it's chosen and the map goes back to 2D, its 2D layers still show; its 3D layers can't draw in 2D (the browser console notes this).
+- **Private layers inside a public map:** a signed-in user's map is treated as private when its item isn't public. A public web map that includes a secured layer isn't detected, so after signing out that layer's address could still be written to a file. Checking each layer's own access needs a test in a real browser.
 - **Maps reopened from ArcGIS Online:** the sketches and spreadsheet data the app wrote come back fully editable. Other apps see them as ordinary layers.
 - **3D animations** (the Vesuvius plug-in) are in Map Studio (`../whitelabel/`) and not in this app yet.
 
