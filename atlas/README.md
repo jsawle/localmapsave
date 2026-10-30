@@ -6,7 +6,7 @@ A configurable version of the National Geographic MapMaker app (an Atlas Instant
 - **Your own data:** drag and drop a spreadsheet (CSV) and style it with a live preview.
 - **ArcGIS Online:** sign in to save the map to your account, update it, and open your own maps.
 
-Version **1.13.2**. Created by Jason Sawle.
+Version **1.14.0**. Created by Jason Sawle.
 
 **For developers:** the local save and add data logic is packaged on its own, with a minimal example, in [`kit/`](kit/README.md).
 
@@ -37,7 +37,7 @@ The toolbar is in MapMaker's order: Basemaps, Open map, Map layers, Add layer, L
 | Sketch | Point, line, area, circle and text. Each has a pop-up with title, description and image, plus colour and size, and rotation for text (the only sketch it turns). Select to move or reshape; delete |
 | Bookmarks | Saves the location and which layers are on. A map's own bookmarks appear when you open it. As in MapMaker, a blue dot on the button shows the map has bookmarks. A bookmark made in 3D brings back the same tilt and heading while the app is open; a saved map keeps its place |
 | 2D / 3D | One map shown in either view. Switching to 3D tilts the camera towards the horizon (60° by default) so it's obvious the view has changed. From the whole-world start view the SDK allows almost no tilt (0.5°), so there the globe itself is the change; the tilt shows from about country scale in. The 3D view has zoom and one pan/rotate toggle; the compass rose turns with it |
-| Save | Save, Save as, Screenshot, Print. With sign-in: Save to ArcGIS Online and Update. Save and Save to ArcGIS Online write the same web map |
+| Save | Save, Save as, Screenshot, Print. Signed in, the same Save and Save as tiles go to ArcGIS Online (Save overwrites the map's own item, Save as asks for a new name). Save, Save as and ArcGIS Online all write the same web map |
 | On the map | Search, Home and zoom (top left); MapMaker's compass rose above the scale bar (bottom left), which turns with the map and faces north again when selected; the disclaimer in the attribution bar; the version (bottom right) |
 
 ## Set up a version for your country
@@ -90,9 +90,9 @@ Opening:
 - A web map is a 2D document, so saved maps reopen in 2D.
 - A web map file has no title of its own: a saved map is named by its file. After saving, the header shows the file's name, and *On this device* lists the map under it, so both match what reopening shows.
 
-**Signed in.** Save and Save as are replaced by Save to ArcGIS Online (and Update, for a map of your own). Opening a saved `.amap` file still works, so a map started on a device can be finished and saved to the account. The reason for the split: a signed-in user can have layers only their account can see, and a file would carry those outside ArcGIS Online's access control. So:
+**Signed in.** Save and Save as save to ArcGIS Online instead of a file. Save overwrites the map's own item (one you own: made here, or opened from My ArcGIS maps); with no item yet, or one that isn't yours, it asks for a name like Save as, which always makes a new item and takes the name you type. The saved message links the item page. Opening a saved `.amap` file still works, so a map started on a device can be finished and saved to the account. The reason for the split: a signed-in user can have layers only their account can see, and a file would carry those outside ArcGIS Online's access control. So:
 - A map opened from a private ArcGIS Online map while signed in never has its layers written to a file, even after signing out (the sketches and spreadsheet data still are). The app says how many were left out.
-- The file never holds an ArcGIS Online item ID. A starter file posted by a teacher therefore can't point a student's Save at the teacher's item. Update only appears for an item the signed-in user owns.
+- The file never holds an ArcGIS Online item ID. A starter file posted by a teacher therefore can't point a student's Save at the teacher's item. Save only overwrites an item the signed-in user owns.
 - Saving needs a role with the create-content privilege. If the portal says the role lacks it, the app says so instead of failing.
 - After Save to ArcGIS Online the map counts as saved, so closing the tab doesn't ask about unsaved changes.
 
@@ -148,7 +148,7 @@ The app version, plus a version for each part, is shown under the version button
 
 | Part | Version |
 |---|---|
-| App | 1.13.2: after Save to ArcGIS Online the map's title shows in the header. 1.13.1: the sign-in client ID is set in the default and MapMaker configs (the example-es config stays blank: each distributor registers their own). 1.13.0: signed in, Save goes to ArcGIS Online and the file Save and Save as are hidden (opening a file still works); a map opened from a private ArcGIS Online map never has its layers written to a file; the map counts as saved after Save to ArcGIS Online; a role that can't create items is told so. 1.12.0: MapMaker's layer tools in Map layers (drag to reorder, show/hide tools, Zoom to, legend, transparency, Swipe, Table, description, Labels, Remove; groups open to their layers; out-of-scale ⓘ). 1.11.0: opening another tool while Add data or Change style has unfinished work asks before discarding it (replaces 1.10.0's set-aside data and dot on Add layer). 1.9.1: *By type* is for text columns only again; saved maps are shown under their file's name. 1.9.0: fixes from Esri's code review (CSV coordinates, swap, pie columns; rotation; US wording; 3D bookmarks; newer-file warning) |
+| App | 1.14.0: signed in, Save overwrites the map's ArcGIS Online item and Save as opens a name dialog for a new one (the separate Save to ArcGIS Online and Update buttons and the Map Viewer link are gone). 1.13.2: after Save to ArcGIS Online the map's title shows in the header. 1.13.1: the sign-in client ID is set in the default and MapMaker configs (the example-es config stays blank: each distributor registers their own). 1.13.0: signed in, Save goes to ArcGIS Online and the file Save and Save as are hidden (opening a file still works); a map opened from a private ArcGIS Online map never has its layers written to a file; the map counts as saved after Save to ArcGIS Online; a role that can't create items is told so. 1.12.0: MapMaker's layer tools in Map layers (drag to reorder, show/hide tools, Zoom to, legend, transparency, Swipe, Table, description, Labels, Remove; groups open to their layers; out-of-scale ⓘ). 1.11.0: opening another tool while Add data or Change style has unfinished work asks before discarding it (replaces 1.10.0's set-aside data and dot on Add layer). 1.9.1: *By type* is for text columns only again; saved maps are shown under their file's name. 1.9.0: fixes from Esri's code review (CSV coordinates, swap, pie columns; rotation; US wording; 3D bookmarks; newer-file warning) |
 | Basemaps | 2.0: MapMaker's card grid (1.x was Esri's Basemap Gallery widget) |
 | Saved maps list (Open map, On this device) | 1.0 |
 | Collection browser (Open map, Add layer) | 2.0 |
