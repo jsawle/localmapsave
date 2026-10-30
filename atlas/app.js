@@ -2,17 +2,17 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.14.1";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.14.2";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.14.1";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.14.2";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.14.1";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.14.2";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.14.1";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.14.1";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.14.1";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.14.2";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.14.2";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.14.2";
 
-const APP_VERSION = "1.14.1";
+const APP_VERSION = "1.14.2";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -1705,7 +1705,7 @@ const mapBrowser = createBrowser({ p: "om", query: 'type:"Web Map"', accept: () 
   run(item) { openCollectionMap(item); } });
 function forgetBrowse() { mapBrowser.forget(); addBrowser.forget(); groupLoaded = false; }
 const agolState = { start: 1, loading: false };
-function mapCard(item, onOpen) {     // My ArcGIS maps
+function mapCard(item, onOpen) {     // My ArcGIS Online maps
   const li = document.createElement("li"); li.className = "map-card";
   const th = document.createElement("div"); th.className = "card-thumb"; th.setAttribute("aria-hidden", "true");
   const tu = thumbUrl(item); if (tu) th.style.backgroundImage = "url('" + tu.replace(/'/g, "%27") + "')";
@@ -2309,7 +2309,7 @@ $("shotTile").addEventListener("click", () => {
     .catch(() => toast(S.shotFailed));
 });
 
-// ============================================================ Saved maps on this device (Open map > On this device)
+// ============================================================ Saved maps on this device (Open map > My map files)
 // Every save adds the map to a list kept in this browser (lib/recent.js), newest first. In Chrome and Edge the list keeps
 // a handle to the file, so Open reads the file itself and Save goes on writing to it; browsers that can only download
 // (Safari, Firefox) keep a copy of the saved map instead, as they can't open a file again by themselves.
@@ -2665,7 +2665,7 @@ function renderVersions() {
   const rows = [
     [cfg.appName + " (app)", APP_VERSION, "White-label build of the MapMaker app: every MapMaker tool, local save, CSV data, ArcGIS Online sign-in. Created by Jason Sawle."],
     ["Basemaps", BASEMAPS_VERSION, "MapMaker's basemap cards: the basemap group's maps in the group's own order, two to a row; in 3D, its 3D basemaps first."],
-    ["Saved maps list (Open map, On this device)", RECENT_VERSION, "Maps saved on this device, newest first, kept in this browser. Chrome and Edge reopen the file itself; Safari and Firefox keep a copy of each saved map."],
+    ["Saved maps list (Open map, My map files)", RECENT_VERSION, "Maps saved on this device, newest first, kept in this browser. Chrome and Edge reopen the file itself; Safari and Firefox keep a copy of each saved map."],
     ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
     ["Elevation profile", PROFILE_VERSION, "Esri's Elevation Profile widget, opened from Measure and ready to draw: the height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],

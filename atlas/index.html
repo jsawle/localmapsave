@@ -326,7 +326,7 @@
     .tab[aria-selected="true"]{ color:var(--brand-strong); border-bottom-color:var(--brand); }
     .open-tools{ display:flex; gap:10px; padding:14px 22px 0; flex-wrap:wrap; }
     .open-body{ padding:16px 22px 22px; overflow-y:auto; min-height:0; }
-    /* On this device: Browse, then the maps saved in this browser (cards like the collection's) */
+    /* My map files: Open a map file, then the maps saved in this browser (cards like the collection's) */
     .dev-top{ flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:14px 22px; border-bottom:1px solid var(--line); }
     .dev-top .note{ margin:0; flex:1 1 320px; }
     .dev-main{ flex:1 1 auto; }
@@ -437,6 +437,8 @@
       .doc-title{ font-size:15px; }
     }
     @media (max-width:640px){
+      .tabs{ gap:6px; padding:8px 12px 0; overflow-x:visible; }
+      .tab{ flex:1 1 0; min-width:0; white-space:normal; text-align:center; line-height:1.25; padding:8px 2px; }   /* three equal columns; a long name takes two lines */
       .hdr{ gap:8px; padding:0 10px; }
       .hdr-title .doc-title{ display:none; }
       .hdr-title{ justify-content:flex-end; }
@@ -503,7 +505,7 @@
             <span class="avatar" id="avatar" aria-hidden="true"></span><span class="user-name" id="userName"></span>
           </button>
           <div class="menu" id="userMenu" role="menu" hidden>
-            <button type="button" role="menuitem" id="myMapsBtn" data-i18n="myArcgisMaps">My ArcGIS maps</button>
+            <button type="button" role="menuitem" id="myMapsBtn" data-i18n="myArcgisMaps">My ArcGIS Online maps</button>
             <button type="button" role="menuitem" id="signOutBtn" data-i18n="signOut">Sign out</button>
           </div>
         </div>
@@ -698,8 +700,8 @@
       <div class="open-head"><div><h2 id="openH" tabindex="-1" data-i18n="openMap">Open map</h2><p data-i18n="openMapIntro"></p></div><button class="x-btn" type="button" data-modal-close data-i18n-aria="close">&times;</button></div>
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" type="button" id="tabGroup" aria-selected="true" aria-controls="paneGroup"></button>
-        <button class="tab" role="tab" type="button" id="tabDevice" aria-selected="false" aria-controls="paneDevice" data-i18n="tabDevice" data-feature="localSave">On this device</button>
-        <button class="tab" role="tab" type="button" id="tabArcgis" aria-selected="false" aria-controls="paneArcgis" data-i18n="tabArcgis" hidden>My ArcGIS maps</button>
+        <button class="tab" role="tab" type="button" id="tabDevice" aria-selected="false" aria-controls="paneDevice" data-i18n="tabDevice" data-feature="localSave">My map files</button>
+        <button class="tab" role="tab" type="button" id="tabArcgis" aria-selected="false" aria-controls="paneArcgis" data-i18n="tabArcgis" hidden>My ArcGIS Online maps</button>
       </div>
       <div id="paneGroup" class="pane-fill" role="tabpanel" aria-labelledby="tabGroup">
         <div class="cat" id="omBrowser">
@@ -723,7 +725,7 @@
         </div>
       </div>
       <div id="paneDevice" class="pane-fill" role="tabpanel" aria-labelledby="tabDevice" hidden>
-        <div class="dev-top"><p class="note" data-i18n="deviceLead"></p><button class="btn primary" type="button" id="browseDevice" data-i18n="browseDevice">Browse this device…</button></div>
+        <div class="dev-top"><p class="note" data-i18n="deviceLead"></p><button class="btn primary" type="button" id="browseDevice" data-i18n="browseDevice">Open a map file…</button></div>
         <div class="cat-main dev-main">
           <h3 class="dev-h" id="savedMapsH" data-i18n="savedMaps">Saved maps</h3>
           <p class="cat-status" id="savedStatus" aria-live="polite"></p>
@@ -827,6 +829,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=1.14.1"></script>
+  <script type="module" src="./app.js?v=1.14.2"></script>
 </body>
 </html>

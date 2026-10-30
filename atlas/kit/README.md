@@ -76,7 +76,7 @@ What the app keeps track of:
 | Atlas today | With the kit |
 |---|---|
 | **Save:** PDF, screenshot, save to my ArcGIS Online account | Add **Save to this device** and **Save as**. Atlas's Save to ArcGIS Online already builds a web map for the portal; the file is that same JSON |
-| **Open map:** maps from the group | Add an **On this device** tab |
+| **Open map:** maps from the group | Add a **My map files** tab |
 | **Add layer:** layers from the group | Add a **Your own data** tab: choose or drop a CSV, check the columns, pick a style with a live preview |
 | **Sketch** and **Bookmarks** | No change; their content goes into the file and comes back editable |
 
@@ -127,7 +127,7 @@ This assumes one developer who knows the Atlas code and the SDK, using this kit'
 | Work | Already in the kit | Left for Atlas | Estimate |
 |---|---|---|---|
 | Save to a file | Web map writer; file save with folder choice or download | Menu items in Save; feeding Atlas's sketches, bookmarks and added layers to the writer (or reusing what Save to ArcGIS Online builds); unsaved-work warning | 1–2 weeks |
-| Open a file | Reader with file checks; `WebMap.fromJSON`; editable sketches and data layers | "On this device" in Open map; handing sketches back to Atlas's Sketch tool; bookmarks; error messages | 1–2 weeks |
+| Open a file | Reader with file checks; `WebMap.fromJSON`; editable sketches and data layers | "My map files" in Open map; handing sketches back to Atlas's Sketch tool; bookmarks; error messages | 1–2 weeks |
 | Add a CSV | Parsing, column types, six styles, layer creation | Calcite interface: choose or drop a file, column picker, style chooser, live preview; Legend and Layer list | 2–4 weeks (1–2 with automatic styling only) |
 | Settings | — | Switches in the Atlas builder (express and full setup) | about 1 week |
 | Languages, accessibility, help | English strings | Translation of new strings, accessibility review, help pages | 1–2 weeks, plus translation turnaround |
