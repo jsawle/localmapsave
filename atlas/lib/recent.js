@@ -1,4 +1,4 @@
-// Saved maps on this device: the list behind Open map > On this device.
+// Saved maps on this device: the list behind Open map > My map files.
 // The list lives in this browser's IndexedDB, on this device only. In Chrome and Edge each entry also keeps a handle to the
 // saved file, so Open reads the file itself (and Save keeps writing to it). Browsers that can only download files
 // (Safari, Firefox) can't open a file again by themselves, so there the entry keeps a copy of the saved map.

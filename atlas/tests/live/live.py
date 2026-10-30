@@ -7,7 +7,7 @@ Needs network access to js.arcgis.com, www.arcgis.com and Esri's tile services (
 The smoke and real-SDK tests answer ArcGIS Online with fixtures. This one doesn't, so it sees what a teacher sees:
   - Basemaps: MapMaker's cards (two to a row, picture above, name below), the live group's basemaps in its own order,
     the map's basemap selected; choosing by mouse and keyboard; 3D lists the 3D basemap first; WCAG 2.1 AA scan.
-  - Open map > On this device, the Chrome/Edge way: every save is listed, newest first, with a picture of the map; saving the
+  - Open map > My map files, the Chrome/Edge way: every save is listed, newest first, with a picture of the map; saving the
     same file again updates its entry and Save as adds one; the list survives a reload; opening a map from it reads the file
     and Save goes on writing to that file; removing an entry leaves the file; a moved or deleted file is reported.
     (Chrome's save and open dialogs can't be driven by a test, so they hand back files in the page's private file system:
@@ -23,7 +23,7 @@ ATLAS = HERE.parent.parent
 sys.path.insert(0, str(HERE.parent / "smoke"))
 import smoke  # noqa: E402  (finds Chromium, fetches axe-core)
 
-APP_VERSION = "1.14.1"
+APP_VERSION = "1.14.2"
 # The live basemap group's web maps in its own order (date added, newest first), October 2026.
 GROUP_ORDER = ["OpenStreetMap Style", "Ocean", "Black and White Outline", "Imagery (no labels)", "Dark Gray", "Human Geography"]
 AXE = "axe.run({ exclude: [['.esri-view-root']] }, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))"
@@ -138,7 +138,7 @@ def main():
         ctx.close()
 
         # ---------------------------------------------------------------- Saved maps, Chrome/Edge (file handles)
-        print("== On this device (Chrome and Edge: file handles)")
+        print("== My map files (Chrome and Edge: file handles)")
         # A normal browser profile, as people use. (In Playwright's private-mode contexts Chromium crashes reading a file
         # handle back from IndexedDB, which is why the app keeps handles out of the list itself: see the phone check below.)
         ctx = p.chromium.launch_persistent_context(tempfile.mkdtemp(prefix="atlas-live-"), viewport={"width": 1524, "height": 768}, **launch)
@@ -181,7 +181,7 @@ def main():
         cards = open_device_tab(page, 2)
         check([c["meta"].split(" · ")[-1] for c in cards] == ["battles_copy.amap", "battles.amap"], f"Save as adds one, newest first {[c['meta'] for c in cards]}")
         page.add_script_tag(content=axe_js); res = page.evaluate(AXE)
-        check(not res, f"axe (On this device) {res}")
+        check(not res, f"axe (My map files) {res}")
         page.screenshot(path=str(shots / "device-two.png"))
         # A new visit: the list is still there; open the older one from it
         page.reload(); page.wait_for_function("document.querySelector('.esri-attribution')", timeout=90000); page.wait_for_timeout(2500)
@@ -209,11 +209,11 @@ def main():
         page.evaluate("__deleteFile('battles.amap')")
         page.click('#savedList .cat-card:first-child .cat-act:not(.quiet)'); toast(page, "isn't where it was saved")
         check(page.is_visible("#openModal"), "a missing file is reported and the dialog stays open")
-        check(not errors, f"console errors (On this device) {errors[:3]}")
+        check(not errors, f"console errors (My map files) {errors[:3]}")
         ctx.close()
 
         # ---------------------------------------------------------------- Saved maps, Safari/Firefox (downloads)
-        print("== On this device (browsers that only download)")
+        print("== My map files (browsers that only download)")
         ctx = browser.new_context(viewport={"width": 1524, "height": 768}, accept_downloads=True)
         ctx.add_init_script("delete window.showSaveFilePicker; delete window.showOpenFilePicker;")
         page, errors = start(ctx, "default")
@@ -286,7 +286,7 @@ def main():
         page.click("#tool-basemaps")
         page.evaluate("window.__picker.next = 'phone.amap'"); save_panel(page); page.click("#saveTile"); toast(page, "Saved phone.amap"); wait_list(page, 1)
         cards = open_device_tab(page, 1)
-        check(len(cards) == 1 and page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "On this device lists it and fits the phone (private-mode context: the list never reads file handles)")
+        check(len(cards) == 1 and page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "My map files lists it and fits the phone (private-mode context: the list never reads file handles)")
         page.screenshot(path=str(shots / "phone-device.png"))
         ctx.close()
         browser.close()
