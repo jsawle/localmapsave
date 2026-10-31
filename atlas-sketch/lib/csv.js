@@ -2,13 +2,15 @@
 // Pure functions only (no ArcGIS SDK), so they can be unit-tested in Node.
 // Nothing here sends the file anywhere: parsing happens in the browser.
 
-export const CSV_VERSION = "3.3";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
+export const CSV_VERSION = "3.4";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
                                     // multi-language lat/long names, manual column choice
                                     // 3.1: a layer's style can be changed after it's added (stateFromLayerDef)
                                     // 3.2: coordinates with N/S/E/W and degrees-minutes-seconds; whole-number codes
                                     //      (2-12 values) can be types; pie charts from chosen columns
                                     // 3.3: "By type" uses text columns only again: whole numbers are always amounts
                                     //      (a litter survey's counts looked like codes in a small file)
+                                    // 3.4: one column holding both coordinates, as copied from the map's Coordinates
+                                    //      tool (XY, DD, DDM, DMS, UTM, MGRS/USNG, basemap metres), in any app language
 
 export const PALETTE_HEX = ["#0079c1", "#d4572a", "#1a7f37", "#8250df", "#b4453a", "#9a6700", "#e3116c", "#2b2b2b"];
 export const PALETTE_RGB = [
@@ -111,10 +113,12 @@ const isBlankRow = (r) => !r || r.every((c) => String(c == null ? "" : c).trim()
 const fail = (code, params) => ({ ok: false, code, params: params || {} });
 
 /**
- * Read CSV text. Returns { ok, header, rows, delim, latIdx, lonIdx } or { ok:false, code, params }.
- * latIdx/lonIdx are -1 when no column name matched; the app then asks the user to choose.
+ * Read CSV text. Returns { ok, header, rows, delim, dirTable, latIdx, lonIdx } or { ok:false, code, params }.
+ * latIdx/lonIdx are -1 when no column name matched; the app then asks the user to choose. When one column holds both
+ * coordinates (see parseCoordPair), latIdx and lonIdx are both that column. dirs: the app language's hemisphere letters
+ * ({ north, south, east, west }, from the SDK); English is used when left out.
  */
-export function readCsv(text, maxRows) {
+export function readCsv(text, maxRows, dirs) {
   maxRows = maxRows || 1000;
   const delim = sniffDelimiter(text);
   const all = parseRows(text, delim);
@@ -128,8 +132,13 @@ export function readCsv(text, maxRows) {
   const rows = all.slice(1).filter((r) => !isBlankRow(r));
   if (!rows.length) return fail("csvNoRows");
   if (rows.length > maxRows) return fail("csvTooMany", { n: rows.length, max: maxRows });
+  const dirTable = directionTable(dirs);
   const found = detectLatLon(header);
-  return { ok: true, header, rows, delim, latIdx: found.latIdx, lonIdx: found.lonIdx };
+  if (found.latIdx < 0 || found.lonIdx < 0) {   // no latitude and longitude columns: is there one column with both?
+    const pair = detectPairColumn(header, rows, dirTable);
+    if (pair >= 0) return { ok: true, header, rows, delim, dirTable, latIdx: pair, lonIdx: pair };
+  }
+  return { ok: true, header, rows, delim, dirTable, latIdx: found.latIdx, lonIdx: found.lonIdx };
 }
 
 export function detectLatLon(header) {
@@ -176,38 +185,242 @@ export function lonLatToWebMercator(lon, lat) {
   return [lon / 180 * R, Math.log(Math.tan((90 + la) * Math.PI / 360)) / Math.PI * R];
 }
 
-/**
- * Turn parsed rows into features + fields. Column types are inferred: a column is numeric when every
- * non-empty cell is a number (decimal commas allowed when the file uses them).
- */
+// ---------------------------------------------------------------- coordinates
+// Hemisphere letters. The map's Coordinates tool (Esri's Coordinate Conversion widget) writes them in the app's language
+// (Spanish O = west, German O = east, Finnish E = south, Hungarian Ny = west...), so the app passes in the SDK's own
+// letters for its language. English N/S/E/W are also read, unless the language uses that letter for something else.
+export const ENGLISH_DIRS = { north: "N", south: "S", east: "E", west: "W" };
+export function directionTable(dirs) {
+  const t = {};
+  const add = (d, overwrite) => {
+    for (const [k, axis, sign] of [["north", "lat", 1], ["south", "lat", -1], ["east", "lon", 1], ["west", "lon", -1]]) {
+      const l = String((d && d[k]) || "").trim().toUpperCase();
+      if (l && (overwrite || !(l in t))) t[l] = { axis, sign };
+    }
+  };
+  add(dirs, true); add(ENGLISH_DIRS, false);
+  return t;
+}
+const ENGLISH_TABLE = directionTable(null);
+
+// Text as copied from the Coordinates tool carries invisible direction marks after each degree sign. A CSV saved by
+// Excel in an older encoding turns the degree sign into a broken character and the mark into "?". Both are tidied here.
+export function cleanCoordText(raw) {
+  return String(raw == null ? "" : raw)
+    .replace(/[‎‏‪-‮⁦-⁩﻿]/g, "")
+    .replace(/�/g, "°").replace(/\?/g, "")
+    .replace(/[   ]/g, " ")
+    .trim();
+}
+
+// One latitude or longitude. Returns null (empty), NaN (unreadable) or { value, axis, deg }: axis is "lat" or "lon"
+// when a hemisphere letter says so (null otherwise); deg is true when it was written with a degree sign.
+function coordPart(raw, decimalComma, table) {
+  const text = cleanCoordText(raw);
+  if (text === "") return null;
+  const plain = toNumber(text, decimalComma);
+  if (!Number.isNaN(plain)) return { value: plain, axis: null, deg: false };
+  let v = text.toUpperCase().replace(/[′’‘`´]/g, "'").replace(/[″”“]/g, '"').replace(/[º˚]/g, "°");
+  const deg = v.includes("°");
+  let hemi = null;
+  const lead = v.match(/^(\p{L}+)\.?\s*(.+)$/u), tail = v.match(/^(.+?)\s*(\p{L}+)\.?$/u);
+  if (lead && table[lead[1]]) { hemi = table[lead[1]]; v = lead[2]; }
+  else if (tail && table[tail[2]]) { hemi = table[tail[2]]; v = tail[1]; }
+  else if (lead || tail) return NaN;   // letters this language doesn't use for a direction
+  if (decimalComma || /\d,\d/.test(v)) v = v.replace(/(\d),(\d)/g, "$1.$2");
+  const parts = v.replace(/[°'"]/g, " ").trim().split(/[\s:]+/).filter(Boolean);
+  if (!parts.length || parts.length > 3 || !parts.every((x) => /^[-+]?\d+(\.\d+)?$/.test(x))) return NaN;
+  if (!hemi && !deg && parts.length === 1) return NaN;   // a plain number would have been read above
+  const nums = parts.map(Number);
+  if (nums.slice(1).some((n) => n < 0 || n > 60)) return NaN;   // 60 itself: the Coordinates tool rounds 59.6' up to "60'"
+  if (parts.length > 1 && !Number.isInteger(nums[0])) return NaN;
+  if (nums.slice(0, -1).some((n, i) => i > 0 && !Number.isInteger(n))) return NaN;   // only the last part may have decimals
+  let d = nums[0], sign = hemi ? hemi.sign : 1;
+  if (d < 0 || Object.is(d, -0) || /^-/.test(parts[0])) { if (hemi) return NaN; sign = -1; d = Math.abs(d); }
+  return { value: sign * (d + (nums[1] || 0) / 60 + (nums[2] || 0) / 3600), axis: hemi ? hemi.axis : null, deg };
+}
+
 // A latitude or longitude: decimal degrees ("51.5", "-0.12"), with a hemisphere letter ("51.5N", "0.12W", "N51.5"),
 // or degrees, minutes and seconds ("51°30'15\"N", "51 30 15 N", "51:30:15"). The letter must suit the column (N or S
 // for latitude, E or W for longitude); a minus sign and a letter together are refused as unclear. null = empty cell,
-// NaN = not readable. Range checks are left to the caller.
-const HEMI = { N: 1, S: -1, E: 1, W: -1 };
-export function parseCoord(raw, decimalComma, axis) {
-  const plain = toNumber(raw, decimalComma);
-  if (plain === null || !Number.isNaN(plain)) return plain;
-  let v = String(raw).trim().toUpperCase().replace(/[′’‘`´]/g, "'").replace(/[″”“]/g, '"').replace(/[º˚]/g, "°");
-  let hemi = null;
-  const lead = v.match(/^([NSEW])\s*(.+)$/), tail = v.match(/^(.+?)\s*([NSEW])$/);
-  if (lead) { hemi = lead[1]; v = lead[2]; } else if (tail) { hemi = tail[2]; v = tail[1]; }
-  if (hemi && (axis === "lat") !== (hemi === "N" || hemi === "S")) return NaN;
-  if (decimalComma) v = v.replace(/(\d),(\d)/g, "$1.$2");
-  const parts = v.replace(/[°'"]/g, " ").trim().split(/[\s:]+/).filter(Boolean);
-  if (!parts.length || parts.length > 3 || !parts.every((x) => /^-?\d+(\.\d+)?$/.test(x))) return NaN;
-  if (!hemi && parts.length === 1) return NaN;   // a plain number would have been read above
-  const nums = parts.map(Number);
-  if (nums.slice(1).some((n) => n < 0 || n >= 60)) return NaN;
-  if (parts.length > 1 && !Number.isInteger(nums[0])) return NaN;
-  if (nums.slice(0, -1).some((n, i) => i > 0 && !Number.isInteger(n))) return NaN;   // only the last part may have decimals
-  let deg = nums[0], sign = hemi ? HEMI[hemi] : 1;
-  if (deg < 0 || Object.is(deg, -0)) { if (hemi) return NaN; sign = -1; deg = -deg; }
-  return sign * (deg + (nums[1] || 0) / 60 + (nums[2] || 0) / 3600);
+// NaN = not readable. Range checks are left to the caller. table: from directionTable (English letters if left out).
+export function parseCoord(raw, decimalComma, axis, table) {
+  const p = coordPart(raw, decimalComma, table || ENGLISH_TABLE);
+  if (p === null || Number.isNaN(p)) return p;
+  if (p.axis && axis && p.axis !== axis) return NaN;
+  return p.value;
 }
 
-export function buildLayerData(fileName, parsed, latIdx, lonIdx) {
+// ---------------------------------------------------------------- one column holding both coordinates
+const A_WGS84 = 6378137, F_WGS84 = 1 / 298.257223563, K0 = 0.9996, R_MERC = 6378137;
+/** UTM easting/northing (metres) -> [lon, lat], WGS84. Krüger series; well under a metre of error. */
+export function utmToLonLat(zone, north, easting, northing) {
+  const n = F_WGS84 / (2 - F_WGS84), A = A_WGS84 / (1 + n) * (1 + n * n / 4 + n ** 4 / 64);
+  const beta = [n / 2 - 2 * n * n / 3 + 37 * n ** 3 / 96, n * n / 48 + n ** 3 / 15, 17 * n ** 3 / 480];
+  const delta = [2 * n - 2 * n * n / 3 - 2 * n ** 3, 7 * n * n / 3 - 8 * n ** 3 / 5, 56 * n ** 3 / 15];
+  const xi = (north ? northing : northing - 10000000) / (K0 * A), eta = (easting - 500000) / (K0 * A);
+  let xi1 = xi, eta1 = eta;
+  for (let j = 1; j <= 3; j++) { xi1 -= beta[j - 1] * Math.sin(2 * j * xi) * Math.cosh(2 * j * eta); eta1 -= beta[j - 1] * Math.cos(2 * j * xi) * Math.sinh(2 * j * eta); }
+  const chi = Math.asin(Math.sin(xi1) / Math.cosh(eta1));
+  let phi = chi;
+  for (let j = 1; j <= 3; j++) phi += delta[j - 1] * Math.sin(2 * j * chi);
+  const lon0 = (zone - 1) * 6 - 180 + 3;
+  let lon = lon0 + Math.atan2(Math.sinh(eta1), Math.cos(xi1)) * 180 / Math.PI;
+  if (lon > 180) lon -= 360; else if (lon < -180) lon += 360;
+  return [lon, phi * 180 / Math.PI];
+}
+// MGRS / USNG 100 km squares (the WGS84 "AA" lettering): column letters repeat every 3 zones, row letters every
+// 2,000 km, offset by 5 in even zones. The latitude band says which 2,000 km block the row is in.
+const MGRS_COLS = ["ABCDEFGH", "JKLMNPQR", "STUVWXYZ"], MGRS_ROWS = "ABCDEFGHJKLMNPQRSTUV";
+const BAND_MIN_N = { C: 1100000, D: 2000000, E: 2800000, F: 3700000, G: 4600000, H: 5500000, J: 6400000, K: 7300000, L: 8200000,
+  M: 9100000, N: 0, P: 800000, Q: 1700000, R: 2600000, S: 3500000, T: 4400000, U: 5300000, V: 6200000, W: 7000000, X: 7900000 };
+export function mgrsToLonLat(zone, band, colL, rowL, eDigits, nDigits) {
+  const ci = MGRS_COLS[(zone - 1) % 3].indexOf(colL);
+  let ri = MGRS_ROWS.indexOf(rowL);
+  if (ci < 0 || ri < 0 || eDigits.length !== nDigits.length || eDigits.length < 1 || eDigits.length > 5) return null;
+  if (zone % 2 === 0) ri = (ri - 5 + 20) % 20;
+  const unit = 10 ** (5 - eDigits.length);
+  const easting = (ci + 1) * 100000 + Number(eDigits) * unit;
+  let northing = ri * 100000 + Number(nDigits) * unit;
+  while (northing < BAND_MIN_N[band]) northing += 2000000;
+  return utmToLonLat(zone, band >= "N", easting, northing);
+}
+export function webMercatorToLonLat(x, y) {
+  return [x / R_MERC * 180 / Math.PI, (2 * Math.atan(Math.exp(y / R_MERC)) - Math.PI / 2) * 180 / Math.PI];
+}
+const MERC_MAX = 20037508.35;
+
+/**
+ * Both coordinates in one cell, as the Coordinates tool copies them (and as people type them):
+ *   XY "-0.12780°, 51.50740°" (longitude first) · DD "51.50740°N, 000.12780°W" · DDM "51° 30.444'N, 000° 07.668'W"
+ *   DMS "51° 30' 26.64\"N, 000° 07' 40.08\"W" · UTM "30U 699316 5710163" · MGRS/USNG "30U XC 99316 10163"
+ *   basemap metres "-14226.63, 6711542.48" (Web Mercator) · a plain pair "-0.1278, 51.5074". Decimal commas
+ *   ("51,50740°N, 000,12780°O") and the app language's hemisphere letters are read.
+ * Returns null (empty), NaN (unreadable) or { lat, lon, kind }. For kind "plain" (two bare numbers), lat is simply
+ * the first number and lon the second: buildLayerData decides their order for the whole column. kind "plain" and "xy"
+ * are the two whose order can't be known from the text, so they're the ones Swap latitude and longitude turns round. plainAs "merc": read
+ * plain numbers as basemap metres (for a column that holds metres elsewhere).
+ */
+export function parseCoordPair(raw, table, plainAs) {
+  table = table || ENGLISH_TABLE;
+  const s = cleanCoordText(raw);
+  if (s === "") return null;
+  const up = s.toUpperCase();
+  let m = up.match(/^(\d{1,2})\s*([C-HJ-NP-X])\s*([A-HJ-NP-Z])\s*([A-HJ-NP-V])\s*(\d{1,5})\s+(\d{1,5})$/) ||
+    up.match(/^(\d{1,2})\s*([C-HJ-NP-X])\s*([A-HJ-NP-Z])\s*([A-HJ-NP-V])\s*(\d{2,10})$/);
+  if (m) {
+    const zone = Number(m[1]);
+    let e = m[5], n = m[6];
+    if (n === undefined) { if (e.length % 2) return NaN; n = e.slice(e.length / 2); e = e.slice(0, e.length / 2); }
+    if (zone < 1 || zone > 60) return NaN;
+    const ll = mgrsToLonLat(zone, m[2], m[3], m[4], e, n);
+    return ll ? { lon: ll[0], lat: ll[1], kind: "mgrs" } : NaN;
+  }
+  m = up.match(/^(\d{1,2})\s*([C-HJ-NP-X])\s+(\d{1,7}(?:[.,]\d+)?)\s*M?E?\s+(\d{1,8}(?:[.,]\d+)?)\s*M?N?$/);
+  if (m) {
+    const zone = Number(m[1]), e = Number(m[3].replace(",", ".")), n = Number(m[4].replace(",", "."));
+    if (zone < 1 || zone > 60 || e < 100000 || e > 900000 || n > 10000000) return NaN;
+    const ll = utmToLonLat(zone, m[2] >= "N", e, n);
+    return { lon: ll[0], lat: ll[1], kind: "utm" };
+  }
+  const parts = splitPair(s, table);
+  if (!parts) return NaN;
+  const p = parts.map((x) => coordPart(x, /\d,\d/.test(x), table));
+  if (p.some((x) => x === null || Number.isNaN(x))) return NaN;
+  const [a, b] = p;
+  if (a.axis || b.axis) {
+    if (a.axis && b.axis && a.axis === b.axis) return NaN;
+    const latFirst = a.axis ? a.axis === "lat" : b.axis === "lon";
+    return latFirst ? { lat: a.value, lon: b.value, kind: "hemi" } : { lat: b.value, lon: a.value, kind: "hemi" };
+  }
+  if (a.deg || b.deg) return { lon: a.value, lat: b.value, kind: "xy" };     // the Coordinates tool's XY: longitude first
+  if (plainAs !== "merc" && Math.abs(a.value) <= 180 && Math.abs(b.value) <= 180) return { lat: a.value, lon: b.value, kind: "plain" };
+  if (Math.abs(a.value) <= MERC_MAX && Math.abs(b.value) <= MERC_MAX * 1.01) {
+    const ll = webMercatorToLonLat(a.value, b.value);
+    return { lon: ll[0], lat: ll[1], kind: "merc" };
+  }
+  return NaN;
+}
+// Two halves of a pair: "a, b" (the tool's separator; decimal commas have no space after them), "a; b", "a<tab>b",
+// "a,b" with decimal points, "51°30'N 0°7'W" (split after the first hemisphere letter) or "51.5 -0.12".
+function splitPair(s, table) {
+  let parts = s.split(/\s*,\s+|\s*;\s*|\t+/).filter((x) => x.trim() !== "");
+  if (parts.length === 2) return parts;
+  if (parts.length === 1 && (s.match(/,/g) || []).length === 1 && !/\d,\d+\s*,/.test(s)) {
+    parts = s.split(","); if (parts.length === 2 && parts.every((x) => x.trim() !== "")) return parts.map((x) => x.trim());
+  }
+  const re = /(\p{L}+)\.?\s+/gu;
+  let m;
+  while ((m = re.exec(s))) {
+    if (!table[m[1].toUpperCase()]) continue;
+    const first = s.slice(0, m.index + m[0].length).trim(), rest = s.slice(m.index + m[0].length).trim();
+    if (rest) return [first, rest];
+  }
+  const ws = s.trim().split(/\s+/);
+  if (ws.length === 2 && ws.every((x) => /^[-+]?\d+([.,]\d+)?°?$/.test(x))) return ws;
+  return null;
+}
+// Column names that suggest both coordinates in one column (lower-cased, accents, spaces and punctuation removed).
+const PAIR_NAMES = ["coordinates", "coordinate", "coords", "coord", "location", "position", "latlong", "latlon", "longlat", "lonlat",
+  "xy", "gps", "point", "coordenadas", "coordonnees", "koordinaten", "coordinaten", "koordinatak", "koordinaatit",
+  "ubicacion", "posicion", "localizacao", "posicao"];
+/**
+ * The column, if any, whose cells are coordinate pairs: at least 80% of its filled cells must read as one. A column of
+ * plain number pairs ("3, 4") only counts when its name suggests coordinates or its numbers have decimals.
+ */
+export function detectPairColumn(header, rows, table) {
+  let best = -1, bestScore = 0;
+  header.forEach((h, i) => {
+    let filled = 0, ok = 0, allPlain = true, decimals = false;
+    for (const r of rows) {
+      const raw = r[i];
+      if (raw == null || String(raw).trim() === "") continue;
+      filled++;
+      const p = parseCoordPair(raw, table);
+      if (!p || Number.isNaN(p)) continue;
+      ok++;
+      if (p.kind !== "plain") allPlain = false;
+      if (/\d[.,]\d/.test(String(raw))) decimals = true;
+    }
+    if (!filled || ok < 1 || ok / filled < 0.8) return;
+    const named = PAIR_NAMES.includes(normName(h));
+    if (allPlain && !named && !decimals) return;
+    const score = ok / filled + (named ? 1 : 0);
+    if (score > bestScore) { bestScore = score; best = i; }
+  });
+  return best;
+}
+
+/**
+ * Turn parsed rows into features + fields. Column types are inferred: a column is numeric when every
+ * non-empty cell is a number (decimal commas allowed when the file uses them).
+ * latIdx === lonIdx: one column holds both coordinates. Its order is read from the text where it can be (letters,
+ * grid references). XY is longitude first, as the Coordinates tool writes it. Bare number pairs are longitude first
+ * too, because the tool copies XY without degree signs after XY is picked again in its format list; a column named
+ * like "Lat/Long" is read latitude first instead, and a column that only fits the other way round is turned round.
+ * opts.swapped turns XY and bare pairs round (Swap latitude and longitude).
+ */
+const LAT_FIRST_NAMES = ["latlong", "latlon", "latlng", "latitudelongitude", "latitudlongitud", "latitudinelongitudine", "breitelange",
+  "breitelaenge", "latitudelongitudedd", "gpslatlong"];
+export function buildLayerData(fileName, parsed, latIdx, lonIdx, opts) {
   const { header, rows, delim } = parsed;
+  const table = parsed.dirTable || ENGLISH_TABLE;
+  const pairMode = latIdx === lonIdx;
+  let pairs = null;
+  if (pairMode) {
+    pairs = rows.map((r) => parseCoordPair(r[latIdx], table));
+    // basemap metres near 0°, 0° look like degrees: if any row is clearly metres, the column is metres
+    if (pairs.some((p) => p && p.kind === "merc")) pairs = pairs.map((p, r) => (p && p.kind === "plain" ? parseCoordPair(rows[r][latIdx], table, "merc") : p));
+    const ok = (p) => p && !Number.isNaN(p);
+    const plain = pairs.filter((p) => ok(p) && p.kind === "plain");   // first number in .lat, second in .lon
+    let plainLonFirst = !LAT_FIRST_NAMES.includes(normName(header[latIdx]));
+    if (pairs.some((p) => ok(p) && p.kind === "xy")) plainLonFirst = true;   // the same tool's XY, some with degree signs
+    const fits = (lonFirst) => plain.every((p) => Math.abs(lonFirst ? p.lon : p.lat) <= 90 && Math.abs(lonFirst ? p.lat : p.lon) <= 180);
+    if (plain.length && !fits(plainLonFirst) && fits(!plainLonFirst)) plainLonFirst = !plainLonFirst;
+    const swapped = !!(opts && opts.swapped);
+    const turn = (p) => ({ ...p, lat: p.lon, lon: p.lat });
+    pairs = pairs.map((p) => (!ok(p) ? p : p.kind === "plain" ? (plainLonFirst !== swapped ? turn(p) : p) : p.kind === "xy" && swapped ? turn(p) : p));
+  }
   const decComma = header.map((_, i) => usesDecimalComma(rows, i, delim));
   const used = { objectid: true };
   const names = header.map((h) => sanitizeFieldName(h, used));
@@ -230,9 +443,11 @@ export function buildLayerData(fileName, parsed, latIdx, lonIdx) {
     fields.push(f);
   });
   const features = []; let dropped = 0;
-  for (const cells of rows) {
-    const lat = parseCoord(cells[latIdx], decComma[latIdx], "lat");
-    const lon = parseCoord(cells[lonIdx], decComma[lonIdx], "lon");
+  for (let r = 0; r < rows.length; r++) {
+    const cells = rows[r];
+    let lat, lon;
+    if (pairMode) { const p = pairs[r]; lat = p && !Number.isNaN(p) ? p.lat : p; lon = p && !Number.isNaN(p) ? p.lon : p; }
+    else { lat = parseCoord(cells[latIdx], decComma[latIdx], "lat", table); lon = parseCoord(cells[lonIdx], decComma[lonIdx], "lon", table); }
     if (lat === null || lon === null || !Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) { dropped++; continue; }
     const attrs = { ObjectId: features.length + 1 };
     header.forEach((_, c) => {
@@ -246,9 +461,11 @@ export function buildLayerData(fileName, parsed, latIdx, lonIdx) {
     features.push({ geometry: { x: xy[0], y: xy[1], spatialReference: { wkid: 102100, latestWkid: 3857 } }, attributes: attrs });
   }
   if (!features.length) return fail("csvNoCoords");
-  const coordNames = [names[latIdx], names[lonIdx]];
+  const coordNames = pairMode ? [names[latIdx]] : [names[latIdx], names[lonIdx]];
   const { numeric, categorical, categoricalText } = columnKinds(fields, features, coordNames);
-  return { ok: true, fileName, features, fields, numeric, categorical, categoricalText, dropped, coordNames };
+  // Swap only makes sense where the order is a guess: two columns, or pairs without letters (plain numbers, XY)
+  const swappable = !pairMode || pairs.some((p) => p && !Number.isNaN(p) && (p.kind === "plain" || p.kind === "xy"));
+  return { ok: true, fileName, features, fields, numeric, categorical, categoricalText, dropped, coordNames, swappable };
 }
 
 /**
