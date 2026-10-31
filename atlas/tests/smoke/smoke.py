@@ -638,6 +638,7 @@ def main():
             page.evaluate("""() => { const dt = new DataTransfer(); dt.items.add(new File(['x'], 'survey.xlsx')); for (const t of ['dragenter','dragover','drop']) window.dispatchEvent(new DragEvent(t, { dataTransfer: dt, bubbles: true, cancelable: true })); }""")
             page.wait_for_timeout(150)
             check("CSV" in page.inner_text("#toast") and "Excel" in page.inner_text("#toast"), "Excel file: save it as CSV: " + page.inner_text("#toast"))
+            check(page.query_selector("#coordWrap #coordBody") is not None and page.query_selector("#coordCopy").is_disabled(), "Copy coordinates waits for a click on the map")
             # One column of coordinates copied from the Coordinates tool: found without asking, and no swap for DD
             drop_csv = """([name, text]) => { const dt = new DataTransfer(); dt.items.add(new File([text], name, { type: 'text/csv' })); for (const t of ['dragenter','dragover','drop']) window.dispatchEvent(new DragEvent(t, { dataTransfer: dt, bubbles: true, cancelable: true })); }"""
             page.evaluate(drop_csv, ["pond.csv", 'Site,Coordinates,Frogs\nA,"51.50740\u00b0\u200eN, 000.12780\u00b0\u200eW",3\nB,"51.50800\u00b0\u200eN, 000.12900\u00b0\u200eW",5\n'])

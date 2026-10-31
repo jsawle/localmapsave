@@ -771,15 +771,30 @@ function ensureMeasure() { if (!measurement) measurement = new Measurement({ vie
 function measurePressed(id) { ["mDist", "mArea", "mCoord"].forEach((b) => $(b).setAttribute("aria-pressed", String(b === id))); }
 function stopMeasuring() {
   try { if (measurement) measurement.clear(); } catch (e) { /* idle */ }
-  measurePressed(null); measureActive = false; $("coordBody").hidden = true;
+  measurePressed(null); measureActive = false; $("coordWrap").hidden = true;
   updatePopupEnabled();
 }
-$("mDist").addEventListener("click", () => { ensureMeasure(); $("coordBody").hidden = true; measurement.activeTool = mode === "3d" ? "direct-line" : "distance"; measurePressed("mDist"); measureActive = true; updatePopupEnabled(); });
-$("mArea").addEventListener("click", () => { ensureMeasure(); $("coordBody").hidden = true; measurement.activeTool = "area"; measurePressed("mArea"); measureActive = true; updatePopupEnabled(); });
+$("mDist").addEventListener("click", () => { ensureMeasure(); $("coordWrap").hidden = true; measurement.activeTool = mode === "3d" ? "direct-line" : "distance"; measurePressed("mDist"); measureActive = true; updatePopupEnabled(); });
+$("mArea").addEventListener("click", () => { ensureMeasure(); $("coordWrap").hidden = true; measurement.activeTool = "area"; measurePressed("mArea"); measureActive = true; updatePopupEnabled(); });
 $("mCoord").addEventListener("click", () => {
   try { if (measurement) measurement.clear(); } catch (e) { /* idle */ }
-  if (!coordWidget) coordWidget = new CoordinateConversion({ view, container: "coordBody" }); else coordWidget.view = view;
-  $("coordBody").hidden = false; measurePressed("mCoord"); measureActive = false; updatePopupEnabled();
+  // Capture mode: the coordinates stay where the map was clicked. (In Esri's default live mode they follow the pointer,
+  // so moving to the panel to copy them would copy wherever the pointer last crossed the map.)
+  if (!coordWidget) { coordWidget = new CoordinateConversion({ view, container: "coordBody", mode: "capture" }); watchCoordCopy(); }
+  else { coordWidget.view = view; coordWidget.mode = "capture"; }
+  $("coordWrap").hidden = false; measurePressed("mCoord"); measureActive = false; updatePopupEnabled();
+});
+// Copy coordinates: the text Esri's own Copy puts on the clipboard (the tool's main row has no Copy button), ready to
+// paste into one spreadsheet cell; Add layer reads that column back (see parseCoordPair in lib/csv.js).
+const coordText = () => { const c = coordWidget && coordWidget.conversions && coordWidget.conversions.length ? coordWidget.conversions.getItemAt(0) : null; return (c && c.position && c.displayCoordinate) || ""; };
+function watchCoordCopy() {
+  reactiveUtils.watch(coordText, (txt) => { $("coordCopy").disabled = !txt; $("coordCopied").textContent = ""; }, { initial: true });
+}
+$("coordCopy").addEventListener("click", async () => {
+  const txt = coordText();
+  if (!txt) return;
+  try { await navigator.clipboard.writeText(txt); $("coordCopied").textContent = S.coordsCopied; }
+  catch (e) { $("coordCopied").textContent = S.coordsCopyFailed; }
 });
 $("mClear").addEventListener("click", stopMeasuring);
 
