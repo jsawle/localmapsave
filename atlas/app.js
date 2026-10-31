@@ -2,20 +2,20 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.14.2";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.1";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.14.2";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.15.0-sketch.1";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.14.2";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.1";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.14.2";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.14.2";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.14.2";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.1";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.1";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.1";
 
-const APP_VERSION = "1.14.2";
+const APP_VERSION = "1.15.0-sketch.1";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
-const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
+const SKETCH_VERSION = "2.0";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own
 const CONFIG_SCHEMA = 1;
 const SDK_VERSION = "5.1";
 const AUTH_STASH = "atlas.authReturn";
@@ -218,18 +218,21 @@ applyHeader();
 paintIcons();
 
 // ============================================================ ArcGIS SDK
-const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel, Basemap,
+const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, Basemap,
   Measurement, ElevationProfile, ElevationLayer, CoordinateConversion, ScaleBar, Search, Expand, Home, Legend, Layer,
-  Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils] = await $arcgis.import([
+  Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils,
+  SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol, densifyOperator] = await $arcgis.import([
   "@arcgis/core/Map.js", "@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js", "@arcgis/core/views/SceneView.js",
   "@arcgis/core/layers/GraphicsLayer.js", "@arcgis/core/layers/FeatureLayer.js", "@arcgis/core/Graphic.js",
-  "@arcgis/core/widgets/Sketch/SketchViewModel.js", "@arcgis/core/Basemap.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js", "@arcgis/core/layers/ElevationLayer.js",
+  "@arcgis/core/Basemap.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js", "@arcgis/core/layers/ElevationLayer.js",
   "@arcgis/core/widgets/CoordinateConversion.js", "@arcgis/core/widgets/ScaleBar.js", "@arcgis/core/widgets/Search.js",
   "@arcgis/core/widgets/Expand.js", "@arcgis/core/widgets/Home.js",
   "@arcgis/core/widgets/Legend.js", "@arcgis/core/layers/Layer.js",
   "@arcgis/core/layers/support/Field.js", "@arcgis/core/layers/support/LabelClass.js", "@arcgis/core/renderers/support/jsonUtils.js",
   "@arcgis/core/geometry/Extent.js", "@arcgis/core/config.js", "@arcgis/core/intl.js", "@arcgis/core/identity/IdentityManager.js",
-  "@arcgis/core/identity/OAuthInfo.js", "@arcgis/core/portal/Portal.js", "@arcgis/core/request.js", "@arcgis/core/core/reactiveUtils.js"
+  "@arcgis/core/identity/OAuthInfo.js", "@arcgis/core/portal/Portal.js", "@arcgis/core/request.js", "@arcgis/core/core/reactiveUtils.js",
+  "@arcgis/core/symbols/SimpleMarkerSymbol.js", "@arcgis/core/symbols/SimpleLineSymbol.js", "@arcgis/core/symbols/SimpleFillSymbol.js", "@arcgis/core/symbols/TextSymbol.js",
+  "@arcgis/core/geometry/operators/densifyOperator.js"
 ]);
 esriConfig.portalUrl = PORTAL;
 try { if (cfg.locale && cfg.locale !== "en") intl.setLocale(cfg.locale); } catch (e) { console.warn("Locale not supported", e); }
@@ -416,7 +419,7 @@ function closePanels(restoreFocus) {
 }
 function togglePanel(name) { if (openPanelName === name) closePanels(); else leaveData(() => openPanel(name)); }
 function panelOpening(name) {
-  if (name === "sketch") { sketchPanelOpen = true; setTool("select"); selectForEdit(null); }
+  if (name === "sketch") { sketchPanelOpen = true; sketchToolsOn(true); selectForEdit(null); }
   if (name === "layers") renderLayers();
   if (name === "bookmarks") showBmList();
   if (name === "save") renderAgol();
@@ -427,7 +430,7 @@ function panelOpening(name) {
   if (name === "profile") { closeTable(false); $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles(); ensureProfile(); }
 }
 function panelClosing(name) {
-  if (name === "sketch") { endSketchOps(); sketchPanelOpen = false; placingText = false; currentTool = null; selectedFeature = null; updateToolButtons(); }
+  if (name === "sketch") { sketchToolsOn(false); sketchPanelOpen = false; }
   if (name === "measure") stopMeasuring();
   if (name === "profile") { stopProfile(); $("app").classList.remove("docked", "tools-shown"); syncToolsToggles(); setTimeout(layoutBottom, 0); }
   if (name === "data") {
@@ -470,23 +473,17 @@ document.addEventListener("keydown", (e) => {
     else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
     return;
   }
-  if (e.key !== "Escape") {
-    const ae = document.activeElement || document.body;
-    const inMap = $("viewDiv").contains(ae) || $("sceneDiv").contains(ae);
-    if (sketchPanelOpen && selectedFeature && (e.key === "Delete" || (e.key === "Backspace" && inMap)) && !/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) { e.preventDefault(); deleteSelected(); }
-    return;
-  }
+  if (e.key !== "Escape") return;   // Delete for sketches is the Sketch tools' own
   if (modalStack.length) { e.preventDefault(); closeModal(modalStack[modalStack.length - 1].id); return; }
   if (!$("measureMenu").hidden) { closeToolMenu(true); return; }
   if (!$("userMenu").hidden) { closeUserMenu(true); return; }
-  if (sketchPanelOpen && (drawing || placingText)) { setTool("select"); return; }
   if (openPanelName) closePanels();
 });
 
 // ============================================================ Pop-ups
 let sketchPanelOpen = false, measureActive = false;
 function updatePopupEnabled() {
-  const on = !sketchPanelOpen && !measureActive && !placingText && openPanelName !== "profile";
+  const on = !sketchPanelOpen && !measureActive && openPanelName !== "profile";
   for (const v of [mapView, sceneView]) {
     if (!v) continue;
     v.popupEnabled = on;
@@ -495,11 +492,30 @@ function updatePopupEnabled() {
 }
 
 // ============================================================ Sketch
+// Drawing uses the SDK's Sketch component: the same toolbar Map Viewer uses (select, point, line with straight,
+// freehand and curved segments, area, rectangle, circle, text, undo/redo, duplicate, delete, snapping). It shows on
+// the map while the Sketch panel is open. The panel keeps what the SDK has no component for: each sketch's pop-up
+// (title, description, picture), colour and size, and rotation for text.
 const COLOUR_NAMES = String(S.colourNames || "").split(",");
-let drawing = false, placingText = false, selectedFeature = null, currentTool = null;
+let selectedGraphics = [], selectedFeature = null;   // selectedFeature: the one sketch whose pop-up is being edited
 let pendingStyle = { color: PALETTE_HEX[0], size: 12, rotation: 0 };
 const newUid = () => "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const sketchVM = new SketchViewModel({ view, layer: graphicsLayer, updateOnGraphicClick: false, defaultUpdateOptions: { toggleToolOnClick: false, enableRotation: false } });
+const SKETCH_TOOLS = ["point", "polyline", "polygon", "rectangle", "circle", "text"];
+const sketch = document.createElement("arcgis-sketch");
+sketch.defaultGraphicsLayerDisabled = true;   // draw on the app's sketch layer only, never a layer of its own
+$("sketchBar").appendChild(sketch);
+// Settings go on once the component is ready: set earlier, some are lost when it starts up.
+const sketchReady = (async () => {
+  await customElements.whenDefined("arcgis-sketch");
+  if (sketch.componentOnReady) await sketch.componentOnReady();
+  Object.assign(sketch, {
+    defaultGraphicsLayerDisabled: true, layer: graphicsLayer, view, autoDestroyDisabled: true,
+    availableCreateTools: SKETCH_TOOLS, showCreateToolsText: true, hideCreateToolsMultipoint: true,
+    creationMode: "update",               // as in Map Viewer: a finished sketch stays selected, ready to edit
+    updateOnGraphicClickDisabled: $("sketchBar").hidden,   // outside sketching, clicking a sketch opens its pop-up
+    label: S.sketch
+  });
+})().catch((e) => console.error("Sketch couldn't start", e));
 
 function symbolFor(kind, o) {
   const rgb = hexToRgb(o.color);
@@ -508,11 +524,21 @@ function symbolFor(kind, o) {
   if (kind === "polygon") return { type: "simple-fill", color: [rgb[0], rgb[1], rgb[2], 0.25], outline: { color: o.color, width: 2 } };
   return { type: "simple-marker", style: "circle", color: o.color, size: o.size || 12, angle: o.rotation || 0, outline: { color: "#ffffff", width: 1.5 } };
 }
+const kindOf = (g) => (g.attributes && g.attributes.kind === "text" ? "text" : (g.geometry && g.geometry.type) || "point");
 function applyStyle(g) {
   const a = g.attributes || (g.attributes = {});
-  const kind = a.kind === "text" ? "text" : (g.geometry && g.geometry.type) || "point";
-  g.symbol = symbolFor(kind, { color: a.color || PALETTE_HEX[0], size: a.size || 12, rotation: a.rotation || 0, text: a.title });
+  g.symbol = symbolFor(kindOf(g), { color: a.color || PALETTE_HEX[0], size: a.size || 12, rotation: a.rotation || 0, text: a.title });
 }
+// What the Sketch tools draw with: the colour and size chosen with nothing selected.
+async function syncSketchSymbols() {
+  await sketchReady;
+  const o = pendingStyle, props = (kind, opts) => { const { type, ...rest } = symbolFor(kind, opts); return rest; };   // the class sets the type
+  sketch.pointSymbol = new SimpleMarkerSymbol(props("point", o));
+  sketch.polylineSymbol = new SimpleLineSymbol(props("polyline", o));
+  sketch.polygonSymbol = new SimpleFillSymbol(props("polygon", o));
+  sketch.textSymbol = new TextSymbol(props("text", { ...o, size: Math.max(14, o.size) }));
+}
+syncSketchSymbols();
 function popupContent(event) {
   const a = (event && event.graphic && event.graphic.attributes) || {};
   const wrap = document.createElement("div");
@@ -522,6 +548,14 @@ function popupContent(event) {
   return wrap;
 }
 const popupTemplate = () => ({ title: "{title}", content: popupContent });
+// The line tools can draw true curves (arcs and Bezier curves). The 3D view can't draw those, and other apps may not
+// read them, so a finished curve becomes a line through many close points (within 2° of the curve).
+function straighten(g) {
+  if (!g || !g.geometry || !/^(polyline|polygon)$/.test(g.geometry.type)) return;
+  const j = g.geometry.toJSON();
+  if (!j.curvePaths && !j.curveRings) return;
+  try { g.geometry = densifyOperator.execute(g.geometry, 0, { maxAngleInDegrees: 2 }); } catch (e) { console.warn("Couldn't straighten a curve", e); }
+}
 function addSketchGraphic(gj) {
   const g = Graphic.fromJSON({ geometry: gj.geometry, attributes: gj.attributes });
   g.attributes = { ...gj.attributes };
@@ -530,10 +564,18 @@ function addSketchGraphic(gj) {
   graphicsLayer.add(g);
   return g;
 }
+// Duplicate (and undo of a delete) bring graphics back with their attributes: give a copy its own id.
+graphicsLayer.graphics.on("change", (e) => {
+  for (const g of e.added || []) {
+    const a = g.attributes;
+    if (!a || !a.uid) continue;
+    if (graphicsLayer.graphics.some((o) => o !== g && o.attributes && o.attributes.uid === a.uid)) g.attributes = { ...a, uid: newUid() };
+    if (!g.popupTemplate) g.popupTemplate = popupTemplate();
+  }
+});
 
 function popupFieldsEnabled(on) {
-  for (const id of ["imgPick", "fTitle", "fDesc", "deleteFeature"]) $(id).disabled = !on;
-  $("popupHint").hidden = on;
+  for (const id of ["imgPick", "fTitle", "fDesc"]) $(id).disabled = !on;
 }
 function setImagePreview(dataUrl) {
   if (dataUrl) { $("imgThumb").src = dataUrl; $("imgPreview").hidden = false; $("imgPick").textContent = S.replaceImage; }
@@ -542,33 +584,44 @@ function setImagePreview(dataUrl) {
 function highlightSwatch(hex) { [...$("swatches").children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.color === hex))); }
 // Rotation turns text only (a round marker, line or area looks the same turned), so it shows for text alone.
 function syncRotationRow() {
-  const a = selectedFeature ? selectedFeature.attributes : null;
-  $("rotSection").hidden = !(a ? a.kind === "text" : currentTool === "text" || placingText);
+  $("rotSection").hidden = !(selectedGraphics.length ? selectedGraphics.some((g) => kindOf(g) === "text") : sketch.activeTool === "text");
 }
 function populateSketchPanel() {
-  const sel = selectedFeature, a = sel ? sel.attributes : null;
+  const many = selectedGraphics.length > 1, sel = selectedFeature, a = sel ? sel.attributes : null;
+  const first = selectedGraphics.length ? selectedGraphics[0].attributes || {} : null;
   syncRotationRow();
   popupFieldsEnabled(!!sel);
+  $("popupHint").hidden = !many;   // the hint at the top already says how to start
+  $("popupHint").textContent = many ? fmt(S.manySelected, { n: selectedGraphics.length }) : "";
   setImagePreview(a ? a.imageUrl || "" : "");
   $("fTitle").value = a ? a.title || "" : "";
   $("fDesc").value = a ? a.description || "" : "";
-  const color = a ? a.color || PALETTE_HEX[0] : pendingStyle.color, size = a ? a.size || 12 : pendingStyle.size, rot = a ? a.rotation || 0 : pendingStyle.rotation;
+  const color = first ? first.color || PALETTE_HEX[0] : pendingStyle.color, size = first ? first.size || 12 : pendingStyle.size, rot = first ? first.rotation || 0 : pendingStyle.rotation;
   highlightSwatch(color);
   $("fSize").value = size; $("sizeVal").textContent = size;
   $("fRot").value = rot; $("rotVal").textContent = rot + "°";
 }
-function selectForEdit(g) { selectedFeature = g || null; populateSketchPanel(); }
+function setSelection(graphics) {
+  selectedGraphics = (graphics || []).filter((g) => g && g.layer === graphicsLayer);
+  selectedFeature = selectedGraphics.length === 1 ? selectedGraphics[0] : null;
+  populateSketchPanel();
+}
+function selectForEdit(g) { setSelection(g ? [g] : []); }
+// Colour, size and rotation change every selected sketch, or (with none selected) what the tools draw next.
+function restyleSelection(key, value) {
+  if (selectedGraphics.length) {
+    for (const g of selectedGraphics) { if (key === "rotation" && kindOf(g) !== "text") continue; g.attributes[key] = value; applyStyle(g); }
+    markDirty();
+  } else { pendingStyle[key] = value; syncSketchSymbols(); }
+}
 PALETTE_HEX.forEach((hex, i) => {
   const b = document.createElement("button");
   b.type = "button"; b.className = "swatch"; b.style.background = hex; b.dataset.color = hex;
   b.setAttribute("aria-label", (COLOUR_NAMES[i] || hex).trim()); b.title = (COLOUR_NAMES[i] || hex).trim(); b.setAttribute("aria-pressed", "false");
-  b.addEventListener("click", () => {
-    if (selectedFeature) { selectedFeature.attributes.color = hex; applyStyle(selectedFeature); markDirty(); } else pendingStyle.color = hex;
-    highlightSwatch(hex);
-  });
+  b.addEventListener("click", () => { restyleSelection("color", hex); highlightSwatch(hex); });
   $("swatches").appendChild(b);
 });
-$("fTitle").addEventListener("input", () => { if (!selectedFeature) return; selectedFeature.attributes.title = $("fTitle").value; if (selectedFeature.attributes.kind === "text") applyStyle(selectedFeature); markDirty(); });
+$("fTitle").addEventListener("input", () => { if (!selectedFeature) return; selectedFeature.attributes.title = $("fTitle").value; if (kindOf(selectedFeature) === "text") applyStyle(selectedFeature); markDirty(); });
 $("fDesc").addEventListener("input", () => { if (!selectedFeature) return; selectedFeature.attributes.description = $("fDesc").value; markDirty(); });
 function fileToDataUrl(file, cb) {     // downscale to 1200px JPEG so images don't bloat the map file; no EXIF/GPS survives the canvas
   const reader = new FileReader();
@@ -599,87 +652,51 @@ $("fImageFile").addEventListener("change", () => {
   fileToDataUrl(file, (url) => { target.attributes.imageUrl = url; if (target === selectedFeature) setImagePreview(url); markDirty(); });
 });
 $("imgRemove").addEventListener("click", () => { if (!selectedFeature) return; selectedFeature.attributes.imageUrl = ""; setImagePreview(""); markDirty(); });
-$("fSize").addEventListener("input", () => {
-  const v = parseInt($("fSize").value, 10); $("sizeVal").textContent = v;
-  if (selectedFeature) { selectedFeature.attributes.size = v; applyStyle(selectedFeature); markDirty(); } else pendingStyle.size = v;
-});
-$("fRot").addEventListener("input", () => {
-  const v = parseInt($("fRot").value, 10); $("rotVal").textContent = v + "°";
-  if (selectedFeature) { selectedFeature.attributes.rotation = v; applyStyle(selectedFeature); markDirty(); } else pendingStyle.rotation = v;
-});
-$("deleteFeature").addEventListener("click", deleteSelected);
-function deleteSelected() {
-  const g = selectedFeature;
-  if (!g) return;
-  endSketchOps();
-  graphicsLayer.remove(g);
-  selectForEdit(null);
+$("fSize").addEventListener("input", () => { const v = parseInt($("fSize").value, 10); $("sizeVal").textContent = v; restyleSelection("size", v); });
+$("fRot").addEventListener("input", () => { const v = parseInt($("fRot").value, 10); $("rotVal").textContent = v + "°"; restyleSelection("rotation", v); });
+
+const sketchBusy = () => sketch.state === "active";
+function endSketchOps() {
+  if (!sketchBusy()) return;
+  try { if (sketch.createGraphic) sketch.cancel(); else sketch.complete(); } catch (e) { /* idle */ }
+}
+// The Sketch panel turns the toolbar on and off. Closed, clicking a sketch opens its pop-up instead of selecting it.
+function sketchToolsOn(on) {
+  if (!on) endSketchOps();
+  $("sketchBar").hidden = !on;
+  sketchReady.then(() => { sketch.updateOnGraphicClickDisabled = $("sketchBar").hidden; });
+  if (!on) { setSelection([]); try { sketch.dismissFloatingElements(); } catch (e) { /* none open */ } }
+}
+sketch.addEventListener("arcgisCreate", (e) => {
+  const { state, graphic, tool } = e.detail || {};
+  if (state === "start") syncRotationRow();
+  if (state !== "complete" || !graphic) return;
+  straighten(graphic);
+  const isText = tool === "text" || (graphic.symbol && graphic.symbol.type === "text");
+  const typed = isText && graphic.symbol && graphic.symbol.text;
+  graphic.attributes = { uid: newUid(), kind: isText ? "text" : (graphic.geometry && graphic.geometry.type) || "point",
+    title: isText ? (typed && typed !== "hello world" ? typed : S.textDefault) : "", description: "", imageUrl: "",
+    color: pendingStyle.color, size: isText ? Math.max(14, pendingStyle.size) : pendingStyle.size, rotation: isText ? pendingStyle.rotation : 0 };
+  applyStyle(graphic);
+  graphic.popupTemplate = popupTemplate();
   markDirty();
   if (!$("layersPanel").hidden) renderLayers();
-}
-function endSketchOps() {
-  try { if (sketchVM.createGraphic) sketchVM.cancel(); } catch (e) { /* idle */ }
-  try { if (sketchVM.updateGraphics && sketchVM.updateGraphics.length) sketchVM.complete(); } catch (e) { /* idle */ }
-  drawing = false;
-}
-function updateToolButtons() { document.querySelectorAll("#sketchTools [data-tool]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tool === currentTool))); }
-function setTool(tool) {
+  if (isText) setTimeout(() => { if (selectedFeature === graphic) { $("fTitle").focus(); $("fTitle").select(); } }, 0);
+});
+sketch.addEventListener("arcgisUpdate", (e) => {
+  const { state, graphics, toolEventInfo } = e.detail || {};
+  if (state === "complete") { (graphics ? (graphics.toArray ? graphics.toArray() : [...graphics]) : []).forEach(straighten); setSelection([]); return; }
+  setSelection(graphics ? (graphics.toArray ? graphics.toArray() : [...graphics]) : []);
+  if (toolEventInfo && /-stop$|^vertex-(add|remove)$/.test(toolEventInfo.type || "")) markDirty();
+});
+sketch.addEventListener("arcgisDelete", () => { setSelection([]); markDirty(); if (!$("layersPanel").hidden) renderLayers(); });
+for (const ev of ["arcgisUndo", "arcgisRedo"]) sketch.addEventListener(ev, () => { markDirty(); if (!$("layersPanel").hidden) renderLayers(); });
+// Escape while drawing or editing is the Sketch tools' (cancel or finish), not a reason to close the panel.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || $("sketchBar").hidden || !sketchBusy()) return;
+  e.stopPropagation(); e.preventDefault();
   endSketchOps();
-  currentTool = tool; placingText = false;
-  updateToolButtons();
-  if (["point", "polyline", "polygon", "circle"].includes(tool)) sketchVM.create(tool);
-  else if (tool === "text") { placingText = true; toast(S.placeText); }
-  updatePopupEnabled();
-  syncRotationRow();
-}
-document.querySelectorAll("#sketchTools [data-tool]").forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
-function startEdit(g) {
-  if (g && selectedFeature === g && sketchVM.updateGraphics && sketchVM.updateGraphics.includes(g)) return;
-  endSketchOps();
-  selectForEdit(g);
-  if (!g) return;
-  sketchVM.update([g], { tool: g.geometry.type === "point" ? "move" : "reshape" }).catch(() => {});
-}
-sketchVM.on("create", (event) => {
-  if (event.state === "start" || event.state === "active") drawing = true;
-  if (event.state === "cancel") drawing = false;
-  if (event.state === "complete" && event.graphic) {
-    drawing = false;
-    const g = event.graphic;
-    g.attributes = { uid: newUid(), kind: (g.geometry && g.geometry.type) || "point", title: "", description: "", imageUrl: "",
-      color: pendingStyle.color, size: pendingStyle.size, rotation: pendingStyle.rotation };
-    applyStyle(g);
-    g.popupTemplate = popupTemplate();
-    currentTool = "select"; updateToolButtons();
-    selectForEdit(g);
-    markDirty();
-  }
-});
-sketchVM.on("update", (event) => {
-  const info = event.toolEventInfo;
-  if (info && /-stop$/.test(info.type || "")) markDirty();
-  if (event.state === "complete" && selectedFeature && event.graphics && event.graphics.includes(selectedFeature) && !sketchPanelOpen) selectedFeature = null;
-});
-onViews("click", (event) => {
-  if (!sketchPanelOpen) return;   // outside sketching, the map's own pop-ups handle clicks
-  if (placingText) {
-    event.stopPropagation();
-    placingText = false;
-    const g = new Graphic({ geometry: event.mapPoint, attributes: { uid: newUid(), kind: "text", title: S.textDefault, description: "", imageUrl: "",
-      color: pendingStyle.color, size: Math.max(14, pendingStyle.size), rotation: pendingStyle.rotation } });
-    applyStyle(g); g.popupTemplate = popupTemplate();
-    graphicsLayer.add(g);
-    currentTool = "select"; updateToolButtons(); updatePopupEnabled();
-    selectForEdit(g); markDirty();
-    setTimeout(() => { $("fTitle").focus(); $("fTitle").select(); }, 0);
-    return;
-  }
-  if (drawing || currentTool !== "select") return;
-  view.hitTest(event, { include: [graphicsLayer] }).then((resp) => {
-    const hit = (resp.results || []).find((r) => r.graphic && r.graphic.layer === graphicsLayer);
-    startEdit(hit ? hit.graphic : null);
-  }).catch(() => {});
-});
+}, true);
 
 // ============================================================ Legend, basemaps, measure
 let legend = null, measurement = null, coordWidget = null;
@@ -894,7 +911,7 @@ async function setMode(m, opts) {
   }
   mode = m; switching = false;
   $("tg2d").setAttribute("aria-pressed", String(m === "2d")); $("tg3d").setAttribute("aria-pressed", String(m === "3d"));
-  sketchVM.view = view;
+  sketchReady.then(() => { sketch.view = view; });
   if (gallery.items) renderGallery();   // 3D lists the group's 3D basemaps too
   if (measurement) measurement.view = view;
   if (elevationProfile) { stopProfile(); elevationProfile.view = view; if (openPanelName === "profile") startProfileSketch(); }
@@ -943,7 +960,7 @@ function resetWorkspace() {
   endLayerTools(null);
   dataLayers.splice(0).forEach(removeFromMaps);
   [...portalLayers.values()].forEach(removeFromMaps); portalLayers.clear();
-  endSketchOps(); graphicsLayer.removeAll(); graphicsLayer.visible = true; selectedFeature = null;
+  endSketchOps(); graphicsLayer.removeAll(); graphicsLayer.visible = true; setSelection([]);
   bookmarks = []; updateToolBadges();
   currentSource = null; currentAgolItem = null;
   if (!$("bookmarksPanel").hidden) showBmList();
@@ -2166,7 +2183,7 @@ function buildDocument() {
     layerStates: currentSource ? sourceLayers().map((l) => ({ id: l.id, title: l.title, visible: l.visible !== false, opacity: l.opacity })) : [],
     portalLayers: [...portalLayers.values()].map((l) => ({ ...l.__item, visible: l.visible !== false, opacity: l.opacity })),
     sketchVisible: graphicsLayer.visible !== false,
-    graphics: graphicsLayer.graphics.toArray().map((g) => ({ geometry: g.geometry.toJSON(), attributes: { ...g.attributes } })),
+    graphics: graphicsLayer.graphics.toArray().map((g) => { straighten(g); return { geometry: g.geometry.toJSON(), attributes: { ...g.attributes } }; }),
     layers: dataLayers.map((fl) => ({ ...fl._srcDef, visible: fl.visible !== false, opacity: fl.opacity, showLabels: fl.labelsVisible !== false }))
   };
   if (bookmarks.length) doc.bookmarks = bookmarks.map((b) => ({ title: b.title, viewpoint: b.viewpoint, layers: b.layers || [], thumb: b.thumb || null }));

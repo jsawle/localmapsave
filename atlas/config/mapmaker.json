@@ -44,5 +44,7 @@
     "styleCategoricalSizeHint": "e.g. species as color, height as size",
     "sumTypeSize": "Each point colored by {color}, sized by {size}.",
     "sumType": "Each point colored by {color}.",
-    "symbol": "Color" }
+    "symbol": "Color",
+    "sketchToolsHint": "Draw with the tools at the top of the map. Select a sketch to give it a pop-up, color and size.",
+    "manySelected": "{n} sketches selected: color and size change them all. Select just one to edit its pop-up." }
 }

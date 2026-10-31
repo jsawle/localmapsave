@@ -253,10 +253,9 @@ export const DEFAULT_STRINGS = {
   profileHint: "Draw a line on the map, or select a line you've sketched, to see how the height of the land changes along it.",
 
   // Sketch
-  drawTools: "Tools",
-  toolPoint: "Point", toolLine: "Line", toolPolygon: "Area", toolCircle: "Circle", toolText: "Text", toolSelect: "Select and edit",
+  sketchToolsHint: "Draw with the tools at the top of the map. Select a sketch to give it a pop-up, colour and size.",
   popup: "Pop-up",
-  popupHint: "Draw something, or select it on the map, to add its pop-up.",
+  manySelected: "{n} sketches selected: colour and size change them all. Select just one to edit its pop-up.",
   addImage: "Add image (optional)",
   replaceImage: "Replace image",
   removeImage: "Remove image",
@@ -264,8 +263,6 @@ export const DEFAULT_STRINGS = {
   descOptional: "Description (optional)",
   symbol: "Colour",
   rotation: "Rotation",
-  deleteFeature: "Delete",
-  placeText: "Click on the map to place your text.",
   textDefault: "Text",
   noPopupYet: "No pop-up details yet.",
   imageOnly: "Please choose an image file.",
