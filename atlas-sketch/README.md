@@ -1,6 +1,6 @@
 # Atlas: Sketch lab
 
-A lab copy of the white-label Atlas app (`../atlas/`) for demos. It's the same app, version **1.15.0-sketch.3**, but Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+A lab copy of the white-label Atlas app (`../atlas/`) for demos. It's the same app, version **1.15.0-sketch.4**, but Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -9,6 +9,8 @@ A lab copy of the white-label Atlas app (`../atlas/`) for demos. It's the same a
 | `…/atlas-sketch/?config=example-es` | Spanish-language version |
 
 This lab copy also has CSV 3.4: a spreadsheet can give its locations in one column pasted from the Coordinates tool, in any of the tool's formats (the same change is waiting for the main app in its own pull request).
+
+Also in 1.15.0-sketch.4 (and waiting for the main app in pull request #31, except the Sketch item): Coordinates stay where the map was clicked instead of following the pointer, a **Copy coordinates** button, the Coordinates tool fits the Measure panel, and a **Go to the drawing tools** button in the Sketch panel so keyboard users can reach the toolbar (Sketch 2.2).
 
 The working app stays at `https://jsawle.github.io/localmapsave/atlas/` (1.14.2), so the two can be shown side by side.
 

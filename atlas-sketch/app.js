@@ -2,20 +2,20 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.3";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.4";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.15.0-sketch.3";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.15.0-sketch.4";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.3";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.4";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.3";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.3";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.3";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.4";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.4";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.4";
 
-const APP_VERSION = "1.15.0-sketch.3";
+const APP_VERSION = "1.15.0-sketch.4";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
-const SKETCH_VERSION = "2.1";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments
+const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
 const CONFIG_SCHEMA = 1;
 const SDK_VERSION = "5.1";
 const AUTH_STASH = "atlas.authReturn";
@@ -692,6 +692,19 @@ sketch.addEventListener("arcgisUpdate", (e) => {
 });
 sketch.addEventListener("arcgisDelete", () => { setSelection([]); markDirty(); if (!$("layersPanel").hidden) renderLayers(); });
 for (const ev of ["arcgisUndo", "arcgisRedo"]) sketch.addEventListener(ev, () => { markDirty(); if (!$("layersPanel").hidden) renderLayers(); });
+// Keyboard: the button in the panel moves focus to the first drawing tool (the toolbar sits on the map, away from the panel).
+function firstSketchAction(root) {
+  for (const el of root.querySelectorAll("*")) {
+    if (el.tagName === "CALCITE-ACTION" && el.offsetParent !== null && !el.disabled) return el;
+    if (el.shadowRoot) { const f = firstSketchAction(el.shadowRoot); if (f) return f; }
+  }
+  return null;
+}
+$("sketchToolsJump").addEventListener("click", async () => {
+  await sketchReady;
+  const a = firstSketchAction(sketch.shadowRoot || sketch);
+  if (a) { if (a.setFocus) await a.setFocus(); else a.focus(); }
+});
 // Escape while drawing or editing is the Sketch tools' (cancel or finish), not a reason to close the panel.
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape" || $("sketchBar").hidden || !sketchBusy()) return;
@@ -789,15 +802,30 @@ function ensureMeasure() { if (!measurement) measurement = new Measurement({ vie
 function measurePressed(id) { ["mDist", "mArea", "mCoord"].forEach((b) => $(b).setAttribute("aria-pressed", String(b === id))); }
 function stopMeasuring() {
   try { if (measurement) measurement.clear(); } catch (e) { /* idle */ }
-  measurePressed(null); measureActive = false; $("coordBody").hidden = true;
+  measurePressed(null); measureActive = false; $("coordWrap").hidden = true;
   updatePopupEnabled();
 }
-$("mDist").addEventListener("click", () => { ensureMeasure(); $("coordBody").hidden = true; measurement.activeTool = mode === "3d" ? "direct-line" : "distance"; measurePressed("mDist"); measureActive = true; updatePopupEnabled(); });
-$("mArea").addEventListener("click", () => { ensureMeasure(); $("coordBody").hidden = true; measurement.activeTool = "area"; measurePressed("mArea"); measureActive = true; updatePopupEnabled(); });
+$("mDist").addEventListener("click", () => { ensureMeasure(); $("coordWrap").hidden = true; measurement.activeTool = mode === "3d" ? "direct-line" : "distance"; measurePressed("mDist"); measureActive = true; updatePopupEnabled(); });
+$("mArea").addEventListener("click", () => { ensureMeasure(); $("coordWrap").hidden = true; measurement.activeTool = "area"; measurePressed("mArea"); measureActive = true; updatePopupEnabled(); });
 $("mCoord").addEventListener("click", () => {
   try { if (measurement) measurement.clear(); } catch (e) { /* idle */ }
-  if (!coordWidget) coordWidget = new CoordinateConversion({ view, container: "coordBody" }); else coordWidget.view = view;
-  $("coordBody").hidden = false; measurePressed("mCoord"); measureActive = false; updatePopupEnabled();
+  // Capture mode: the coordinates stay where the map was clicked. (In Esri's default live mode they follow the pointer,
+  // so moving to the panel to copy them would copy wherever the pointer last crossed the map.)
+  if (!coordWidget) { coordWidget = new CoordinateConversion({ view, container: "coordBody", mode: "capture" }); watchCoordCopy(); }
+  else { coordWidget.view = view; coordWidget.mode = "capture"; }
+  $("coordWrap").hidden = false; measurePressed("mCoord"); measureActive = false; updatePopupEnabled();
+});
+// Copy coordinates: the text Esri's own Copy puts on the clipboard (the tool's main row has no Copy button), ready to
+// paste into one spreadsheet cell; Add layer reads that column back (see parseCoordPair in lib/csv.js).
+const coordText = () => { const c = coordWidget && coordWidget.conversions && coordWidget.conversions.length ? coordWidget.conversions.getItemAt(0) : null; return (c && c.position && c.displayCoordinate) || ""; };
+function watchCoordCopy() {
+  reactiveUtils.watch(coordText, (txt) => { $("coordCopy").disabled = !txt; $("coordCopied").textContent = ""; }, { initial: true });
+}
+$("coordCopy").addEventListener("click", async () => {
+  const txt = coordText();
+  if (!txt) return;
+  try { await navigator.clipboard.writeText(txt); $("coordCopied").textContent = S.coordsCopied; }
+  catch (e) { $("coordCopied").textContent = S.coordsCopyFailed; }
 });
 $("mClear").addEventListener("click", stopMeasuring);
 
