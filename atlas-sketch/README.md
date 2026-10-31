@@ -8,11 +8,9 @@ A lab copy of the white-label Atlas app (`../atlas/`) for demos. It's the same a
 | `…/atlas-sketch/?config=mapmaker` | MapMaker's groups, units, colours and wording |
 | `…/atlas-sketch/?config=example-es` | Spanish-language version |
 
-This lab copy also has CSV 3.4: a spreadsheet can give its locations in one column pasted from the Coordinates tool, in any of the tool's formats (the same change is waiting for the main app in its own pull request).
+Apart from Sketch, the two apps are the same: both have CSV 3.4 (locations from one column pasted from the Coordinates tool) and the Coordinates fixes (coordinates stay where the map was clicked, a **Copy coordinates** button, the tool fits the Measure panel). The lab copy's Sketch also has a **Go to the drawing tools** button for keyboard users (Sketch 2.2).
 
-Also in 1.15.0-sketch.4 (and waiting for the main app in pull request #31, except the Sketch item): Coordinates stay where the map was clicked instead of following the pointer, a **Copy coordinates** button, the Coordinates tool fits the Measure panel, and a **Go to the drawing tools** button in the Sketch panel so keyboard users can reach the toolbar (Sketch 2.2).
-
-The working app stays at `https://jsawle.github.io/localmapsave/atlas/` (1.14.2), so the two can be shown side by side.
+The working app stays at `https://jsawle.github.io/localmapsave/atlas/` (1.14.3), so the two can be shown side by side.
 
 - **Saved maps** use the same `.amap` format, so a file saved in either app opens in the other. Both apps are on the same site, so *My map files* lists the same maps in both.
 - **Sign-in** needs `https://jsawle.github.io/localmapsave/atlas-sketch/oauth-callback.html` added as a redirect URI on the app's client ID in ArcGIS Online. Until then, use sign-in in the main app.
