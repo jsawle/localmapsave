@@ -2,20 +2,20 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.1";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.2";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.15.0-sketch.1";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.15.0-sketch.2";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.1";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.2";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.1";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.1";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.1";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.2";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.2";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.2";
 
-const APP_VERSION = "1.15.0-sketch.1";
+const APP_VERSION = "1.15.0-sketch.2";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
-const SKETCH_VERSION = "2.0";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own
+const SKETCH_VERSION = "2.1";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments
 const CONFIG_SCHEMA = 1;
 const SDK_VERSION = "5.1";
 const AUTH_STASH = "atlas.authReturn";
@@ -500,7 +500,8 @@ const COLOUR_NAMES = String(S.colourNames || "").split(",");
 let selectedGraphics = [], selectedFeature = null;   // selectedFeature: the one sketch whose pop-up is being edited
 let pendingStyle = { color: PALETTE_HEX[0], size: 12, rotation: 0 };
 const newUid = () => "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const SKETCH_TOOLS = ["point", "polyline", "polygon", "rectangle", "circle", "text"];
+// Freehand is a segment option inside the line and area tools (as in Map Viewer), not a button of its own.
+const SKETCH_TOOLS = ["point", "polyline", "freehandPolyline", "polygon", "freehandPolygon", "rectangle", "circle", "text"];
 const sketch = document.createElement("arcgis-sketch");
 sketch.defaultGraphicsLayerDisabled = true;   // draw on the app's sketch layer only, never a layer of its own
 $("sketchBar").appendChild(sketch);
@@ -510,7 +511,7 @@ const sketchReady = (async () => {
   if (sketch.componentOnReady) await sketch.componentOnReady();
   Object.assign(sketch, {
     defaultGraphicsLayerDisabled: true, layer: graphicsLayer, view, autoDestroyDisabled: true,
-    availableCreateTools: SKETCH_TOOLS, showCreateToolsText: true, hideCreateToolsMultipoint: true,
+    availableCreateTools: SKETCH_TOOLS, showCreateToolsText: true, showCreateToolsFreehandPolyline: true, showCreateToolsFreehandPolygon: true, hideCreateToolsMultipoint: true,
     creationMode: "update",               // as in Map Viewer: a finished sketch stays selected, ready to edit
     updateOnGraphicClickDisabled: $("sketchBar").hidden,   // outside sketching, clicking a sketch opens its pop-up
     label: S.sketch
