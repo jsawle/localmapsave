@@ -168,6 +168,9 @@ export const DEFAULT_STRINGS = {
   sumSimple: "Each point shown as a simple marker.",
   sumLabels: " Labels show {label}.",
   addedPoints: "Added {n} point(s). Save keeps them in your map file.",
+  copyCoords: "Copy coordinates",
+  coordsCopied: "Copied. Paste them into one cell of your spreadsheet.",
+  coordsCopyFailed: "Couldn't copy. Select the coordinates above and press Ctrl+C.",
   pickLatLon: "We couldn't find latitude and longitude columns. Which columns hold them? If one column holds both (copied from the Coordinates tool, say), choose it in both boxes.",
   pickOneColumn: "That column doesn't hold coordinates we can read. Choose a latitude column and a longitude column, or a column of coordinates copied from the Coordinates tool.",
   latitude: "Latitude",
@@ -254,6 +257,7 @@ export const DEFAULT_STRINGS = {
   profileHint: "Draw a line on the map, or select a line you've sketched, to see how the height of the land changes along it.",
 
   // Sketch
+  sketchToolsJump: "Go to the drawing tools",
   sketchToolsHint: "Draw with the tools at the top of the map. Select a sketch to give it a pop-up, colour and size.",
   popup: "Pop-up",
   manySelected: "{n} sketches selected: colour and size change them all. Select just one to edit its pop-up.",
