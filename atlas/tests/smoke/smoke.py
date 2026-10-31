@@ -238,7 +238,7 @@ def main():
             check(page.is_hidden("#hdrTitle > input"), "no title until a map is open")
             signin_visible = page.is_visible("#signInBtn")
             check(signin_visible == (cfg != "mapmaker"), f"header sign-in visible={signin_visible}")
-            check(page.inner_text("#verBtn") == "v1.14.2" and not page.query_selector(".credit") and "Jason Sawle" not in page.inner_text(".corner"), "version shown, no credit badge")
+            check(page.inner_text("#verBtn") == "v1.14.3" and not page.query_selector(".credit") and "Jason Sawle" not in page.inner_text(".corner"), "version shown, no credit badge")
             check(page.evaluate(OVERLAP_JS) == {"stack": False, "attribution": False, "corner": False}, "nothing under the toolbar (desktop)")
             page.screenshot(path=str(shots / f"{cfg}-desktop.png"))
             page.set_viewport_size({"width": 1280, "height": 800}); page.wait_for_timeout(500)
@@ -638,6 +638,20 @@ def main():
             page.evaluate("""() => { const dt = new DataTransfer(); dt.items.add(new File(['x'], 'survey.xlsx')); for (const t of ['dragenter','dragover','drop']) window.dispatchEvent(new DragEvent(t, { dataTransfer: dt, bubbles: true, cancelable: true })); }""")
             page.wait_for_timeout(150)
             check("CSV" in page.inner_text("#toast") and "Excel" in page.inner_text("#toast"), "Excel file: save it as CSV: " + page.inner_text("#toast"))
+            check(page.query_selector("#coordWrap #coordBody") is not None and page.query_selector("#coordCopy").is_disabled(), "Copy coordinates waits for a click on the map")
+            # One column of coordinates copied from the Coordinates tool: found without asking, and no swap for DD
+            drop_csv = """([name, text]) => { const dt = new DataTransfer(); dt.items.add(new File([text], name, { type: 'text/csv' })); for (const t of ['dragenter','dragover','drop']) window.dispatchEvent(new DragEvent(t, { dataTransfer: dt, bubbles: true, cancelable: true })); }"""
+            page.evaluate(drop_csv, ["pond.csv", 'Site,Coordinates,Frogs\nA,"51.50740\u00b0\u200eN, 000.12780\u00b0\u200eW",3\nB,"51.50800\u00b0\u200eN, 000.12900\u00b0\u200eW",5\n'])
+            page.wait_for_timeout(400)
+            check(page.is_visible("#dataSummary") and re.search(r"\b2\b", page.inner_text("#dataSummary")) and page.is_hidden("#swapRow"), "Coordinates-tool column mapped without asking: " + (page.inner_text("#dataSummary") if page.is_visible("#dataSummary") else "not shown"))
+            page.click("#dataCancel"); page.wait_for_timeout(200)
+            # a pair column the app can't be sure of (small whole numbers, unnamed): choose it in both boxes
+            page.evaluate(drop_csv, ["grid.csv", 'Site,Spot\nA,"3, 4"\nB,"5, 6"\n'])
+            page.wait_for_timeout(400)
+            check(page.is_visible("#llPicker"), "unsure: asks which columns")
+            page.select_option("#latSel", "1"); page.select_option("#lonSel", "1"); page.click("#llUse"); page.wait_for_timeout(400)
+            check(page.is_visible("#dataSummary") and re.search(r"\b2\b", page.inner_text("#dataSummary")) and page.is_visible("#swapRow"), "same column in both boxes reads it as a pair, and offers Swap")
+            page.click("#dataCancel"); page.wait_for_timeout(200)
             # Rotation shows for text only
             page.click("#tool-sketch")
             check(page.is_hidden("#rotSection"), "no rotation for points, lines and areas")
