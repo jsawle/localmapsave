@@ -2,17 +2,17 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.14.2";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.14.3";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.14.2";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.14.3";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.14.2";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.14.3";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.14.2";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.14.2";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.14.2";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.14.3";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.14.3";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.14.3";
 
-const APP_VERSION = "1.14.2";
+const APP_VERSION = "1.14.3";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -1838,8 +1838,17 @@ function showDataError(msg) {
   $("dataError").textContent = msg; $("dataError").hidden = false;
   $("llPicker").hidden = true; $("dataControls").hidden = true; $("dataSubmit").disabled = true;
 }
-function handleCsvText(name, text) {
-  const parsed = readCsv(text, Number(cfg.csvMaxRows) || 1000);
+// The hemisphere letters the map's Coordinates tool writes in this app's language (from the SDK's own translations),
+// so a column copied from that tool reads correctly: N/S/E/W in English, O for west in Spanish, O for east in German...
+let hemisphereLetters = null;
+async function loadHemisphereLetters() {
+  if (hemisphereLetters) return hemisphereLetters;
+  try { const m = await intl.fetchMessageBundle("esri/widgets/CoordinateConversion/t9n/CoordinateConversion"); hemisphereLetters = (m && m.abbreviatedDirections) || {}; }
+  catch (e) { console.warn("Hemisphere letters not loaded; English letters only", e); hemisphereLetters = {}; }
+  return hemisphereLetters;
+}
+async function handleCsvText(name, text) {
+  const parsed = readCsv(text, Number(cfg.csvMaxRows) || 1000, await loadHemisphereLetters());
   if (!parsed.ok) { showDataError(t(parsed.code, parsed.params)); return; }
   if (parsed.latIdx < 0 || parsed.lonIdx < 0) { showLatLonPicker(name, parsed); return; }
   continueCsv(name, parsed, parsed.latIdx, parsed.lonIdx);
@@ -1859,7 +1868,8 @@ function showLatLonPicker(name, parsed) {
 $("llUse").addEventListener("click", () => {
   if (!pendingParse) return;
   const la = parseInt($("latSel").value, 10), lo = parseInt($("lonSel").value, 10);
-  if (la === lo) { toast(S.pickLatLon); return; }
+  // the same column in both boxes: it holds both coordinates (copied from the Coordinates tool, say)
+  if (la === lo && !buildLayerData(pendingParse.name, pendingParse.parsed, la, lo).ok) { toast(S.pickOneColumn, 7000); return; }
   const p = pendingParse; pendingParse = null;
   continueCsv(p.name, p.parsed, la, lo);
 });
@@ -1902,7 +1912,7 @@ function renderDataPanel() {
   const editing = !!addState.editing;
   $("dataH").textContent = editing ? t("changeStyleTitle", { title: addState.editing.layer.title || "" }) : S.dataLooksGood;
   $("dataSubmit").textContent = editing ? S.applyStyle : S.addToMap;
-  $("swapRow").hidden = editing || !addState.src;   // in Change style the points are already placed
+  $("swapRow").hidden = editing || !addState.src || addState.swappable === false;   // in Change style the points are already placed
   $("dataError").hidden = true; $("llPicker").hidden = true; $("dataControls").hidden = false; $("dataSubmit").disabled = false;
   // categories counted as text columns only: number codes are offered under "By type" but are counted as numbers
   let s = t("dataSummary", { n: addState.features.length, num: addState.numeric.length, cat: (addState.categoricalText || addState.categorical).length });
@@ -1972,11 +1982,12 @@ function pieColumnsBox() {
 }
 $("dataSwap").addEventListener("click", () => {
   if (!addState || !addState.src || addState.editing) return;
-  const { name, parsed, latIdx, lonIdx } = addState.src;
-  const data = buildLayerData(name, parsed, lonIdx, latIdx);
+  const { name, parsed, latIdx, lonIdx, swapped } = addState.src;
+  const pair = latIdx === lonIdx;   // one column with both: turn its order round instead of swapping columns
+  const data = pair ? buildLayerData(name, parsed, latIdx, lonIdx, { swapped: !swapped }) : buildLayerData(name, parsed, lonIdx, latIdx);
   if (!data.ok) { toast(S.swapNoPoints, 6000); return; }
   const before = addState;
-  data.src = { name, parsed, latIdx: lonIdx, lonIdx: latIdx };
+  data.src = pair ? { name, parsed, latIdx, lonIdx, swapped: !swapped } : { name, parsed, latIdx: lonIdx, lonIdx: latIdx };
   data.symbolChoices = before.symbolChoices;
   const keepStyle = styleAvailable(before.style, data);
   data.style = keepStyle ? before.style : pickAutoStyle(data);
@@ -2148,7 +2159,7 @@ async function handleDroppedFile(f) {
     return;
   }
   if ((/\.(csv|txt)$/i.test(name) || f.type === "text/csv") && F.csv !== false) {
-    try { handleCsvText(name, await readText(f)); } catch (e) { toast(S.cantRead); }
+    try { await handleCsvText(name, await readText(f)); } catch (e) { toast(S.cantRead); }
     return;
   }
   if (/\.(xlsx|xlsm|xlsb|xls|ods|numbers)$/i.test(name)) { toast(S.excelFile, 9000); return; }

@@ -544,7 +544,7 @@
         <div class="panel-body">
           <div class="error-box" id="dataError" role="alert" hidden></div>
           <div id="llPicker" hidden>
-            <p class="note" data-i18n="pickLatLon">We couldn't find latitude and longitude columns. Which columns hold them?</p>
+            <p class="note" data-i18n="pickLatLon">We couldn't find latitude and longitude columns. Which columns hold them? If one column holds both (copied from the Coordinates tool, say), choose it in both boxes.</p>
             <label class="lbl" for="latSel" data-i18n="latitude">Latitude</label><select class="field" id="latSel"></select>
             <label class="lbl" for="lonSel" data-i18n="longitude">Longitude</label><select class="field" id="lonSel"></select>
             <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="llUse" data-i18n="useColumns">Use these columns</button></div>
@@ -829,6 +829,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=1.14.2"></script>
+  <script type="module" src="./app.js?v=1.14.3"></script>
 </body>
 </html>
