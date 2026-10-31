@@ -167,10 +167,10 @@
     label.lbl{ display:block; font-size:13px; color:#444; margin:8px 0 4px; }
 
     /* sketch */
-    .tbtn{ width:42px; height:42px; border:1px solid var(--line2); border-radius:5px; background:#fff; color:var(--ink2); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
-    .tbtn svg{ width:20px; height:20px; }
-    .tbtn:hover{ background:var(--soft); }
-    .tbtn[aria-pressed="true"]{ border-color:var(--brand); color:var(--brand-strong); box-shadow:0 0 0 1px var(--brand) inset; background:var(--brand-soft); }
+    /* The SDK's Sketch toolbar (the one Map Viewer uses), on the map at the top, clear of the zoom buttons and the open panel */
+    .sketch-bar{ position:absolute; top:12px; left:64px; right:380px; z-index:21; display:flex; justify-content:center; pointer-events:none; }
+    .sketch-bar[hidden]{ display:none; }
+    .sketch-bar > arcgis-sketch{ pointer-events:auto; max-width:100%; overflow-x:auto; }
     .swatches{ display:flex; gap:8px; flex-wrap:wrap; }
     .swatch{ width:30px; height:30px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--line2); cursor:pointer; padding:0; }
     .swatch[aria-pressed="true"]{ box-shadow:0 0 0 3px var(--ink); }
@@ -183,6 +183,10 @@
     .img-preview img{ display:block; max-width:100%; height:auto; border-radius:4px; border:1px solid var(--line2); }
     .img-remove{ position:absolute; top:6px; right:6px; width:26px; height:26px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:16px; line-height:1; cursor:pointer; }
 
+    /* Coordinates (Esri's widget is 400px wide; the panel is narrower) */
+    #coordBody.esri-coordinate-conversion, #coordBody .esri-coordinate-conversion{ width:100%; }
+    .coord-copy{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:10px; }
+    .coord-copy .hint{ margin:0; }
     /* lists */
     .list{ list-style:none; margin:0; padding:0; }
     .li{ display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid #f0f0f0; }
@@ -458,6 +462,7 @@
       .lyr.sub{ padding-left:14px; }
       .panel, .panel.wide, .panel.bmg-panel, .panel.lyr-panel{ left:8px; right:8px; width:auto; top:auto; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 14px); max-height:58%; }
       .open-card{ height:calc(100vh - 40px); max-height:none; }
+      .sketch-bar{ top:50px; left:56px; right:8px; justify-content:flex-start; }   /* phones: the panel sits at the bottom, so the toolbar can use the width, under the version button */
       .modal.top{ padding-top:20px; }
     }
     @media (max-width:760px){
@@ -544,7 +549,7 @@
         <div class="panel-body">
           <div class="error-box" id="dataError" role="alert" hidden></div>
           <div id="llPicker" hidden>
-            <p class="note" data-i18n="pickLatLon">We couldn't find latitude and longitude columns. Which columns hold them?</p>
+            <p class="note" data-i18n="pickLatLon">We couldn't find latitude and longitude columns. Which columns hold them? If one column holds both (copied from the Coordinates tool, say), choose it in both boxes.</p>
             <label class="lbl" for="latSel" data-i18n="latitude">Latitude</label><select class="field" id="latSel"></select>
             <label class="lbl" for="lonSel" data-i18n="longitude">Longitude</label><select class="field" id="lonSel"></select>
             <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="llUse" data-i18n="useColumns">Use these columns</button></div>
@@ -598,27 +603,21 @@
             <button class="btn" type="button" id="mClear" data-i18n="clear">Clear</button>
           </div>
           <p class="hint" data-i18n="measureHint">Choose a tool, then click on the map. Double-click to finish.</p>
-          <div id="measureBody"></div><div id="coordBody" hidden></div>
+          <div id="measureBody"></div>
+          <div id="coordWrap" hidden><div id="coordBody"></div>
+            <div class="coord-copy"><button class="btn" type="button" id="coordCopy" disabled data-i18n="copyCoords">Copy coordinates</button><span class="hint" id="coordCopied" role="status" aria-live="polite"></span></div></div>
         </div>
       </section>
 
+      <div class="sketch-bar" id="sketchBar" hidden></div>
       <section class="panel" id="sketchPanel" hidden aria-labelledby="sketchH">
         <div class="panel-head"><h2 id="sketchH" tabindex="-1" data-i18n="sketch">Sketch</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
         <div class="panel-body">
+          <p class="hint" id="sketchHint" data-i18n="sketchToolsHint">Draw with the tools at the top of the map. Select a sketch to give it a pop-up, colour and size.</p>
+          <button class="btn" type="button" id="sketchToolsJump" data-i18n="sketchToolsJump" style="margin-bottom:12px">Go to the drawing tools</button>
           <div class="section">
-            <p class="label" data-i18n="drawTools">Tools</p>
-            <div class="row" role="group" id="sketchTools">
-              <button class="tbtn" type="button" data-tool="point" aria-pressed="false" data-i18n-aria="toolPoint" data-i18n-title="toolPoint"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg></button>
-              <button class="tbtn" type="button" data-tool="polyline" aria-pressed="false" data-i18n-aria="toolLine" data-i18n-title="toolLine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l5-5 4 3 7-8"/></svg></button>
-              <button class="tbtn" type="button" data-tool="polygon" aria-pressed="false" data-i18n-aria="toolPolygon" data-i18n-title="toolPolygon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 6.5-3.4 10.5H6.4L3 9.5z"/></svg></button>
-              <button class="tbtn" type="button" data-tool="circle" aria-pressed="false" data-i18n-aria="toolCircle" data-i18n-title="toolCircle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/></svg></button>
-              <button class="tbtn" type="button" data-tool="text" aria-pressed="false" data-i18n-aria="toolText" data-i18n-title="toolText"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 19l5-14h2.1l5 14h-2.3l-1.25-3.7H8.55L7.3 19H5zm4.2-5.6h4.1l-2.05-6.05L9.2 13.4z"/></svg></button>
-              <button class="tbtn" type="button" data-tool="select" aria-pressed="false" data-i18n-aria="toolSelect" data-i18n-title="toolSelect"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 3l15 7.5-6.4 2.1-2.1 6.4L5 3z"/></svg></button>
-            </div>
-          </div>
-          <div class="section">
-            <div class="row" style="justify-content:space-between;margin-bottom:8px"><p class="label" style="margin:0" data-i18n="popup">Pop-up</p><button class="btn danger" type="button" id="deleteFeature" data-i18n="deleteFeature">Delete</button></div>
-            <p class="hint" id="popupHint" data-i18n="popupHint">Draw something, or select it on the map, to add its pop-up.</p>
+            <p class="label" data-i18n="popup">Pop-up</p>
+            <p class="hint" id="popupHint" role="status" hidden></p>
             <div class="stack">
               <input id="fImageFile" type="file" accept="image/*" hidden />
               <button class="img-pick" type="button" id="imgPick" data-i18n="addImage">Add image (optional)</button>
@@ -829,6 +828,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=1.14.2"></script>
+  <script type="module" src="./app.js?v=1.15.0-sketch.4"></script>
 </body>
 </html>
