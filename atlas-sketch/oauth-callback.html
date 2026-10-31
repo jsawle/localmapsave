@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<!-- ArcGIS sign-in pop-up callback, unchanged from Esri's jsapi-resources (oauth/oauth-callback.html, Apache-2.0).
+     Register this page's full URL as a redirect URI on the app's client ID. -->
+<html>
+  <head>
+    <script>
+      function loadHandler() {
+        if (opener) {
+          // opener.console.log("oauth callback href:", location.href);
+          if (location.hash) {
+            try {
+              var esriId = opener.require("esri/kernel").id;
+            } catch (e) {}
+            if (esriId) {
+              esriId.setOAuthResponseHash(location.hash);
+            } else {
+              opener.dispatchEvent(new CustomEvent("arcgis:auth:hash", { detail: location.hash }));
+            }
+          } else if (location.search) {
+            opener.dispatchEvent(new CustomEvent("arcgis:auth:location:search", { detail: location.search }));
+          }
+        }
+        close();
+      }
+    </script>
+  </head>
+  <body onload="loadHandler();"></body>
+</html>
