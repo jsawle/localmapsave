@@ -183,6 +183,10 @@
     .img-preview img{ display:block; max-width:100%; height:auto; border-radius:4px; border:1px solid var(--line2); }
     .img-remove{ position:absolute; top:6px; right:6px; width:26px; height:26px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:16px; line-height:1; cursor:pointer; }
 
+    /* Coordinates (Esri's widget is 400px wide; the panel is narrower) */
+    #coordBody.esri-coordinate-conversion, #coordBody .esri-coordinate-conversion{ width:100%; }
+    .coord-copy{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:10px; }
+    .coord-copy .hint{ margin:0; }
     /* lists */
     .list{ list-style:none; margin:0; padding:0; }
     .li{ display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid #f0f0f0; }
@@ -516,7 +520,6 @@
     <main class="map-wrap" id="mapWrap">
       <div id="viewDiv"></div>
       <div id="sceneDiv" hidden></div>
-      <div class="sketch-bar" id="sketchBar" hidden></div>
       <div class="corner"><button class="ver-btn" id="verBtn" type="button" aria-expanded="false" aria-controls="aboutPanel">v1</button></div>
 
       <nav class="toolbar" id="toolbar" tabindex="-1" data-i18n-aria="tools">
@@ -546,7 +549,7 @@
         <div class="panel-body">
           <div class="error-box" id="dataError" role="alert" hidden></div>
           <div id="llPicker" hidden>
-            <p class="note" data-i18n="pickLatLon">We couldn't find latitude and longitude columns. Which columns hold them?</p>
+            <p class="note" data-i18n="pickLatLon">We couldn't find latitude and longitude columns. Which columns hold them? If one column holds both (copied from the Coordinates tool, say), choose it in both boxes.</p>
             <label class="lbl" for="latSel" data-i18n="latitude">Latitude</label><select class="field" id="latSel"></select>
             <label class="lbl" for="lonSel" data-i18n="longitude">Longitude</label><select class="field" id="lonSel"></select>
             <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="llUse" data-i18n="useColumns">Use these columns</button></div>
@@ -600,14 +603,18 @@
             <button class="btn" type="button" id="mClear" data-i18n="clear">Clear</button>
           </div>
           <p class="hint" data-i18n="measureHint">Choose a tool, then click on the map. Double-click to finish.</p>
-          <div id="measureBody"></div><div id="coordBody" hidden></div>
+          <div id="measureBody"></div>
+          <div id="coordWrap" hidden><div id="coordBody"></div>
+            <div class="coord-copy"><button class="btn" type="button" id="coordCopy" disabled data-i18n="copyCoords">Copy coordinates</button><span class="hint" id="coordCopied" role="status" aria-live="polite"></span></div></div>
         </div>
       </section>
 
+      <div class="sketch-bar" id="sketchBar" hidden></div>
       <section class="panel" id="sketchPanel" hidden aria-labelledby="sketchH">
         <div class="panel-head"><h2 id="sketchH" tabindex="-1" data-i18n="sketch">Sketch</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
         <div class="panel-body">
           <p class="hint" id="sketchHint" data-i18n="sketchToolsHint">Draw with the tools at the top of the map. Select a sketch to give it a pop-up, colour and size.</p>
+          <button class="btn" type="button" id="sketchToolsJump" data-i18n="sketchToolsJump" style="margin-bottom:12px">Go to the drawing tools</button>
           <div class="section">
             <p class="label" data-i18n="popup">Pop-up</p>
             <p class="hint" id="popupHint" role="status" hidden></p>
@@ -821,6 +828,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=1.15.0-sketch.2"></script>
+  <script type="module" src="./app.js?v=1.15.0-sketch.4"></script>
 </body>
 </html>

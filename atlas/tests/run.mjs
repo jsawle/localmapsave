@@ -568,5 +568,107 @@ test("every config translates only known strings", () => {
     for (const k of ["contentGroup", "basemapGroup", "defaultBasemap"]) assert.match(c[k], /^[0-9a-f]{32}$/);
   }
 });
+// ---------- One column of coordinates copied from the map's Coordinates tool (CSV 3.4) ----------
+// tests/coordinate-tool.json: what the SDK 5.1 Coordinate Conversion widget actually displayed (and so copies) for 40
+// places, in every format, in 10 languages (zoomed in) and in English zoomed out, plus the SDK's hemisphere letters.
+const COORD_FIX = JSON.parse(readFileSync(new URL("./coordinate-tool.json", import.meta.url)));
+const metres = (lat1, lon1, lat2, lon2) => {
+  const r = Math.PI / 180, a = Math.sin((lat2 - lat1) * r / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin((lon2 - lon1) * r / 2) ** 2;
+  return 2 * 6371008 * Math.asin(Math.sqrt(a));
+};
+// Allowed error: the widget's own rounding (5 decimals zoomed in; 1 decimal or whole seconds zoomed out; 1 m grid refs)
+const TOL = { zoomedIn: { dd: 3, xy: 3, ddm: 3, dms: 3, utm: 3, mgrs: 3, usng: 3, basemap: 0.01 },
+  zoomedOut: { dd: 12000, xy: 12000, ddm: 1500, dms: 40, utm: 3, mgrs: 3, usng: 3, basemap: 0.2 } };
+test("every format the Coordinates tool copies reads back to the right place, in every language tested", () => {
+  let n = 0;
+  for (const [key, rows] of Object.entries(COORD_FIX.locales)) {
+    const [loc, zoom] = key.split("@");
+    const table = csv.directionTable(COORD_FIX.letters[loc]);
+    const tol = zoom === "3" ? TOL.zoomedOut : TOL.zoomedIn;
+    rows.forEach((row, i) => {
+      const [lon, lat] = COORD_FIX.points[i];
+      for (const [fmt, text] of Object.entries(row)) {
+        // basemap metres within 180 m of 0°, 0° can't be told from degrees in one cell; a column settles it (next test)
+        const p = csv.parseCoordPair(text, table, fmt === "basemap" && Math.abs(lat) < 0.01 && Math.abs(lon) < 0.01 ? "merc" : undefined);
+        assert.ok(p && !Number.isNaN(p), `${key} ${fmt} unreadable: ${JSON.stringify(text)}`);
+        const err = metres(lat, lon, p.lat, p.lon);
+        assert.ok(err <= tol[fmt], `${key} ${fmt} ${JSON.stringify(text)} is ${err.toFixed(1)} m out (${p.lat}, ${p.lon} vs ${lat}, ${lon})`);
+        n++;
+      }
+    });
+  }
+  assert.ok(n >= 3000, "checked " + n);
+});
+test("a CSV with a Coordinates column is mapped without asking, in English and Spanish files", () => {
+  const en = COORD_FIX.locales["en@16"], es = COORD_FIX.locales["es@16"];
+  const q = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+  for (const fmt of ["xy", "dd", "ddm", "dms", "utm", "mgrs", "basemap"]) {
+    const text = "Site,Coordinates,Count\n" + en.slice(0, 7).map((r, i) => `S${i},${q(r[fmt])},${i * 3}`).join("\n");
+    const parsed = csv.readCsv(text, 1000, COORD_FIX.letters.en);
+    assert.ok(parsed.ok && parsed.latIdx === 1 && parsed.lonIdx === 1, fmt + ": coordinates column found");
+    const data = csv.buildLayerData("t.csv", parsed, 1, 1);
+    assert.equal(data.features.length, 7, fmt);
+    const g6 = data.features[6].geometry;   // the point beside 0°, 0°: right in every format, basemap metres included
+    assert.ok(Math.abs(g6.x - 55.66) < 2 && Math.abs(g6.y + 33.4) < 2, fmt + " near 0,0: " + g6.x + ", " + g6.y);
+    assert.deepEqual(data.coordNames, ["Coordinates"]);
+    assert.ok(data.numeric.includes("Count") && !data.categorical.includes("Coordinates"), fmt + ": the coordinates column isn't offered for styling");
+    const [lon, lat] = COORD_FIX.points[1];
+    const g = data.features[1].geometry, ll = [g.x / 20037508.342788905 * 180, Math.atan(Math.sinh(g.y / 20037508.342788905 * Math.PI)) * 180 / Math.PI];
+    assert.ok(Math.abs(ll[0] - lon) < 1e-4 && Math.abs(ll[1] - lat) < 1e-4, fmt + " " + ll);
+    assert.equal(data.swappable, fmt === "xy", fmt + ": swap offered only where the order is a guess");
+  }
+  // Spain: Excel saves with semicolons; decimal commas and O for west
+  const esText = "Lugar;Coordenadas\n" + es.slice(0, 5).map((r, i) => `L${i};${q(r.dd)}`).join("\n");
+  const parsed = csv.readCsv(esText, 1000, COORD_FIX.letters.es);
+  assert.equal(parsed.delim, ";"); assert.equal(parsed.latIdx, 1);
+  const d = csv.buildLayerData("t.csv", parsed, 1, 1);
+  assert.equal(d.features.length, 5);
+  assert.ok(d.features[0].geometry.x < 0, "O read as west in Spanish");
+});
+test("coordinates survive Excel's older CSV encoding and hand typing", () => {
+  const t = csv.directionTable(COORD_FIX.letters.en);
+  for (const s of ["51.50740�?N, 000.12780�?W", "-0.12780�?, 51.50740�?", "51°30'26.64\"N 0°7'40.08\"W", "51.5074N 0.1278W",
+    "51.5074, -0.1278", "51.5074,-0.1278", "51.5074; -0.1278", "N51.5074, W0.1278", "30UXC9931610163", "30U XC 9931 1016"]) {
+    const p = csv.parseCoordPair(s, t);
+    assert.ok(p && Math.abs(p.lat - 51.5074) < 0.001 && Math.abs(p.lon + 0.1278) < 0.002, s + " -> " + JSON.stringify(p));
+  }
+  for (const s of ["Oak", "12", "3 4 5", "51.5N, 0.1N", "-51.5N, 0.1W", "99U XC 1 1", "30U XI 99316 10163", "51.5O, 0.1W"])
+    assert.ok(Number.isNaN(csv.parseCoordPair(s, t)), s + " should not read");
+  assert.equal(csv.parseCoordPair("  ", t), null);
+});
+test("letters follow the app's language: Finnish E is south, German O is east, English refuses O", () => {
+  const fi = csv.directionTable(COORD_FIX.letters.fi), de = csv.directionTable(COORD_FIX.letters.de);
+  assert.ok(csv.parseCoordPair("33,86880°E, 151,20930°I", fi).lat < 0);
+  assert.ok(csv.parseCoordPair("33,86880°S, 151,20930°O", de).lon > 0);
+  assert.ok(csv.parseCoordPair("51,5°N, 0,1°O", csv.directionTable(COORD_FIX.letters.es)).lon < 0);
+  assert.ok(Number.isNaN(csv.parseCoordPair("51.5°N, 0.1°O", csv.directionTable(null))));
+  // the same letters work in separate latitude and longitude columns
+  assert.ok(csv.parseCoord("0,1278°O", true, "lon", csv.directionTable(COORD_FIX.letters.es)) < 0);
+  assert.ok(Number.isNaN(csv.parseCoord("0.1278O", false, "lon")));
+});
+test("bare number pairs: longitude first like the tool's XY, unless named Lat/Long or only the other way fits; Swap turns them", () => {
+  const mk = (cells, name) => ({ header: ["Site", name || "Location"], rows: cells.map((c, i) => ["S" + i, c]), delim: ",", dirTable: csv.directionTable(null) });
+  const ll = (f) => { const g = f.geometry; return [Math.round(g.x / 20037508.342788905 * 1800) / 10, Math.round(Math.atan(Math.sinh(g.y / 20037508.342788905 * Math.PI)) * 1800 / Math.PI) / 10]; };
+  // what the Coordinates tool copied after XY was picked again: no degree signs, longitude first
+  let d = csv.buildLayerData("t", mk(["-81.9, 55.4", "-64.3, 51.2"]), 1, 1);
+  assert.deepEqual(ll(d.features[0]), [-81.9, 55.4]);
+  // the same column with some rows copied before that (with degree signs) reads the same way
+  d = csv.buildLayerData("t", mk(["-81.9, 55.4", "-64.3\u00b0\u200e, 51.2\u00b0\u200e"]), 1, 1);
+  assert.deepEqual(d.features.map(ll), [[-81.9, 55.4], [-64.3, 51.2]]);
+  d = csv.buildLayerData("t", mk(["51.5, -0.1", "48.9, 2.4"], "Lat/Long"), 1, 1);   // a name saying latitude first
+  assert.deepEqual(ll(d.features[0]), [-0.1, 51.5]);
+  d = csv.buildLayerData("t", mk(["-0.1, 151.2", "40.7, -74.0"]), 1, 1);   // 151.2 can't be a latitude: latitude first after all
+  assert.deepEqual(d.features.map(ll), [[151.2, -0.1], [-74, 40.7]]);
+  d = csv.buildLayerData("t", mk(["-0.1, 51.5"]), 1, 1, { swapped: true });
+  assert.deepEqual(ll(d.features[0]), [51.5, -0.1]);
+  assert.equal(d.swappable, true);
+  // a column of small whole-number pairs isn't taken for coordinates unless its name says so
+  assert.equal(csv.detectPairColumn(["Notes"], [["3, 4"], ["5, 6"]], csv.directionTable(null)), -1);
+  assert.equal(csv.detectPairColumn(["Location"], [["3, 4"], ["5, 6"]], csv.directionTable(null)), 0);
+  // latitude and longitude columns still win over a coordinates column
+  const r = csv.readCsv("Lat,Lon,Coordinates\n51.5,-0.1,\"48.9, 2.4\"\n");
+  assert.deepEqual([r.latIdx, r.lonIdx], [0, 1]);
+});
+
 await Promise.all(pending);
 console.log("All " + passed + " tests passed.");
