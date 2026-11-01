@@ -2344,7 +2344,9 @@ async function writeToHandle(forceNew, locked) {
     if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
     if (privateLeftOut) setTimeout(() => toast(t("privateLayersLeftOut", { n: privateLeftOut }), 6000), 3500);
   } catch (err) {
-    if (err && err.name === "AbortError") return;
+    // Chrome reports two things as AbortError: Cancel in the save box ("The user aborted a request."), and a file
+    // it couldn't open for writing ("Failed to create or truncate file": someone else's file, a read-only one).
+    if (err && err.name === "AbortError") { if (!/user aborted/i.test(err.message || "user aborted")) toast(S.cantSaveThere, 8000); return; }
     if (err && (err.name === "NotAllowedError" || err.name === "NoModificationAllowedError") && !forceNew && !locked) { toast(S.readOnlyFile, 5000); currentFileHandle = null; return writeToHandle(true); }
     console.error(err);
     if (!locked) currentFileHandle = null;
