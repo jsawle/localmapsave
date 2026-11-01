@@ -2,17 +2,17 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.4";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.5";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.15.0-sketch.4";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.15.0-sketch.5";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.4";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.5";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.4";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.4";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.4";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.5";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.5";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.5";
 
-const APP_VERSION = "1.15.0-sketch.4";
+const APP_VERSION = "1.15.0-sketch.5";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -325,7 +325,15 @@ let currentAgolItem = null;        // the signed-in user's own ArcGIS Online ite
 const dataLayers = [];              // FeatureLayers from CSV files (each keeps its definition in _srcDef)
 const portalLayers = new Map();    // itemId -> layer added from the collection
 let bookmarks = [];
-let currentFileHandle = null, openedHandleUnsaved = false;
+// A map opened from a file (a class map a teacher shared, say) is never written back: Save makes the person's own copy,
+// and choosing the opened file in the save dialog is refused. Maps saved from this browser (My map files) save in place.
+let currentFileHandle = null, openedFromFile = false;
+const openedHandles = [];
+function rememberOpened(h) { if (h && !openedHandles.includes(h)) openedHandles.push(h); }
+async function isOpenedFile(h) {
+  for (const o of openedHandles) { try { if (o === h || await o.isSameEntry(h)) return true; } catch (e) { /* not comparable */ } }
+  return false;
+}
 let portalUser = null;
 function markDirty() { dirty = true; }
 function markClean() { dirty = false; }
@@ -1042,7 +1050,7 @@ async function openWebMapItem(itemId, opts) {
     if (portalUser && item.owner === portalUser.username) currentAgolItem = { id: itemId, owner: item.owner, title: item.title };
     if (!opts.keepWorkspace) {
       applyParsedWebMap(parsed);
-      setTitle(item.title); markClean(); currentFileHandle = null; openedHandleUnsaved = false;
+      setTitle(item.title); markClean(); currentFileHandle = null; openedFromFile = false;
       const vp = wm.initialViewProperties && wm.initialViewProperties.viewpoint;
       if (vp) goToSafe(vp, { animate: false });
       if (!opts.quiet) toast(t("openedMap", { title: item.title }));
@@ -1107,7 +1115,7 @@ function newBlankMap() {
   resetWorkspace();
   setActiveMap(localMap);
   localMap.basemap = defaultBasemap();
-  setTitle(""); currentFileHandle = null; openedHandleUnsaved = false; markClean();
+  setTitle(""); currentFileHandle = null; openedFromFile = false; markClean();
   goToSafe({ center: startCenter, zoom: Number(cfg.startView.zoom) || 2 });
   toast(S.newMapStarted);
 }
@@ -2193,15 +2201,18 @@ window.addEventListener("drop", (e) => {
   if (!dtHasFiles(e)) return;
   e.preventDefault(); dropDepth = 0; $("dropOverlay").hidden = true;
   const f = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (f) handleDroppedFile(f);
+  // the dropped file's own handle (Chrome, Edge), asked for now while the drop event lasts, so Save can refuse to overwrite it
+  const item = e.dataTransfer.items && e.dataTransfer.items[0];
+  const handle = item && item.kind === "file" && item.getAsFileSystemHandle ? item.getAsFileSystemHandle().catch(() => null) : null;
+  if (f) handleDroppedFile(f, handle);
 });
 function readText(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsText(file); }); }
-async function handleDroppedFile(f) {
+async function handleDroppedFile(f, handlePromise) {
   const name = f.name || "";
   if (/\.(amap|mmap|json)$/i.test(name)) {
     if (F.localSave === false) return;
     if (!confirmDiscard()) return;
-    try { const txt = await readText(f); if (await openDocText(txt, name)) { currentFileHandle = null; openedHandleUnsaved = false; } } catch (e) { toast(S.cantRead); }
+    try { const txt = await readText(f); if (await openDocText(txt, name)) { currentFileHandle = null; openedFromFile = true; rememberOpened(handlePromise ? await handlePromise : null); } } catch (e) { toast(S.cantRead); }
     return;
   }
   if ((/\.(csv|txt)$/i.test(name) || f.type === "text/csv") && F.csv !== false) {
@@ -2276,7 +2287,7 @@ function openFromDevice() {
   if (!confirmDiscard()) return;
   if (window.showOpenFilePicker) {
     window.showOpenFilePicker({ multiple: false, types: [{ description: S.mapFile, accept: { "application/json": OPEN_EXTS } }] })
-      .then(async ([h]) => { const f = await h.getFile(); if (await openDocText(await f.text(), h.name || f.name)) { currentFileHandle = h; openedHandleUnsaved = true; } })
+      .then(async ([h]) => { const f = await h.getFile(); if (await openDocText(await f.text(), h.name || f.name)) { currentFileHandle = null; openedFromFile = true; rememberOpened(h); } })
       .catch((err) => { if (err && err.name === "AbortError") return; pickViaInput(); });
   } else pickViaInput();
 }
@@ -2285,7 +2296,7 @@ function pickViaInput() {
   input.addEventListener("change", async () => {
     const f = input.files && input.files[0];
     if (!f) return;
-    try { if (await openDocText(await readText(f), f.name)) { currentFileHandle = null; openedHandleUnsaved = false; } } catch (e) { toast(S.cantRead); }
+    try { if (await openDocText(await readText(f), f.name)) { currentFileHandle = null; openedFromFile = true; } } catch (e) { toast(S.cantRead); }
   });
   input.click();
 }
@@ -2308,17 +2319,15 @@ async function docBlob() { return new Blob([await docText()], { type: "applicati
 function saveToDevice(forceNew) {
   if (portalUser) return;   // signed in: maps save to ArcGIS Online (see applySaveMode)
   if (!window.showSaveFilePicker) { openNameDialog(); return; }
-  if (!forceNew && currentFileHandle && openedHandleUnsaved) {
-    $("firstSaveText").textContent = t("firstSaveText", { name: currentFileHandle.name || "" });
-    openModal("firstSaveModal", $("fsCopy"));
-    return;
-  }
   writeToHandle(forceNew);
 }
 async function writeToHandle(forceNew) {
   try {
     if (forceNew || !currentFileHandle) {
-      currentFileHandle = await window.showSaveFilePicker({ suggestedName: titleSlug() + FILE_EXT, types: [{ description: S.mapFile, accept: { "application/json": [FILE_EXT] } }] });
+      const suggested = openedFromFile ? t("copyFileName", { name: titleSlug() }) : titleSlug();
+      const picked = await window.showSaveFilePicker({ suggestedName: suggested + FILE_EXT, types: [{ description: S.mapFile, accept: { "application/json": [FILE_EXT] } }] });
+      if (await isOpenedFile(picked)) { toast(S.keepOriginal, 8000); return; }   // nothing is written; Save still goes where it went before
+      currentFileHandle = picked;
     } else if (currentFileHandle.queryPermission && (await currentFileHandle.queryPermission({ mode: "readwrite" })) !== "granted") {
       // A map opened from the saved list: ask to write to its file now, while the click still counts.
       if ((await currentFileHandle.requestPermission({ mode: "readwrite" })) !== "granted") { const d = new Error("Not allowed"); d.name = "NotAllowedError"; throw d; }
@@ -2327,7 +2336,7 @@ async function writeToHandle(forceNew) {
     const blob = await docBlob();
     const w = await currentFileHandle.createWritable();
     await w.write(blob); await w.close();
-    openedHandleUnsaved = false; markClean();
+    openedFromFile = false; markClean();
     toast(t("savedFile", { name: currentFileHandle.name || titleSlug() + FILE_EXT }));
     recordSave({ handle: currentFileHandle, fileName: currentFileHandle.name || titleSlug() + FILE_EXT });
     if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
@@ -2340,9 +2349,7 @@ async function writeToHandle(forceNew) {
     openNameDialog();
   }
 }
-$("fsCopy").addEventListener("click", () => { closeModal("firstSaveModal"); writeToHandle(true); });
-$("fsUpdate").addEventListener("click", () => { closeModal("firstSaveModal"); openedHandleUnsaved = false; writeToHandle(false); });
-function openNameDialog() { $("fileNameInput").value = titleSlug(); openModal("nameModal", $("fileNameInput")); setTimeout(() => $("fileNameInput").select(), 0); }
+function openNameDialog() { $("fileNameInput").value = openedFromFile ? t("copyFileName", { name: titleSlug() }) : titleSlug(); openModal("nameModal", $("fileNameInput")); setTimeout(() => $("fileNameInput").select(), 0); }
 async function confirmNameDialog() {
   const name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
   closeModal("nameModal");
@@ -2466,12 +2473,12 @@ async function openSavedMap(id) {
       return;
     }
     if (!confirmDiscard()) return;
-    if (await openDocText(text, name)) { currentFileHandle = r.handle; openedHandleUnsaved = false; }
+    if (await openDocText(text, name)) { currentFileHandle = r.handle; openedFromFile = false; }
     return;
   }
   if (typeof r.json !== "string") { toast(S.cantRead, 5000); return; }
   if (!confirmDiscard()) return;
-  if (await openDocText(r.json, name)) { currentFileHandle = null; openedHandleUnsaved = false; }
+  if (await openDocText(r.json, name)) { currentFileHandle = null; openedFromFile = false; }
 }
 
 // ============================================================ Print (in the browser; nothing is sent to a print service)
