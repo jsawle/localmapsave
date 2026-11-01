@@ -1,0 +1,138 @@
+{
+ "id": "oregon-trail",
+ "title": "The Oregon Trail",
+ "grade": "8 US history",
+ "layers": [
+  "Trails West"
+ ],
+ "places": [
+  {
+   "id": "independence",
+   "name": "Independence, Missouri",
+   "names": [
+    "independence, missouri",
+    "independence missouri",
+    "independence, mo",
+    "independence"
+   ],
+   "lonlat": [
+    -94.4155,
+    39.0911
+   ],
+   "toleranceKm": 40,
+   "facts": []
+  },
+  {
+   "id": "chimney",
+   "name": "Chimney Rock",
+   "names": [
+    "chimney rock"
+   ],
+   "lonlat": [
+    -103.3483,
+    41.7036
+   ],
+   "toleranceKm": 40,
+   "facts": []
+  },
+  {
+   "id": "irock",
+   "name": "Independence Rock",
+   "names": [
+    "independence rock"
+   ],
+   "lonlat": [
+    -107.1314,
+    42.4939
+   ],
+   "toleranceKm": 40,
+   "facts": []
+  },
+  {
+   "id": "south",
+   "name": "South Pass",
+   "names": [
+    "south pass"
+   ],
+   "lonlat": [
+    -108.92,
+    42.36
+   ],
+   "toleranceKm": 40,
+   "facts": []
+  },
+  {
+   "id": "oc",
+   "name": "Oregon City",
+   "names": [
+    "oregon city"
+   ],
+   "lonlat": [
+    -122.6068,
+    45.3573
+   ],
+   "toleranceKm": 40,
+   "facts": []
+  }
+ ],
+ "route": {
+  "name": "Oregon Trail",
+  "toleranceKm": 50,
+  "start": [
+   -94.4155,
+   39.0911
+  ],
+  "end": [
+   -122.6068,
+   45.3573
+  ],
+  "paths": "trails-west.json: Oregon",
+  "checkpoints": [
+   {
+    "name": "Chimney Rock",
+    "lonlat": [
+     -103.3483,
+     41.7036
+    ]
+   },
+   {
+    "name": "Independence Rock",
+    "lonlat": [
+     -107.1314,
+     42.4939
+    ]
+   },
+   {
+    "name": "South Pass",
+    "lonlat": [
+     -108.92,
+     42.36
+    ]
+   },
+   {
+    "name": "Fort Hall",
+    "lonlat": [
+     -112.43,
+     43.03
+    ]
+   },
+   {
+    "name": "The Dalles",
+    "lonlat": [
+     -121.18,
+     45.594
+    ]
+   },
+   {
+    "name": "Oregon City",
+    "lonlat": [
+     -122.6068,
+     45.3573
+    ]
+   }
+  ]
+ },
+ "note": {
+  "label": "Why did people go West? Use evidence from the Trails West layer."
+ }
+}
