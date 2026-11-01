@@ -2,17 +2,17 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.5";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.6";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.15.0-sketch.5";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.15.0-sketch.6";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.5";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.6";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.5";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.5";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.5";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.6";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.6";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.6";
 
-const APP_VERSION = "1.15.0-sketch.5";
+const APP_VERSION = "1.15.0-sketch.6";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -328,11 +328,16 @@ let bookmarks = [];
 // A map opened from a file (a class map a teacher shared, say) is never written back: Save makes the person's own copy,
 // and choosing the opened file in the save dialog is refused. Maps saved from this browser (My map files) save in place.
 let currentFileHandle = null, openedFromFile = false;
+// Chrome empties a file as soon as it's picked in the save dialog (File System Access spec), before the app sees which
+// file it was. So the text of each opened file is kept: if it's picked, it's written straight back, unchanged.
 const openedHandles = [];
-function rememberOpened(h) { if (h && !openedHandles.includes(h)) openedHandles.push(h); }
-async function isOpenedFile(h) {
-  for (const o of openedHandles) { try { if (o === h || await o.isSameEntry(h)) return true; } catch (e) { /* not comparable */ } }
-  return false;
+function rememberOpened(h, text) { if (h && typeof text === "string" && !openedHandles.some((o) => o.h === h)) openedHandles.push({ h, text }); }
+async function openedEntry(h) {
+  for (const o of openedHandles) { try { if (o.h === h || await o.h.isSameEntry(h)) return o; } catch (e) { /* not comparable */ } }
+  return null;
+}
+async function restoreOpened(o, picked) {
+  try { const w = await picked.createWritable(); await w.write(o.text); await w.close(); return true; } catch (e) { console.error("Couldn't put the opened file back", e); return false; }
 }
 let portalUser = null;
 function markDirty() { dirty = true; }
@@ -2212,7 +2217,7 @@ async function handleDroppedFile(f, handlePromise) {
   if (/\.(amap|mmap|json)$/i.test(name)) {
     if (F.localSave === false) return;
     if (!confirmDiscard()) return;
-    try { const txt = await readText(f); if (await openDocText(txt, name)) { currentFileHandle = null; openedFromFile = true; rememberOpened(handlePromise ? await handlePromise : null); } } catch (e) { toast(S.cantRead); }
+    try { const txt = await readText(f); if (await openDocText(txt, name)) { currentFileHandle = null; openedFromFile = true; rememberOpened(handlePromise ? await handlePromise : null, txt); } } catch (e) { toast(S.cantRead); }
     return;
   }
   if ((/\.(csv|txt)$/i.test(name) || f.type === "text/csv") && F.csv !== false) {
@@ -2287,7 +2292,7 @@ function openFromDevice() {
   if (!confirmDiscard()) return;
   if (window.showOpenFilePicker) {
     window.showOpenFilePicker({ multiple: false, types: [{ description: S.mapFile, accept: { "application/json": OPEN_EXTS } }] })
-      .then(async ([h]) => { const f = await h.getFile(); if (await openDocText(await f.text(), h.name || f.name)) { currentFileHandle = null; openedFromFile = true; rememberOpened(h); } })
+      .then(async ([h]) => { const f = await h.getFile(), txt = await f.text(); if (await openDocText(txt, h.name || f.name)) { currentFileHandle = null; openedFromFile = true; rememberOpened(h, txt); } })
       .catch((err) => { if (err && err.name === "AbortError") return; pickViaInput(); });
   } else pickViaInput();
 }
@@ -2326,7 +2331,8 @@ async function writeToHandle(forceNew) {
     if (forceNew || !currentFileHandle) {
       const suggested = openedFromFile ? t("copyFileName", { name: titleSlug() }) : titleSlug();
       const picked = await window.showSaveFilePicker({ suggestedName: suggested + FILE_EXT, types: [{ description: S.mapFile, accept: { "application/json": [FILE_EXT] } }] });
-      if (await isOpenedFile(picked)) { toast(S.keepOriginal, 8000); return; }   // nothing is written; Save still goes where it went before
+      const opened = await openedEntry(picked);
+      if (opened) { toast((await restoreOpened(opened, picked)) ? S.keepOriginal : S.restoreFailed, 9000); return; }   // put back as it was; Save still goes where it went before
       currentFileHandle = picked;
     } else if (currentFileHandle.queryPermission && (await currentFileHandle.queryPermission({ mode: "readwrite" })) !== "granted") {
       // A map opened from the saved list: ask to write to its file now, while the click still counts.
