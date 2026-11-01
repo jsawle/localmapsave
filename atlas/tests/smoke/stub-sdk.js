@@ -19,6 +19,8 @@ class Collection {
   forEach(fn) { this.items.forEach(fn); }
   map(fn) { return this.items.map(fn); }
   reorder(x, i) { this.remove(x); this.items.splice(i, 0, x); }
+  some(fn) { return this.items.some(fn); }
+  on() { return { remove() {} }; }
 }
 class Evented { constructor() { this._h = {}; } on(e, fn) { (this._h[e] = this._h[e] || []).push(fn); return { remove() {} }; } emit(e, v) { (this._h[e] || []).forEach((f) => f(v)); } }
 class Accessor extends Evented { constructor(p) { super(); Object.assign(this, p || {}); } when(cb) { const p = Promise.resolve(this); return cb ? p.then(cb) : p; } load() { return Promise.resolve(this); } toJSON() { return {}; } clone() { return Object.assign(Object.create(Object.getPrototypeOf(this)), this); } }
@@ -181,7 +183,22 @@ class Graphic extends Accessor {
   constructor(p) { super(p); const g = p && p.geometry; if (g) { const plain = JSON.parse(JSON.stringify(g)); this.geometry = { ...plain, type: g.type || (g.paths ? "polyline" : g.rings ? "polygon" : "point"), toJSON() { return plain; } }; } }
   static fromJSON(j) { return new Graphic(j); }
 }
-class SketchViewModel extends Evented { constructor(p) { super(); Object.assign(this, p); } create() {} cancel() {} complete() {} update() { return Promise.resolve(); } }
+class SketchViewModel extends Evented { constructor(p) { super(); Object.assign(this, p); } create() {} cancel() {} complete() {} update() { return Promise.resolve(); } }   // the kit example's
+// The Sketch component (<arcgis-sketch>): enough to start, report its tool and state, and fire create events.
+class ArcgisSketch extends HTMLElement {
+  constructor() { super(); this.state = "ready"; this.activeTool = null; this.updateGraphics = new Collection(); this.createGraphic = null; }
+  componentOnReady() { return Promise.resolve(this); }
+  create(tool) { this.activeTool = tool; this.state = "active"; this.dispatchEvent(new CustomEvent("arcgisCreate", { detail: { state: "start", tool } })); return Promise.resolve(); }
+  cancel() { this.activeTool = null; this.state = "ready"; return Promise.resolve(); }
+  complete() { return this.cancel(); }
+  dismissFloatingElements() { return Promise.resolve(); }
+}
+customElements.define("arcgis-sketch", ArcgisSketch);
+class SimpleMarkerSymbol extends Accessor {}
+class SimpleLineSymbol extends Accessor {}
+class SimpleFillSymbol extends Accessor {}
+class TextSymbol extends Accessor {}
+const densifyOperator = { execute: (g) => g };
 class Basemap extends Accessor {}
 class Layer extends Accessor { static async fromPortalItem(p) { return new FeatureLayer({ title: "Collection layer", portalItem: p.portalItem, url: "https://services.arcgis.com/x/arcgis/rest/services/L/FeatureServer", layerId: 0 }); } }
 class Field extends Accessor { static fromJSON(j) { return j; } }
@@ -225,7 +242,10 @@ const MODULES = {
   "@arcgis/core/layers/support/LabelClass.js": LabelClass, "@arcgis/core/renderers/support/jsonUtils.js": rendererJsonUtils,
   "@arcgis/core/geometry/Extent.js": Extent, "@arcgis/core/config.js": esriConfig, "@arcgis/core/intl.js": intl,
   "@arcgis/core/identity/IdentityManager.js": IdentityManager, "@arcgis/core/identity/OAuthInfo.js": OAuthInfo, "@arcgis/core/portal/Portal.js": Portal,
-  "@arcgis/core/request.js": esriRequest, "@arcgis/core/core/reactiveUtils.js": reactiveUtils
+  "@arcgis/core/request.js": esriRequest, "@arcgis/core/core/reactiveUtils.js": reactiveUtils,
+  "@arcgis/core/symbols/SimpleMarkerSymbol.js": SimpleMarkerSymbol, "@arcgis/core/symbols/SimpleLineSymbol.js": SimpleLineSymbol,
+  "@arcgis/core/symbols/SimpleFillSymbol.js": SimpleFillSymbol, "@arcgis/core/symbols/TextSymbol.js": TextSymbol,
+  "@arcgis/core/geometry/operators/densifyOperator.js": densifyOperator
 };
 window.$arcgis = {
   async import(list) {
