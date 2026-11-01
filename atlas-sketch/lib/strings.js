@@ -316,6 +316,7 @@ export const DEFAULT_STRINGS = {
   downloadsNote: "This browser saves files to its Downloads folder. To choose a folder, use Chrome or Edge.",
   copyFileName: "{name} - my copy",
   keepOriginal: "That's the file you opened, so it stays as it was. Save your map with a new name.",
+  restoreFailed: "That's the file you opened. The browser emptied it when it was chosen, and it couldn't be put back. Open your saved copy, or ask for the file again.",
   readOnlyFile: "That file can't be changed, so save your own copy.",
   agolTitleLabel: "Title",
   agolSummaryLabel: "Summary (optional)",

@@ -314,6 +314,7 @@
     "fileName": "Nombre del archivo",
     "downloadsNote": "Este navegador guarda los archivos en la carpeta Descargas. Para elegir una carpeta, usa Chrome o Edge.",
     "copyFileName": "{name} - mi copia",
+    "restoreFailed": "Ese es el archivo que abriste. El navegador lo vació al elegirlo y no se pudo restaurar. Abre tu copia guardada o pide el archivo otra vez.",
     "keepOriginal": "Ese es el archivo que abriste, así que se queda como estaba. Guarda tu mapa con otro nombre.",
     "readOnlyFile": "Ese archivo no se puede modificar, así que guarda tu propia copia.",
     "agolTitleLabel": "Título",
