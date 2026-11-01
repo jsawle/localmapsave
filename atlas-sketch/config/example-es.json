@@ -322,6 +322,7 @@
     "lockedSaved": "Se guardó {name}. Está bloqueado: en esta aplicación, Guardar crea una copia en lugar de modificarlo.",
     "lockedKept": "Ese mapa está bloqueado, así que se queda como estaba. Guarda tu mapa con otro nombre.",
     "readOnlyFile": "Ese archivo no se puede modificar, así que guarda tu propia copia.",
+    "cantSaveThere": "No se puede guardar encima de ese archivo, así que no se guardó nada. Vuelve a guardar y elige otro nombre u otra carpeta.",
     "agolTitleLabel": "Título",
     "agolSummaryLabel": "Resumen (opcional)",
     "agolPrivate": "El mapa se guarda como un elemento privado que solo tú puedes ver. Puedes compartirlo desde ArcGIS Online.",
