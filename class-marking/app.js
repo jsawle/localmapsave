@@ -1,20 +1,21 @@
 // Class map review (MapMaker Labs): check a class's .amap hand-ins against an answer map.
 // Everything runs in the browser. Student files are only read: their own layers are listed, never loaded,
 // and only their sketches are drawn, by this app, with its own symbols.
-import { readHandIn, assess, CHECKS_VERSION } from "./tools/checks.mjs?v=0.1.0";
-import { keyFromAnswerMap, studentFromFile, classCsv, placeStatus, KEYS_VERSION } from "./tools/keys.mjs?v=0.1.0";
-import { readWebMap, WEBMAP_WRITER_VERSION } from "../atlas-sketch/lib/doc.js?v=0.1.0";
+import { readHandIn, assess, CHECKS_VERSION } from "./tools/checks.mjs?v=0.2.0";
+import { keyFromAnswerMap, studentFromFile, classCsv, placeStatus, KEYS_VERSION } from "./tools/keys.mjs?v=0.2.0";
+import { readWebMap, WEBMAP_WRITER_VERSION } from "../atlas-sketch/lib/doc.js?v=0.2.0";
+import { instructionsFor, AI_VERSION } from "./tools/ai.mjs?v=0.2.0";
 
-const APP_VERSION = "0.1.0";
+const APP_VERSION = "0.2.0";
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); for (const k of kids) e.append(k); return e; };
 const say = (msg) => { $("live").textContent = ""; setTimeout(() => { $("live").textContent = msg; }, 50); };
 
 let answerRaw = null, answerName = "", skipPoints = new Set(), key = null, sampleKey = null;
-let handIns = [], otherFiles = 0, current = -1;
+let handIns = [], otherFiles = 0, current = -1, sampleRubric = "";
 
 // ------------------------------------------------------------------ versions
-$("versions").append(...[["Class map review", APP_VERSION], ["Checks (places, routes, notes)", CHECKS_VERSION], ["Answer map reader and export", KEYS_VERSION], ["MapMaker map files read", WEBMAP_WRITER_VERSION]]
+$("versions").append(...[["Class map review", APP_VERSION], ["Checks (places, routes, notes)", CHECKS_VERSION], ["Answer map reader and export", KEYS_VERSION], ["Instructions for your own AI", AI_VERSION], ["MapMaker map files read", WEBMAP_WRITER_VERSION]]
   .map(([a, b]) => el("tr", {}, el("td", { textContent: a }), el("td", { textContent: b }))));
 $("aboutBtn").onclick = () => $("aboutDlg").showModal();
 $("aboutClose").onclick = () => $("aboutDlg").close();
@@ -76,6 +77,7 @@ document.querySelectorAll("[data-sample]").forEach((b) => b.addEventListener("cl
   try {
     const get = async (p, json = true) => { const r = await fetch(s.dir + p.split("/").map(encodeURIComponent).join("/")); if (!r.ok) throw new Error(p); return json ? r.json() : r.text(); };
     const k = await get("key.json"), exp = await get("expected.json");
+    sampleRubric = await get("rubric.txt", false).catch(() => "");
     if (k.route && typeof k.route.paths === "string") k.route.paths = (await (await fetch("tools/trails-west.json")).json()).trails.Oregon;
     setAnswer(await get(s.answer), s.answer);
     const files = [];
@@ -282,16 +284,38 @@ $("closeDetail").onclick = () => { $("detail").hidden = true; renderTable(); con
 $("detail").addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.target.closest(".esri-popup")) $("closeDetail").click(); });
 
 // ------------------------------------------------------------------ export and start again
-$("exportBtn").onclick = () => {
-  const anonymous = $("anonymous").checked;
-  const rows = handIns.map((h) => ({ student: h.student + (h.copy > 1 ? ` (copy ${h.copy})` : ""), file: h.file, result: h.result, ...markOf(h) }));
+$("exportBtn").onclick = () => exportCsv($("anonymous").checked);
+function exportCsv(anonymous) {
+  const rows = handIns.map((h) => ({ student: h.student, copy: h.copy, file: h.file, result: h.result, ...markOf(h) }));
   const csv = classCsv(rows, key, { anonymous });
   const a = el("a", { href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), download: (key.title || "class").replace(/[^\w\- ]+/g, "").trim() + (anonymous ? " - numbered" : "") + ".csv" });
   document.body.append(a); a.click(); a.remove();
   say(anonymous ? "Exported with numbers instead of names. Students' own words may still include names." : "Exported.");
+}
+
+// ------------------------------------------------------------------ the teacher's own AI
+const rubricKey = () => "classMapReview:rubric:" + marksKey;
+function aiText() {
+  const own = answerRaw ? keyFromAnswerMap(answerRaw, { skip: [...skipPoints] }) : { places: [], answerNotes: [] };
+  const answers = key.places.map((p) => { const m = own.places.find((q) => Math.abs(q.lonlat[0] - p.lonlat[0]) < 0.01 && Math.abs(q.lonlat[1] - p.lonlat[1]) < 0.01); return { name: p.name, text: p.answer || (m && m.answer) || "" }; });
+  return instructionsFor({ title: key.title, key, rubric: $("aiRubric").value, answers, answerNotes: own.answerNotes });
+}
+$("aiBtn").onclick = () => {
+  let saved = ""; try { saved = localStorage.getItem(rubricKey()) || ""; } catch (e) { /* private window */ }
+  $("aiRubric").value = saved || sampleRubric || "";
+  $("aiText").value = aiText(); $("aiCopied").textContent = "";
+  $("aiDlg").showModal();
 };
+$("aiRubric").oninput = () => { $("aiText").value = aiText(); try { localStorage.setItem(rubricKey(), $("aiRubric").value); } catch (e) { /* private window */ } };
+$("aiExport").onclick = () => exportCsv($("aiAnonymous").checked);
+$("aiCopy").onclick = async () => {
+  const text = aiText(); $("aiText").value = text;
+  try { await navigator.clipboard.writeText(text); $("aiCopied").textContent = "Copied."; }
+  catch (e) { const d = $("aiText"); d.closest("details").open = true; d.focus(); d.select(); $("aiCopied").textContent = "Select the text below and copy it (Ctrl+C)."; }
+};
+$("aiClose").onclick = () => $("aiDlg").close();
 $("restartBtn").onclick = () => {
-  handIns = []; answerRaw = null; sampleKey = null; key = null; baseWebMapFor = null;
+  handIns = []; answerRaw = null; sampleKey = null; key = null; baseWebMapFor = null; sampleRubric = "";
   ["folderInput", "filesInput", "answerInput"].forEach((id) => { $(id).value = ""; });
   $("classStatus").textContent = "No hand-ins chosen yet."; $("answerStatus").textContent = "No answer map chosen yet."; $("answerSetup").hidden = true;
   $("detail").hidden = true; $("review").hidden = true; $("setup").hidden = false; ready(); $("main").focus();

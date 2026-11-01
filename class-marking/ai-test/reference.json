@@ -1,0 +1,37 @@
+{
+ "note": "Written before any AI run, from each hand-in's intended story and the suggested rubric in assignment.md. Each part is a [lowest, highest] range a careful teacher might give. 'choice' marks a part the rubric leaves to the teacher (the written option).",
+ "volcanoes": {
+  "parts": ["Places", "Tectonic setting", "Last known eruption", "Pattern"],
+  "max": [5, 5, 5, 3],
+  "students": {
+   "Alex":  {"Places": [0,0], "Tectonic setting": [0,0], "Last known eruption": [0,0], "Pattern": [0,0]},
+   "Caleb": {"Places": [5,5], "Tectonic setting": [5,5], "Last known eruption": [5,5], "Pattern": [3,3]},
+   "Devon": {"Places": [3,5], "Tectonic setting": [5,5], "Last known eruption": [5,5], "Pattern": [1,2], "choice": "Places: two volcanoes answered in his note, not marked"},
+   "Eli":   {"Places": [5,5], "Tectonic setting": [4,4], "Last known eruption": [5,5], "Pattern": [2,3]},
+   "Jordan": {"Places": [5,5], "Tectonic setting": [5,5], "Last known eruption": [4,5], "Pattern": [1,1]},
+   "Jordan (copy 2)": {"Places": [5,5], "Tectonic setting": [5,5], "Last known eruption": [4,5], "Pattern": [2,3]},
+   "Kayla": {"Places": [4,4], "Tectonic setting": [3,3], "Last known eruption": [3,3], "Pattern": [0,0]},
+   "Mina":  {"Places": [4,4], "Tectonic setting": [4,5], "Last known eruption": [4,5], "Pattern": [2,3]},
+   "Sam":   "unreadable",
+   "Sofia": {"Places": [5,5], "Tectonic setting": [5,5], "Last known eruption": [5,5], "Pattern": [3,3]},
+   "Tariq": {"Places": [0,5], "Tectonic setting": [5,5], "Last known eruption": [5,5], "Pattern": [3,3], "choice": "Places: every answer is in his written note"}
+  },
+  "flags": {"Kayla": "not locked", "Sam": "unreadable", "Jordan": "two hand-ins", "Tariq": "written option", "Devon": "written option for two", "Mina": "Fuji 100 km away", "Sofia": "written in Spanish"}
+ },
+ "oregon-trail": {
+  "parts": ["Route", "Places", "What happened there", "Why go West?"],
+  "max": [3, 5, 10, 2],
+  "students": {
+   "Amara": {"Route": [3,3], "Places": [5,5], "What happened there": [9,10], "Why go West?": [2,2]},
+   "Caleb": {"Route": [3,3], "Places": [5,5], "What happened there": [8,10], "Why go West?": [1,1]},
+   "Devon": {"Route": [2,3], "Places": [5,5], "What happened there": [9,10], "Why go West?": [2,2]},
+   "Eli":   {"Route": [3,3], "Places": [5,5], "What happened there": [10,10], "Why go West?": [2,2]},
+   "Jordan": {"Route": [2,3], "Places": [4,4], "What happened there": [3,5], "Why go West?": [1,1]},
+   "Kayla": {"Route": [2,2], "Places": [3,3], "What happened there": [3,5], "Why go West?": [0,0]},
+   "Mina":  {"Route": [1,2], "Places": [5,5], "What happened there": [8,9], "Why go West?": [2,2]},
+   "Sofia": {"Route": [3,3], "Places": [5,5], "What happened there": [9,10], "Why go West?": [2,2]},
+   "Tariq": {"Route": [0,0], "Places": [0,5], "What happened there": [9,10], "Why go West?": [2,2], "choice": "Places and route: every answer is in his written note"}
+  },
+  "flags": {"Tariq": "written option", "Mina": "route follows the California Trail", "Kayla": "route stops at Independence Rock", "Sofia": "written in Spanish"}
+ }
+}

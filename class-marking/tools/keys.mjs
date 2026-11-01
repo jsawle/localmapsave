@@ -2,7 +2,7 @@
 // Plain ES module (Node tests and the browser). KEYS_VERSION: bump when these rules change.
 import { readHandIn } from "./checks.mjs";
 import { km, kmToLine } from "./geo.mjs";
-export const KEYS_VERSION = "0.1";
+export const KEYS_VERSION = "0.2";   // 0.2: export numbers a student's hand-ins alike and counts them
 
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
@@ -69,21 +69,25 @@ export function placeStatus(p) {
   return "Not found";
 }
 
-/** The class as CSV. rows: [{ student, file, result, mark, comment }]. anonymous: numbers instead of names, no file names. */
+/** The class as CSV. rows: [{ student, copy, file, result, mark, comment }].
+ *  anonymous: "Student 3" instead of names (the same number for a student's second hand-in), and no file names. */
 export function classCsv(rows, key, { anonymous = false } = {}) {
-  const head = [anonymous ? "Student number" : "Student"].concat(anonymous ? [] : ["File"], ["Locked", "Places found", "Route on the trail (%)", "Route reaches"]);
+  const head = [anonymous ? "Student number" : "Student"].concat(anonymous ? [] : ["File"], ["Hand-ins from this student", "Locked", "Places found", "Route on the trail (%)", "Route reaches"]);
   for (const p of key.places) head.push(p.name + ": result", p.name + ": student's text");
-  head.push("Notes", "Empty pop-ups", "Missing layers", "Teacher's mark", "Teacher's comment");
+  head.push("Notes and other points", "Empty pop-ups", "Missing layers", "Teacher's mark", "Teacher's comment");
   const lines = [head.map(cell).join(",")];
-  rows.forEach((r, i) => {
+  const ids = new Map(), count = new Map();
+  for (const r of rows) { const k = String(r.student).toLowerCase(); if (!ids.has(k)) ids.set(k, ids.size + 1); count.set(k, (count.get(k) || 0) + 1); }
+  for (const r of rows) {
+    const k = String(r.student).toLowerCase(), copy = r.copy > 1 ? ` (copy ${r.copy})` : "";
     const res = r.result;
-    const row = [anonymous ? "Student " + (i + 1) : r.student].concat(anonymous ? [] : [r.file]);
-    if (!res) { row.push("", "Couldn't read this file"); lines.push(row.map(cell).join(",")); return; }
+    const row = [(anonymous ? "Student " + ids.get(k) : r.student) + copy].concat(anonymous ? [] : [r.file], [count.get(k)]);
+    if (!res) { row.push("", "Couldn't read this file"); lines.push(row.map(cell).join(",")); continue; }
     row.push(res.locked ? "Yes" : "No", res.placesFound + " of " + res.places.length,
       res.route ? (res.route.drawn ? Math.round(res.route.shareOnRoute * 100) : "No line") : "", res.route && res.route.drawn ? res.route.reachesCheckpoint || "" : "");
     for (const p of res.places) row.push(placeStatus(p), p.found ? [p.title, p.text].filter(Boolean).join(": ") : "");
     row.push(res.notes.map((n) => [n.title, n.text].filter(Boolean).join(": ")).join(" | "), res.emptyPopups, res.missingLayers.join("; "), r.mark || "", r.comment || "");
     lines.push(row.map(cell).join(","));
-  });
-  return "﻿" + lines.join("\r\n") + "\r\n";   // the mark at the start tells Excel it's UTF-8 (accents, ī)
+  }
+  return "\ufeff" + lines.join("\r\n") + "\r\n";   // the mark at the start tells Excel it's UTF-8 (accents, ī)
 }

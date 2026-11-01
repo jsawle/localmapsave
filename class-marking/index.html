@@ -136,6 +136,7 @@
         <span class="spacer" style="flex:1"></span>
         <label class="inline"><input type="checkbox" id="anonymous" /> Numbers instead of names in the export</label>
         <button class="btn" type="button" id="exportBtn">Export spreadsheet (CSV)</button>
+        <button class="btn" type="button" id="aiBtn">Use your own AI…</button>
         <button class="btn" type="button" id="restartBtn">Start again</button>
       </div>
       <table id="classTable">
@@ -161,6 +162,20 @@
     </section>
   </main>
 
+  <dialog id="aiDlg" aria-labelledby="aiH">
+    <h2 id="aiH">Use your own AI</h2>
+    <p>Your school's AI (Gemini, Copilot or another) can read the class spreadsheet and suggest points against your rubric, with the students' words as evidence and draft feedback for each. It only suggests: the marks are yours.</p>
+    <ol>
+      <li><button class="btn" type="button" id="aiExport">Export the spreadsheet</button> <label class="inline"><input type="checkbox" id="aiAnonymous" checked /> Numbers instead of names</label></li>
+      <li><label for="aiRubric">Your rubric</label> (each part, its points, and what earns them):<br />
+        <textarea id="aiRubric" rows="7" style="width:100%;padding:6px;border:1px solid #8a8a8a;border-radius:4px" placeholder="Places (5 points): 1 for each place marked within 50 km.&#10;What happened there (10 points): 0 to 2 for each place…"></textarea></li>
+      <li><button class="btn primary" type="button" id="aiCopy">Copy the instructions</button> <span class="status" id="aiCopied" role="status"></span></li>
+      <li>In your school's AI, attach the spreadsheet and paste the instructions. Signed in with your school account, many school AI services don't keep or learn from what you share; check what your school allows.</li>
+    </ol>
+    <details><summary>See the instructions</summary><textarea id="aiText" rows="10" readonly style="width:100%;font-size:.85rem"></textarea></details>
+    <p><button class="btn" type="button" id="aiClose">Close</button></p>
+  </dialog>
+
   <dialog id="aboutDlg" aria-labelledby="aboutH">
     <h2 id="aboutH">About Class map review</h2>
     <p>A MapMaker Labs experiment. It reads the map files that MapMaker saves, compares each student's sketches with your answer map, and keeps your marks and comments in this browser on this device. Nothing is uploaded. The maps are drawn with the ArcGIS Maps SDK, which loads basemap tiles from Esri.</p>
@@ -171,6 +186,6 @@
     </table>
     <p><button class="btn primary" type="button" id="aboutClose">Close</button></p>
   </dialog>
-  <script type="module" src="./app.js?v=0.1.0"></script>
+  <script type="module" src="./app.js?v=0.2.0"></script>
 </body>
 </html>
