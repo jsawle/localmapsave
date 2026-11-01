@@ -319,7 +319,7 @@
     "lockedFileName": "{name}_bloqueado",
     "lockedOpenNote": "Este mapa está bloqueado. Guardar crea tu propia copia.",
     "lockedSaveCopy": "Este mapa está bloqueado, así que Guardar crea tu propia copia.",
-    "lockedSaved": "Se guardó {name}. Está bloqueado: nadie puede guardar encima en esta aplicación.",
+    "lockedSaved": "Se guardó {name}. Está bloqueado: en esta aplicación, Guardar crea una copia en lugar de modificarlo.",
     "lockedKept": "Ese mapa está bloqueado, así que se queda como estaba. Guarda tu mapa con otro nombre.",
     "readOnlyFile": "Ese archivo no se puede modificar, así que guarda tu propia copia.",
     "agolTitleLabel": "Título",

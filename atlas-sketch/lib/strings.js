@@ -319,7 +319,7 @@ export const DEFAULT_STRINGS = {
   lockedFileName: "{name}_locked",
   lockedOpenNote: "This map is locked. Save makes your own copy.",
   lockedSaveCopy: "This map is locked, so Save makes your own copy.",
-  lockedSaved: "Saved {name}. It's locked: nobody can save over it in this app.",
+  lockedSaved: "Saved {name}. It's locked: in this app, Save makes a copy instead of changing it.",
   lockedKept: "That map is locked, so it stays as it was. Save your map with a new name.",
   restoreFailed: "That's the file you opened. The browser emptied it when it was chosen, and it couldn't be put back. Open your saved copy, or ask for the file again.",
   readOnlyFile: "That file can't be changed, so save your own copy.",
