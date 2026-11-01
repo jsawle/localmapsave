@@ -4,7 +4,7 @@
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "2.1";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off
+export const WEBMAP_WRITER_VERSION = "2.2";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true)
 export const WEBMAP_SPEC_VERSION = "2.31";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
 export const DATA_LAYER_PREFIX = "__data_";        // spreadsheet (CSV) layers
@@ -391,6 +391,12 @@ export function docToWebMap(doc, ctx) {
 
 // ---------------------------------------------------------------- opening a web map (file or ArcGIS Online)
 
+// A locked map (Save a locked copy: a teacher's class map, a student's handed-in work). This app never saves over it,
+// whatever the file is called or wherever it's copied. The mark is the one property in a saved map that the Web Map
+// Specification doesn't define; other ArcGIS apps ignore it. Anyone editing the file's text can remove it.
+export const LOCK_PROP = "atlasLocked";
+export function isLockedMap(raw) { return !!raw && typeof raw === "object" && !Array.isArray(raw) && raw[LOCK_PROP] === true; }
+export function isLockedText(text) { try { return isLockedMap(JSON.parse(text)); } catch (e) { return false; } }
 export function looksLikeWebMap(raw) {
   return !!raw && typeof raw === "object" && !Array.isArray(raw) && raw.type !== DOC_TYPE &&
     (Array.isArray(raw.operationalLayers) || (!!raw.baseMap && typeof raw.baseMap === "object"));
