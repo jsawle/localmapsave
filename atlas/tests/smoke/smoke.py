@@ -291,7 +291,9 @@ def main():
             prof = page.evaluate("window.__stub.profile")
             line = (prof["profiles"] or [{}])[0]
             check(line.get("type") == "query" and line.get("title") in ("Land and sea floor", "Tierra y fondo marino") and line.get("color") == "#ff7f00", f"profile line: land and sea floor {line.get('type')} {line.get('title')}")
-            check(page.evaluate("window.__stub.profile.starts") == ["sketch"], "ready to draw as soon as it opens")
+            try: page.wait_for_function("window.__stub.profile.starts.length > 0", timeout=5000)   # the start is asynchronous
+            except Exception: pass
+            check(page.evaluate("window.__stub.profile.starts") == ["sketch"], f"ready to draw as soon as it opens {page.evaluate('window.__stub.profile.starts')}")
             check(page.evaluate("""() => { const b = document.querySelector('#profileBody'); return b.scrollHeight <= b.clientHeight + 1; }"""), "nothing in the dock needs scrolling")
             check(page.inner_text("#profileSource").endswith("Sources: Esri, GEBCO"), "elevation data credited in the dock: " + page.inner_text("#profileSource"))
             check(page.is_hidden("#toolbar") and page.is_visible("#viewDiv .tools-toggle"), "toolbar tucked away, tools button shown")
