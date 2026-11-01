@@ -2,17 +2,17 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.6";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.7";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat } from "./lib/doc.js?v=1.15.0-sketch.6";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=1.15.0-sketch.7";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.6";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.7";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.6";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.6";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.6";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.7";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.7";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.7";
 
-const APP_VERSION = "1.15.0-sketch.6";
+const APP_VERSION = "1.15.0-sketch.7";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -325,13 +325,27 @@ let currentAgolItem = null;        // the signed-in user's own ArcGIS Online ite
 const dataLayers = [];              // FeatureLayers from CSV files (each keeps its definition in _srcDef)
 const portalLayers = new Map();    // itemId -> layer added from the collection
 let bookmarks = [];
-// A map opened from a file (a class map a teacher shared, say) is never written back: Save makes the person's own copy,
-// and choosing the opened file in the save dialog is refused. Maps saved from this browser (My map files) save in place.
-let currentFileHandle = null, openedFromFile = false;
+// Saving. A map file saves back to itself, whichever device it's opened on. A locked map (marked inside the file; see
+// LOCK_PROP) is never saved over from this app: opening one is just looking, and Save makes the person's own copy.
+let currentFileHandle = null, openedLocked = false;
 // Chrome empties a file as soon as it's picked in the save dialog (File System Access spec), before the app sees which
-// file it was. So the text of each opened file is kept: if it's picked, it's written straight back, unchanged.
+// file it was. So the text of each locked file opened is kept: if it's picked, it's written straight back, unchanged.
+// (A locked file that wasn't opened in this session can't be put back: see README, Known limits.)
 const openedHandles = [];
 function rememberOpened(h, text) { if (h && typeof text === "string" && !openedHandles.some((o) => o.h === h)) openedHandles.push({ h, text }); }
+// After a map is opened from a file: unlocked, Save writes back to it; locked, Save makes a copy.
+function bindOpened(h, text) {
+  openedLocked = isLockedText(text);
+  currentFileHandle = openedLocked ? null : h || null;
+  if (openedLocked) rememberOpened(h, text);
+  $("lockedNote").hidden = !openedLocked;
+}
+function unbindFile() { currentFileHandle = null; openedLocked = false; $("lockedNote").hidden = true; }
+const lockedBase = () => t("lockedFileName", { name: titleSlug() });
+const copyBase = () => {   // "Coast_survey_locked" -> "Coast_survey - my copy"
+  const suffix = t("lockedFileName", { name: "" }), base = titleSlug();
+  return t("copyFileName", { name: suffix && base.toLowerCase().endsWith(suffix.toLowerCase()) ? base.slice(0, -suffix.length) : base });
+};
 async function openedEntry(h) {
   for (const o of openedHandles) { try { if (o.h === h || await o.h.isSameEntry(h)) return o; } catch (e) { /* not comparable */ } }
   return null;
@@ -1055,7 +1069,7 @@ async function openWebMapItem(itemId, opts) {
     if (portalUser && item.owner === portalUser.username) currentAgolItem = { id: itemId, owner: item.owner, title: item.title };
     if (!opts.keepWorkspace) {
       applyParsedWebMap(parsed);
-      setTitle(item.title); markClean(); currentFileHandle = null; openedFromFile = false;
+      setTitle(item.title); markClean(); unbindFile();
       const vp = wm.initialViewProperties && wm.initialViewProperties.viewpoint;
       if (vp) goToSafe(vp, { animate: false });
       if (!opts.quiet) toast(t("openedMap", { title: item.title }));
@@ -1120,7 +1134,7 @@ function newBlankMap() {
   resetWorkspace();
   setActiveMap(localMap);
   localMap.basemap = defaultBasemap();
-  setTitle(""); currentFileHandle = null; openedFromFile = false; markClean();
+  setTitle(""); unbindFile(); markClean();
   goToSafe({ center: startCenter, zoom: Number(cfg.startView.zoom) || 2 });
   toast(S.newMapStarted);
 }
@@ -2217,7 +2231,7 @@ async function handleDroppedFile(f, handlePromise) {
   if (/\.(amap|mmap|json)$/i.test(name)) {
     if (F.localSave === false) return;
     if (!confirmDiscard()) return;
-    try { const txt = await readText(f); if (await openDocText(txt, name)) { currentFileHandle = null; openedFromFile = true; rememberOpened(handlePromise ? await handlePromise : null, txt); } } catch (e) { toast(S.cantRead); }
+    try { const txt = await readText(f); if (await openDocText(txt, name)) bindOpened(handlePromise ? await handlePromise : null, txt); } catch (e) { toast(S.cantRead); }
     return;
   }
   if ((/\.(csv|txt)$/i.test(name) || f.type === "text/csv") && F.csv !== false) {
@@ -2292,7 +2306,7 @@ function openFromDevice() {
   if (!confirmDiscard()) return;
   if (window.showOpenFilePicker) {
     window.showOpenFilePicker({ multiple: false, types: [{ description: S.mapFile, accept: { "application/json": OPEN_EXTS } }] })
-      .then(async ([h]) => { const f = await h.getFile(), txt = await f.text(); if (await openDocText(txt, h.name || f.name)) { currentFileHandle = null; openedFromFile = true; rememberOpened(h, txt); } })
+      .then(async ([h]) => { const f = await h.getFile(), txt = await f.text(); if (await openDocText(txt, h.name || f.name)) bindOpened(h, txt); })
       .catch((err) => { if (err && err.name === "AbortError") return; pickViaInput(); });
   } else pickViaInput();
 }
@@ -2301,7 +2315,7 @@ function pickViaInput() {
   input.addEventListener("change", async () => {
     const f = input.files && input.files[0];
     if (!f) return;
-    try { if (await openDocText(await readText(f), f.name)) { currentFileHandle = null; openedFromFile = true; } } catch (e) { toast(S.cantRead); }
+    try { const txt = await readText(f); if (await openDocText(txt, f.name)) bindOpened(null, txt); } catch (e) { toast(S.cantRead); }
   });
   input.click();
 }
@@ -2319,50 +2333,67 @@ async function buildWebMapJson(toFile) {
     appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false,
     order: activeMap().layers.toArray().filter((l) => l !== graphicsLayer && l !== previewLayer).map((l) => l.id) });
 }
-async function docText() { return JSON.stringify(await buildWebMapJson(true)); }
-async function docBlob() { return new Blob([await docText()], { type: "application/json" }); }
-function saveToDevice(forceNew) {
+async function docText(locked) { const wm = await buildWebMapJson(true); if (locked) wm[LOCK_PROP] = true; return JSON.stringify(wm); }
+function saveToDevice(forceNew, locked) {
   if (portalUser) return;   // signed in: maps save to ArcGIS Online (see applySaveMode)
-  if (!window.showSaveFilePicker) { openNameDialog(); return; }
-  writeToHandle(forceNew);
+  if (openedLocked && !locked && (forceNew || !currentFileHandle)) toast(S.lockedSaveCopy, 7000);   // said when it matters: at Save
+  if (!window.showSaveFilePicker) { openNameDialog(locked); return; }
+  writeToHandle(forceNew, locked);
 }
-async function writeToHandle(forceNew) {
+// locked: Save a locked copy. It writes a new locked file and leaves the map where it was (Save keeps going there).
+async function writeToHandle(forceNew, locked) {
+  let target = locked ? null : currentFileHandle;
   try {
-    if (forceNew || !currentFileHandle) {
-      const suggested = openedFromFile ? t("copyFileName", { name: titleSlug() }) : titleSlug();
+    if (forceNew || locked || !target) {
+      const suggested = locked ? lockedBase() : openedLocked ? copyBase() : titleSlug();
       const picked = await window.showSaveFilePicker({ suggestedName: suggested + FILE_EXT, types: [{ description: S.mapFile, accept: { "application/json": [FILE_EXT] } }] });
       const opened = await openedEntry(picked);
-      if (opened) { toast((await restoreOpened(opened, picked)) ? S.keepOriginal : S.restoreFailed, 9000); return; }   // put back as it was; Save still goes where it went before
-      currentFileHandle = picked;
-    } else if (currentFileHandle.queryPermission && (await currentFileHandle.queryPermission({ mode: "readwrite" })) !== "granted") {
-      // A map opened from the saved list: ask to write to its file now, while the click still counts.
-      if ((await currentFileHandle.requestPermission({ mode: "readwrite" })) !== "granted") { const d = new Error("Not allowed"); d.name = "NotAllowedError"; throw d; }
+      if (opened) { toast((await restoreOpened(opened, picked)) ? S.lockedKept : S.restoreFailed, 9000); return; }   // a locked map: put back as it was
+      target = picked;
+    } else {
+      if (target.queryPermission && (await target.queryPermission({ mode: "readwrite" })) !== "granted") {
+        // A map opened from the saved list or from a file: ask to write to its file now, while the click still counts.
+        if ((await target.requestPermission({ mode: "readwrite" })) !== "granted") { const d = new Error("Not allowed"); d.name = "NotAllowedError"; throw d; }
+      }
+      // locked since it was opened (a copy of the file locked in its place, say)? Save makes a copy instead
+      if (isLockedText(await (await target.getFile()).text())) { openedLocked = true; currentFileHandle = null; $("lockedNote").hidden = false; toast(S.lockedSaveCopy, 7000); return writeToHandle(true); }
     }
+    const name = target.name || (locked ? lockedBase() : titleSlug()) + FILE_EXT;
+    const w = await target.createWritable();
+    await w.write(new Blob([await docText(locked)], { type: "application/json" })); await w.close();
+    if (locked) {
+      toast(t("lockedSaved", { name }), 7000);
+      recordSave({ handle: target, fileName: name });
+      return;
+    }
+    currentFileHandle = target; openedLocked = false; $("lockedNote").hidden = true;
+    setTitle(titleFromFileName(name));   // a saved map is named by its file: the header shows what reopening shows
     setTitle(titleFromFileName(currentFileHandle.name));   // a saved map is named by its file: the header shows what reopening shows
-    const blob = await docBlob();
-    const w = await currentFileHandle.createWritable();
-    await w.write(blob); await w.close();
-    openedFromFile = false; markClean();
-    toast(t("savedFile", { name: currentFileHandle.name || titleSlug() + FILE_EXT }));
-    recordSave({ handle: currentFileHandle, fileName: currentFileHandle.name || titleSlug() + FILE_EXT });
+    markClean();
+    toast(t("savedFile", { name }));
+    recordSave({ handle: target, fileName: name });
     if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
     if (privateLeftOut) setTimeout(() => toast(t("privateLayersLeftOut", { n: privateLeftOut }), 6000), 3500);
   } catch (err) {
     if (err && err.name === "AbortError") return;
-    if (err && (err.name === "NotAllowedError" || err.name === "NoModificationAllowedError") && !forceNew) { toast(S.readOnlyFile, 5000); currentFileHandle = null; return writeToHandle(true); }
+    if (err && (err.name === "NotAllowedError" || err.name === "NoModificationAllowedError") && !forceNew && !locked) { toast(S.readOnlyFile, 5000); currentFileHandle = null; return writeToHandle(true); }
     console.error(err);
-    currentFileHandle = null;
-    openNameDialog();
+    if (!locked) currentFileHandle = null;
+    openNameDialog(locked);
   }
 }
-function openNameDialog() { $("fileNameInput").value = openedFromFile ? t("copyFileName", { name: titleSlug() }) : titleSlug(); openModal("nameModal", $("fileNameInput")); setTimeout(() => $("fileNameInput").select(), 0); }
+let nameDialogLocked = false;
+function openNameDialog(locked) { nameDialogLocked = !!locked; $("fileNameInput").value = locked ? lockedBase() : openedLocked ? copyBase() : titleSlug(); openModal("nameModal", $("fileNameInput")); setTimeout(() => $("fileNameInput").select(), 0); }
 async function confirmNameDialog() {
   const name = ($("fileNameInput").value || "map").replace(/[^\w\-]+/g, "_").slice(0, 60) || "map";
+  const locked = nameDialogLocked;
   closeModal("nameModal");
-  setTitle(titleFromFileName(name));   // as above
+  if (!locked) setTitle(titleFromFileName(name));   // as above
   try {
-    const text = await docText();
-    downloadBlob(new Blob([text], { type: "application/json" }), name + FILE_EXT); markClean(); toast(t("savedDownload", { name: name + FILE_EXT }));
+    const text = await docText(locked);
+    downloadBlob(new Blob([text], { type: "application/json" }), name + FILE_EXT);
+    if (locked) { toast(t("lockedSaved", { name: name + FILE_EXT }), 7000); recordSave({ json: text, fileName: name + FILE_EXT }); return; }
+    markClean(); toast(t("savedDownload", { name: name + FILE_EXT }));
     recordSave({ json: text, fileName: name + FILE_EXT });
   } catch (e) { console.error(e); toast(S.saveFailed); return; }
   if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
@@ -2372,6 +2403,7 @@ $("nameConfirm").addEventListener("click", confirmNameDialog);
 $("fileNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") confirmNameDialog(); });
 $("saveTile").addEventListener("click", () => (portalUser ? saveToAgol(false) : saveToDevice(false)));
 $("saveAsTile").addEventListener("click", () => (portalUser ? saveToAgol(true) : saveToDevice(true)));
+$("lockTile").addEventListener("click", () => { if (!portalUser) saveToDevice(true, true); });
 $("openSavedLink").addEventListener("click", () => { closePanels(false); openOpenModal("tabDevice"); });
 $("openSavedLink2").addEventListener("click", () => { closePanels(false); openOpenModal("tabDevice"); });
 $("shotTile").addEventListener("click", () => {
@@ -2479,12 +2511,12 @@ async function openSavedMap(id) {
       return;
     }
     if (!confirmDiscard()) return;
-    if (await openDocText(text, name)) { currentFileHandle = r.handle; openedFromFile = false; }
+    if (await openDocText(text, name)) bindOpened(r.handle, text);
     return;
   }
   if (typeof r.json !== "string") { toast(S.cantRead, 5000); return; }
   if (!confirmDiscard()) return;
-  if (await openDocText(r.json, name)) { currentFileHandle = null; openedFromFile = false; }
+  if (await openDocText(r.json, name)) bindOpened(null, r.json);
 }
 
 // ============================================================ Print (in the browser; nothing is sent to a print service)
@@ -2532,6 +2564,7 @@ async function onSignedIn() {
 function applySaveMode() {
   const local = F.localSave !== false, signed = !!portalUser;
   for (const id of ["saveTile", "saveAsTile"]) $(id).hidden = !(local || signed);
+  $("lockTile").hidden = !local || signed;   // a locked copy is a file; signed in, maps save to ArcGIS Online
   const note = document.querySelector("#savePanel p.note[data-feature='localSave']:not(#saveSignedInNote)");
   if (note) note.hidden = !local || signed;
   $("saveSignedInNote").hidden = !local || !signed;

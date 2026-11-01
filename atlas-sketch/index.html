@@ -659,9 +659,11 @@
           <div class="tiles">
             <button class="tile primary" type="button" id="saveTile" data-feature="localSave"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg></span><span data-i18n="saveDevice">Save map</span></button>
             <button class="tile" type="button" id="saveAsTile" data-feature="localSave"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9"/><path d="M17 3l4 4v5"/><path d="M8 3v5h7"/><path d="M18 15v6M15 18h6"/></svg></span><span data-i18n="saveAs">Save as…</span></button>
+            <button class="tile" type="button" id="lockTile" data-feature="localSave"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span data-i18n="saveLocked">Save a locked copy</span></button>
             <button class="tile" type="button" id="shotTile" data-feature="screenshot"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm8 3.2A3.3 3.3 0 1 0 12 16.8 3.3 3.3 0 0 0 12 10.2z"/></svg></span><span data-i18n="screenshot">Screenshot</span></button>
             <button class="tile" type="button" id="printTile" data-feature="print"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 3h10v4H7zM5 8h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2zm4 7v3h6v-3H9z"/></svg></span><span data-i18n="print">Print</span></button>
           </div>
+          <p class="note" id="lockedNote" role="status" hidden data-i18n="lockedOpenNote">This map is locked. Save makes your own copy.</p>
           <p class="note" data-feature="localSave"><span data-i18n="saveNote"></span> <button class="link-btn" type="button" id="openSavedLink" data-i18n="openSaved">Open a saved map</button></p>
           <p class="note" id="saveSignedInNote" data-feature="localSave" hidden><span data-i18n="saveSignedInNote"></span> <button class="link-btn" type="button" id="openSavedLink2" data-i18n="openSaved">Open a saved map</button></p>
           <div id="agolSection" hidden>
@@ -821,6 +823,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=1.15.0-sketch.6"></script>
+  <script type="module" src="./app.js?v=1.15.0-sketch.7"></script>
 </body>
 </html>
