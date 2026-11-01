@@ -1,0 +1,212 @@
+{
+ "id": "volcanoes",
+ "title": "Volcanoes and plate boundaries",
+ "grade": "7–8 Earth science",
+ "layers": [
+  "Tectonic Plate Boundaries",
+  "Volcanoes Around the World"
+ ],
+ "places": [
+  {
+   "id": "helens",
+   "name": "Mount St. Helens",
+   "names": [
+    "st. helens",
+    "st helens",
+    "saint helens",
+    "santa helena"
+   ],
+   "lonlat": [
+    -122.18,
+    46.2
+   ],
+   "toleranceKm": 50,
+   "facts": [
+    {
+     "id": "setting",
+     "label": "Tectonic setting",
+     "right": [
+      "subduc"
+     ],
+     "wrong": [
+      "rift",
+      "hot ?spot",
+      "intraplate",
+      "punto caliente",
+      "divergent"
+     ]
+    },
+    {
+     "id": "year",
+     "label": "Last known eruption",
+     "right": [
+      "2008"
+     ],
+     "wrong": [
+      "1980"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fuji",
+   "name": "Mount Fuji (Fujisan)",
+   "names": [
+    "fuji",
+    "fujisan"
+   ],
+   "lonlat": [
+    138.728,
+    35.361
+   ],
+   "toleranceKm": 50,
+   "facts": [
+    {
+     "id": "setting",
+     "label": "Tectonic setting",
+     "right": [
+      "subduc"
+     ],
+     "wrong": [
+      "rift",
+      "hot ?spot",
+      "intraplate",
+      "punto caliente",
+      "divergent"
+     ]
+    },
+    {
+     "id": "year",
+     "label": "Last known eruption",
+     "right": [
+      "170[78]"
+     ],
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "pinatubo",
+   "name": "Mount Pinatubo",
+   "names": [
+    "pinatubo"
+   ],
+   "lonlat": [
+    120.35,
+    15.13
+   ],
+   "toleranceKm": 50,
+   "facts": [
+    {
+     "id": "setting",
+     "label": "Tectonic setting",
+     "right": [
+      "subduc"
+     ],
+     "wrong": [
+      "rift",
+      "hot ?spot",
+      "intraplate",
+      "punto caliente",
+      "divergent"
+     ]
+    },
+    {
+     "id": "year",
+     "label": "Last known eruption",
+     "right": [
+      "2021"
+     ],
+     "wrong": [
+      "1991"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "eyja",
+   "name": "Eyjafjallajökull",
+   "names": [
+    "eyjafjallajokull"
+   ],
+   "lonlat": [
+    -19.633,
+    63.633
+   ],
+   "toleranceKm": 50,
+   "facts": [
+    {
+     "id": "setting",
+     "label": "Tectonic setting",
+     "right": [
+      "rift",
+      "divergent",
+      "ridge",
+      "dorsal",
+      "separan",
+      "pull(s|ing)? apart",
+      "move apart"
+     ],
+     "wrong": [
+      "subduc",
+      "hot ?spot",
+      "intraplate",
+      "punto caliente"
+     ]
+    },
+    {
+     "id": "year",
+     "label": "Last known eruption",
+     "right": [
+      "2010"
+     ],
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "kilauea",
+   "name": "Kīlauea",
+   "names": [
+    "kilauea"
+   ],
+   "lonlat": [
+    -155.287,
+    19.421
+   ],
+   "toleranceKm": 50,
+   "facts": [
+    {
+     "id": "setting",
+     "label": "Tectonic setting",
+     "right": [
+      "hot ?spot",
+      "intraplate",
+      "punto caliente",
+      "middle of (the|a) plate",
+      "en medio de la placa"
+     ],
+     "wrong": [
+      "subduc",
+      "rift",
+      "divergent"
+     ]
+    },
+    {
+     "id": "year",
+     "label": "Last known eruption",
+     "right": [
+      "2024"
+     ],
+     "wrong": [
+      "2018",
+      "2023"
+     ]
+    }
+   ]
+  }
+ ],
+ "note": {
+  "label": "What pattern do you see?"
+ }
+}

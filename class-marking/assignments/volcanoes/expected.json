@@ -1,0 +1,868 @@
+{
+ "makeVersion": "0.1",
+ "checksVersion": "0.1",
+ "assignment": "volcanoes",
+ "results": [
+  {
+   "file": "Volcanoes - Jordan_locked.amap",
+   "persona": "S1 Jordan (reads below grade level)",
+   "intent": "All five in the right places. Very short pop-ups. Gives 1991 for Pinatubo (the famous eruption, not the last known one). One-line pattern note.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Mount St. Helens",
+      "found": true,
+      "km": 9,
+      "title": "Mount St. Helens",
+      "text": "subduction zone. 2008",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Fuji (Fujisan)",
+      "found": true,
+      "km": 15,
+      "title": "Mount Fuji",
+      "text": "subduction. last 1708",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Pinatubo",
+      "found": true,
+      "km": 7,
+      "title": "Pinatubo",
+      "text": "subduction 1991",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": false
+      }
+     },
+     {
+      "name": "Eyjafjallajökull",
+      "found": true,
+      "km": 11,
+      "title": "Eyjafjallajokull",
+      "text": "rift 2010",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Kīlauea",
+      "found": true,
+      "km": 7,
+      "title": "Kilauea",
+      "text": "hot spot 2024",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Pattern",
+      "text": "most are on the lines"
+     }
+    ],
+    "layers": [
+     "Tectonic Plate Boundaries",
+     "Volcanoes Around the World"
+    ],
+    "missingLayers": []
+   }
+  },
+  {
+   "file": "Volcanoes - Sofia_locked.amap",
+   "persona": "S2 Sofía (English learner, Spanish speaker)",
+   "intent": "Complete and correct, written in Spanish. Gives both 2021 and 1991 for Pinatubo. Full pattern note in Spanish.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Mount St. Helens",
+      "found": true,
+      "km": 7,
+      "title": "Monte Santa Helena",
+      "text": "Zona de subducción. Última erupción: 2008.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Fuji (Fujisan)",
+      "found": true,
+      "km": 9,
+      "title": "Monte Fuji",
+      "text": "Zona de subducción. Última erupción: 1708.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Pinatubo",
+      "found": true,
+      "km": 10,
+      "title": "Monte Pinatubo",
+      "text": "Zona de subducción. Última erupción: 2021. La gran erupción fue en 1991.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Eyjafjallajökull",
+      "found": true,
+      "km": 8,
+      "title": "Eyjafjallajökull",
+      "text": "Zona de rift: las placas se separan. Última erupción: 2010.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Kīlauea",
+      "found": true,
+      "km": 7,
+      "title": "Kīlauea",
+      "text": "Punto caliente, en medio de la placa del Pacífico. Última erupción: 2024.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Patrón",
+      "text": "Casi todos están en los límites de las placas. Tres están alrededor del océano Pacífico, en el Anillo de Fuego. Kīlauea no está en un límite: está sobre un punto caliente."
+     }
+    ],
+    "layers": [
+     "Tectonic Plate Boundaries",
+     "Volcanoes Around the World"
+    ],
+    "missingLayers": []
+   }
+  },
+  {
+   "file": "Volcanoes - Eli_locked.amap",
+   "persona": "S3 Eli (red-green colour vision deficiency)",
+   "intent": "All five placed. Says Eyjafjallajökull is a subduction zone (wrong); colours his points red for subduction and green for the rest, and puts Eyjafjallajökull in red. Good pattern note otherwise.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Mount St. Helens",
+      "found": true,
+      "km": 11,
+      "title": "Mount St. Helens",
+      "text": "Subduction zone, last eruption 2008.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Fuji (Fujisan)",
+      "found": true,
+      "km": 5,
+      "title": "Mount Fuji",
+      "text": "Subduction zone, last eruption 1708.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Pinatubo",
+      "found": true,
+      "km": 5,
+      "title": "Mount Pinatubo",
+      "text": "Subduction zone, last eruption 2021.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Eyjafjallajökull",
+      "found": true,
+      "km": 7,
+      "title": "Eyjafjallajökull",
+      "text": "Subduction zone, last eruption 2010.",
+      "named": true,
+      "facts": {
+       "setting": false,
+       "year": true
+      }
+     },
+     {
+      "name": "Kīlauea",
+      "found": true,
+      "km": 5,
+      "title": "Kīlauea",
+      "text": "Intraplate hotspot, last eruption 2024.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Pattern",
+      "text": "The subduction volcanoes are around the edge of the Pacific Ocean. Kilauea is not on a plate boundary, it is in the middle of a plate."
+     }
+    ],
+    "layers": [
+     "Tectonic Plate Boundaries",
+     "Volcanoes Around the World"
+    ],
+    "missingLayers": []
+   }
+  },
+  {
+   "file": "Volcanoes - Tariq_locked.amap",
+   "persona": "S5 Tariq (blind, uses a screen reader)",
+   "intent": "No points on the volcanoes: he couldn't place them. All the answers, correct, are written in one note.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Mount St. Helens",
+      "found": false,
+      "km": 3002,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": true
+     },
+     {
+      "name": "Mount Fuji (Fujisan)",
+      "found": false,
+      "km": 6552,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": true
+     },
+     {
+      "name": "Mount Pinatubo",
+      "found": false,
+      "km": 9141,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": true
+     },
+     {
+      "name": "Eyjafjallajökull",
+      "found": false,
+      "km": 8732,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": true
+     },
+     {
+      "name": "Kīlauea",
+      "found": false,
+      "km": 1291,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": true
+     }
+    ],
+    "placesFound": 0,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "My answers (written)",
+      "text": "I could not place points on the map, so here are my answers. Mount St. Helens: subduction zone, last eruption 2008. Mount Fuji (Fujisan): subduction zone, 1708. Pinatubo: subduction zone, 2021. Eyjafjallajökull: rift zone, 2010. Kīlauea: intraplate hotspot, 2024. Pattern: four are on plate boundaries, and three of those are subduction zones around the Pacific. Kīlauea is in the middle of a plate."
+     }
+    ],
+    "layers": [
+     "Tectonic Plate Boundaries",
+     "Volcanoes Around the World"
+    ],
+    "missingLayers": []
+   }
+  },
+  {
+   "file": "Volcanoes - Mina_locked.amap",
+   "persona": "S6 Mina (low vision, uses magnification)",
+   "intent": "Zoomed in, she put Mount Fuji on Tokyo, about 100 km away. The other four are right, with good pop-ups and a pattern note.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Mount St. Helens",
+      "found": true,
+      "km": 9,
+      "title": "Mount St. Helens",
+      "text": "It is in a subduction zone. The last known eruption was 2008.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Fuji (Fujisan)",
+      "found": false,
+      "km": 100,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "namedButFarKm": 100,
+      "inNote": false
+     },
+     {
+      "name": "Mount Pinatubo",
+      "found": true,
+      "km": 6,
+      "title": "Mount Pinatubo",
+      "text": "It is in a subduction zone. The last known eruption was 2021.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Eyjafjallajökull",
+      "found": true,
+      "km": 7,
+      "title": "Eyjafjallajökull",
+      "text": "It is in a rift zone. The last known eruption was 2010.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Kīlauea",
+      "found": true,
+      "km": 8,
+      "title": "Kīlauea",
+      "text": "It is intraplate, over a hotspot. The last known eruption was 2024.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     }
+    ],
+    "placesFound": 4,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Mount Fuji",
+      "text": "It is in a subduction zone. The last known eruption was 1708."
+     },
+     {
+      "title": "Pattern",
+      "text": "Most of the volcanoes are on plate boundaries around the Pacific. Kīlauea is away from the boundaries."
+     }
+    ],
+    "layers": [
+     "Tectonic Plate Boundaries",
+     "Volcanoes Around the World"
+    ],
+    "missingLayers": []
+   }
+  },
+  {
+   "file": "Volcanoes - Devon_locked.amap",
+   "persona": "S7 Devon (limited fine motor control, uses the keyboard)",
+   "intent": "Three points placed (St. Helens, Fuji, Kīlauea) with dictated full sentences. A note explains he couldn't place the other two with the keyboard and gives their answers in words.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Mount St. Helens",
+      "found": true,
+      "km": 11,
+      "title": "Mount St. Helens",
+      "text": "Mount St. Helens is in a subduction zone. Its last known eruption was in 2008.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Fuji (Fujisan)",
+      "found": true,
+      "km": 7,
+      "title": "Mount Fuji",
+      "text": "Mount Fuji is in a subduction zone. Its last known eruption was in 1708.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Pinatubo",
+      "found": false,
+      "km": 9047,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": true
+     },
+     {
+      "name": "Eyjafjallajökull",
+      "found": false,
+      "km": 8637,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": true
+     },
+     {
+      "name": "Kīlauea",
+      "found": true,
+      "km": 8,
+      "title": "Kīlauea",
+      "text": "Kīlauea is an intraplate volcano over a hotspot. Its last known eruption was in 2024.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     }
+    ],
+    "placesFound": 3,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Note to my teacher",
+      "text": "I could not place the other two points with the keyboard. Pinatubo is a subduction zone volcano and its last eruption was 2021. Eyjafjallajökull is in a rift zone and its last eruption was 2010. Pattern: most are around the Pacific where plates sink."
+     }
+    ],
+    "layers": [
+     "Tectonic Plate Boundaries",
+     "Volcanoes Around the World"
+    ],
+    "missingLayers": []
+   }
+  },
+  {
+   "file": "Volcanoes - Caleb_locked.amap",
+   "persona": "S9 Caleb (dyslexia)",
+   "intent": "All five in the right places with the right answers, but names and some words misspelled (Fugi, Pinatoobo, Ayafyala, Kilawea).",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Mount St. Helens",
+      "found": true,
+      "km": 9,
+      "title": "Mount St Helins",
+      "text": "subduction zone 2008",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Fuji (Fujisan)",
+      "found": true,
+      "km": 5,
+      "title": "Mt Fugi",
+      "text": "subduction zone 1708",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Pinatubo",
+      "found": true,
+      "km": 5,
+      "title": "Pinatoobo",
+      "text": "subduction zone 2021",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Eyjafjallajökull",
+      "found": true,
+      "km": 9,
+      "title": "Ayafyala",
+      "text": "rift zone 2010",
+      "named": false,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Kīlauea",
+      "found": true,
+      "km": 5,
+      "title": "Kilawea",
+      "text": "hot spot 2024",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Pattern",
+      "text": "most are on plat boundrys around the pacific. kilawea is a hot spot in the midle"
+     }
+    ],
+    "layers": [
+     "Tectonic Plate Boundaries",
+     "Volcanoes Around the World"
+    ],
+    "missingLayers": []
+   }
+  },
+  {
+   "file": "Volcanoes - Kayla.amap",
+   "persona": "S10 Kayla (attention)",
+   "intent": "First three done well. Eyjafjallajökull has a point but an empty pop-up; Kīlauea and the pattern note are missing. She forgot to lock her hand-in.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": false,
+    "places": [
+     {
+      "name": "Mount St. Helens",
+      "found": true,
+      "km": 7,
+      "title": "Mount St. Helens",
+      "text": "Subduction zone. Last eruption 2008.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Fuji (Fujisan)",
+      "found": true,
+      "km": 9,
+      "title": "Mount Fuji",
+      "text": "Subduction zone. Last eruption 1708.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Pinatubo",
+      "found": true,
+      "km": 8,
+      "title": "Mount Pinatubo",
+      "text": "Subduction zone. Last eruption 2021.",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Eyjafjallajökull",
+      "found": true,
+      "km": 10,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      }
+     },
+     {
+      "name": "Kīlauea",
+      "found": false,
+      "km": null,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": false
+     }
+    ],
+    "placesFound": 4,
+    "emptyPopups": 1,
+    "notes": [],
+    "layers": [
+     "Tectonic Plate Boundaries",
+     "Volcanoes Around the World"
+    ],
+    "missingLayers": []
+   }
+  },
+  {
+   "file": "Volcanoes - Jordan (2)_locked.amap",
+   "persona": "S1 Jordan, second hand-in",
+   "intent": "Jordan handed in twice. The second file has a better pattern note; everything else is the same.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Mount St. Helens",
+      "found": true,
+      "km": 9,
+      "title": "Mount St. Helens",
+      "text": "subduction zone. 2008",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Fuji (Fujisan)",
+      "found": true,
+      "km": 15,
+      "title": "Mount Fuji",
+      "text": "subduction. last 1708",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Mount Pinatubo",
+      "found": true,
+      "km": 7,
+      "title": "Pinatubo",
+      "text": "subduction 1991",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": false
+      }
+     },
+     {
+      "name": "Eyjafjallajökull",
+      "found": true,
+      "km": 11,
+      "title": "Eyjafjallajokull",
+      "text": "rift 2010",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     },
+     {
+      "name": "Kīlauea",
+      "found": true,
+      "km": 7,
+      "title": "Kilauea",
+      "text": "hot spot 2024",
+      "named": true,
+      "facts": {
+       "setting": true,
+       "year": true
+      }
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Pattern",
+      "text": "Most volcanoes are on the plate lines around the Pacific. Kilauea is not on a line."
+     }
+    ],
+    "layers": [
+     "Tectonic Plate Boundaries",
+     "Volcanoes Around the World"
+    ],
+    "missingLayers": []
+   }
+  },
+  {
+   "file": "Volcanoes - Alex_locked.amap",
+   "persona": "Not a persona: a blank hand-in",
+   "intent": "Layers added, no sketches.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Mount St. Helens",
+      "found": false,
+      "km": null,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": false
+     },
+     {
+      "name": "Mount Fuji (Fujisan)",
+      "found": false,
+      "km": null,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": false
+     },
+     {
+      "name": "Mount Pinatubo",
+      "found": false,
+      "km": null,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": false
+     },
+     {
+      "name": "Eyjafjallajökull",
+      "found": false,
+      "km": null,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": false
+     },
+     {
+      "name": "Kīlauea",
+      "found": false,
+      "km": null,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {
+       "setting": null,
+       "year": null
+      },
+      "inNote": false
+     }
+    ],
+    "placesFound": 0,
+    "emptyPopups": 0,
+    "notes": [],
+    "layers": [
+     "Tectonic Plate Boundaries",
+     "Volcanoes Around the World"
+    ],
+    "missingLayers": []
+   }
+  },
+  {
+   "file": "Volcanoes - Sam_locked.amap",
+   "persona": "Not a persona: a damaged file",
+   "intent": "Cut off part way through, so it isn't valid JSON. The marking app should list it as unreadable, not stop.",
+   "checks": null
+  },
+  {
+   "file": "notes.txt",
+   "persona": "Not a hand-in",
+   "intent": "A stray file in the folder. The marking app should skip it.",
+   "checks": null
+  }
+ ]
+}
