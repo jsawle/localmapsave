@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { WEBMAP_WRITER_VERSION } from "../../atlas-sketch/lib/doc.js";
 import { readHandIn, assess, mentions } from "./checks.mjs";
+import { namesFor, keyFromAnswerMap, studentFromFile, classCsv } from "./keys.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const A = path.join(HERE, "..", "assignments");
@@ -56,6 +57,26 @@ ok(o["Oregon Trail - Caleb_locked.amap"].places.every((p) => p.named), "Caleb: I
 // name matching
 ok(mentions("Mt Fugi", ["fuji"]) && mentions("Kilawea", ["kilauea"]) && !mentions("Kilimanjaro", ["kilauea"]), "misspellings match, other names don't");
 ok(!mentions("Independence, Missouri", ["independence rock"]), "Independence, Missouri isn't Independence Rock");
+
+// answer map -> key, file names, export
+ok(JSON.stringify(namesFor("Mount Fuji (Fujisan)")) === JSON.stringify(["mount fuji (fujisan)", "mount fuji", "fujisan", "fuji"]), "names from a title", namesFor("Mount Fuji (Fujisan)"));
+ok(namesFor("Independence, Missouri").includes("independence"), "a title before its comma is a name too");
+const sf = (n) => JSON.stringify(studentFromFile(n));
+ok(sf("Volcanoes - Jordan (2)_locked.amap") === JSON.stringify({ student: "Jordan", copy: 2 }) && sf("Oregon Trail - Sofia_locked.amap") === JSON.stringify({ student: "Sofia", copy: 1 }) && studentFromFile("mymap.amap").student === "mymap", "student names from file names");
+const vAns = JSON.parse(fs.readFileSync(path.join(A, "volcanoes", "Volcanoes - answer key_locked.amap"), "utf8"));
+const vk = keyFromAnswerMap(vAns, { skip: [5] });
+ok(vk.places.length === 5 && !vk.route && vk.answerNotes.length === 1 && vk.layers.length === 2, "volcano answer map: 5 places, the pattern note set aside, 2 layers", { p: vk.places.length, n: vk.answerNotes.length });
+const vGen = assess(readHandIn(JSON.parse(fs.readFileSync(path.join(A, "volcanoes", "class", "Volcanoes - Mina_locked.amap"), "utf8"))), vk);
+ok(vGen.placesFound === 4 && vGen.places.find((p) => p.name.startsWith("Mount Fuji")).namedButFarKm === 100, "a key made from the answer map finds the same for Mina");
+const oAns = JSON.parse(fs.readFileSync(path.join(A, "oregon-trail", "Oregon Trail - answer key_locked.amap"), "utf8"));
+const ok2 = keyFromAnswerMap(oAns, { skip: [5] });
+ok(ok2.route && ok2.route.checkpoints.map((c) => c.name).join(" > ") === "Independence, Missouri > Chimney Rock > Independence Rock > South Pass > Oregon City", "Oregon answer map: route with its places in order", ok2.route && ok2.route.checkpoints.map((c) => c.name));
+const oMina = assess(readHandIn(JSON.parse(fs.readFileSync(path.join(A, "oregon-trail", "class", "Oregon Trail - Mina_locked.amap"), "utf8"))), ok2);
+ok(oMina.route.reachesCheckpoint === "South Pass" && oMina.route.shareOnRoute < 0.8, "with the answer map's own route, Mina's line gets as far as South Pass", oMina.route);
+const csv = classCsv([{ student: "=HYPERLINK(1)", file: "a.amap", result: vGen, mark: "15", comment: 'said "hi", then' }, { student: "Sam", file: "b.amap", result: null }], vk, {});
+ok(csv.includes("'=HYPERLINK(1)") && csv.includes('"said ""hi"", then"') && csv.includes("Couldn't read this file"), "export: formulas made harmless, quotes and commas kept, unreadable files listed");
+const anon = classCsv([{ student: "Mina", file: "Volcanoes - Mina_locked.amap", result: vGen }], vk, { anonymous: true });
+ok(!anon.includes("Mina") && anon.includes("Student 1") && !anon.includes("_locked"), "numbered export has no names or file names");
 
 console.log(fails ? `${fails} of ${n} checks failed` : `All ${n} checks passed.`);
 process.exit(fails ? 1 : 0);
