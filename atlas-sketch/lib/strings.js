@@ -323,6 +323,7 @@ export const DEFAULT_STRINGS = {
   lockedKept: "That map is locked, so it stays as it was. Save your map with a new name.",
   restoreFailed: "That's the file you opened. The browser emptied it when it was chosen, and it couldn't be put back. Open your saved copy, or ask for the file again.",
   readOnlyFile: "That file can't be changed, so save your own copy.",
+  cantSaveThere: "That file can't be saved over, so nothing was saved. Save again and choose another name or folder.",
   agolTitleLabel: "Title",
   agolSummaryLabel: "Summary (optional)",
   agolPrivate: "The map is saved as a private item that only you can see. You can share it from ArcGIS Online.",
