@@ -78,5 +78,8 @@ ok(csv.includes("'=HYPERLINK(1)") && csv.includes('"said ""hi"", then"') && csv.
 const anon = classCsv([{ student: "Mina", file: "Volcanoes - Mina_locked.amap", result: vGen }], vk, { anonymous: true });
 ok(!anon.includes("Mina") && anon.includes("Student 1") && !anon.includes("_locked"), "numbered export has no names or file names");
 
+const twice = classCsv([{ student: "Jordan", copy: 2, file: "a", result: vGen }, { student: "Jordan", copy: 1, file: "b", result: vGen }, { student: "Mina", copy: 1, file: "c", result: vGen }], vk, { anonymous: true }).split("\r\n");
+ok(twice[1].startsWith("Student 1 (copy 2),2,") && twice[2].startsWith("Student 1,2,") && twice[3].startsWith("Student 2,1,"), "numbered export: a student's two hand-ins share a number, and the count shows", twice.slice(1, 4).map((l) => l.slice(0, 22)));
+
 console.log(fails ? `${fails} of ${n} checks failed` : `All ${n} checks passed.`);
 process.exit(fails ? 1 : 0);

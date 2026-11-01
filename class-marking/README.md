@@ -4,14 +4,15 @@ A MapMaker Labs app that helps a teacher review a class's hand-in folder of `.am
 
 **Try it:** `https://jsawle.github.io/localmapsave/class-marking/`. Pick a sample class, or your own hand-in folder and answer map.
 
-## The app (0.1.0)
+## The app (0.2.0)
 
 1. **Choose the hand-ins:** a folder, or some files. Other files in the folder are skipped and counted. A file with "answer" in its name is taken as the answer map.
 2. **Choose your answer map:** any map saved from MapMaker, with a point on each right place and, if there is one, a line for the route. Points that look like notes ("Pattern", "Why…?") are left out; tick them to count them. Set how close counts (50 km by default).
 3. **The class table:** one row per hand-in, with places found, places only named in a note or put too far away, how much of a route follows yours and how far it gets, empty pop-ups, missing layers, unlocked hand-ins, students with more than one hand-in, and files that can't be read.
 4. **Each student:** their sketches on the map with your answer drawn over them (purple rings, tolerance circles, route), and beside it, in words, every place with what they wrote and whether it matches the key. **Previous** and **Next** step through the class; Escape goes back to the table.
 5. **Your mark and comment** for each student are kept in this browser on this device, and go into the export.
-6. **Export spreadsheet (CSV):** every result, the students' own words for each place, and your marks and comments. Tick **Numbers instead of names** to leave out names and file names (students' own words may still contain names).
+6. **Export spreadsheet (CSV):** every result, the students' own words for each place, and your marks and comments. Tick **Numbers instead of names** to leave out names and file names (students' own words may still contain names). A student's second hand-in keeps the same number.
+7. **Use your own AI:** export the spreadsheet (numbers instead of names by default), add your rubric, and copy the instructions. In your school's AI (Gemini, Copilot or another), attach the spreadsheet and paste them. The AI suggests points for each rubric part with the students' words as evidence, drafts feedback, and summarises the class; it leaves borderline calls and written-option points to you. See the [AI test](ai-test/README.md) for how well this worked with Claude.
 
 Privacy and safety: files are read in the browser and nothing is uploaded. A student's own layers are listed, never loaded, and only their sketches are drawn, by the app. The basemap and layers come from your answer map, read the way Atlas reads an opened file. Exported cells that start like a formula are made into plain text.
 
@@ -35,8 +36,11 @@ The two sample classes come with richer keys than an answer map gives: accepted 
 | `tools/make.mjs` | Builds everything above (the same files every run) |
 | `tools/checks.mjs`, `tools/geo.mjs` | The checks: plain JavaScript, for Node now and the browser later |
 | `tools/keys.mjs` | A key from an answer map, student names from file names, and the export |
+| `tools/ai.mjs` | The instructions for the teacher's own AI |
+| `assignments/<name>/rubric.txt` | The sample rubric, as filled in for the AI step |
+| `ai-test/` | The AI test: reference marking, inputs, replies, comparison |
 | `index.html`, `app.js` | The app |
-| `tools/test.mjs` | 50 tests: the checks against the test classes, keys from the answer maps, the export, and that Atlas still writes map file format 2.2 |
+| `tools/test.mjs` | 51 tests: the checks against the test classes, keys from the answer maps, the export, and that Atlas still writes map file format 2.2 |
 | `tools/base-*.amap`, `tools/trails-west.json` | The starting maps (saved from the lab app with the real MapMaker layers) and the Oregon and California Trail lines |
 
 ```
