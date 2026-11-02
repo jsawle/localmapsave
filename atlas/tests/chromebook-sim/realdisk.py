@@ -105,6 +105,10 @@ def open_panel(pg):
     if not pg.is_visible("#savePanel"): pg.click("#tool-save"); pg.wait_for_timeout(600)
 def press(pg, tile): close_modals(pg); open_panel(pg); pg.click(tile, no_wait_after=True)
 def close_modals(pg):
+    # the app's own "Save your map" box (its fallback when Chrome won't open the save box): cancel it
+    if pg.is_visible("#nameModal"):
+        RESULTS.append({"note": "the app's download box opened instead of Chrome's save box", "after": SCEN[-1] if SCEN else ""})
+        pg.click("#nameModal [data-modal-close], #nameCancel", timeout=3000) if pg.locator("#nameModal [data-modal-close], #nameCancel").count() else pg.keyboard.press("Escape"); pg.wait_for_timeout(500)
     for _ in range(4):
         if not pg.is_visible("#openModal"): return
         try: pg.click("#openModal [data-modal-close]", timeout=3000)
@@ -121,8 +125,12 @@ def open_file(pg, path, tag):
     return t
 
 RESULTS = []
+SCEN = []
+pg_ref = []
 import atexit; atexit.register(lambda: json.dump(RESULTS, open(OUT + '/results.json', 'w'), indent=1))
 def record(name, expect, **got):
+    SCEN.append(name)
+    got["fallback_name_box"] = pg_ref[0].is_visible("#nameModal") if pg_ref else None
     RESULTS.append({"scenario": name, "expected": expect, **got})
     print(f"\n== {name}\n   expected: {expect}")
     for k, v in got.items(): print(f"   {k}: {v}")
@@ -135,7 +143,7 @@ with sync_playwright() as p:
         print("dialog:", t, "toasts:", toasts(pg), "file:", stat(f"{HOME}/work/base.amap")); ctx.close(); sys.exit()
 
     ctx, pg = launch(p)
-    for tag in ("S6","S7","S8"): pass
+    pg_ref.append(pg)
 
     # S1 own map in own folder: open, Save -> Chrome asks once, then writes in place
     f = f"{HOME}/work/mine.amap"; before = stat(f)

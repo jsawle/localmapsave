@@ -670,5 +670,17 @@ test("bare number pairs: longitude first like the tool's XY, unless named Lat/Lo
   assert.deepEqual([r.latIdx, r.lonIdx], [0, 1]);
 });
 
+test("locked maps: the mark is read from the file's text, whatever it's called", () => {
+  assert.equal(doc.LOCK_PROP, "atlasLocked");
+  assert.equal(doc.isLockedText(JSON.stringify({ operationalLayers: [], atlasLocked: true })), true);
+  assert.equal(doc.isLockedText(JSON.stringify({ operationalLayers: [], atlasLocked: "yes" })), false);
+  assert.equal(doc.isLockedText(JSON.stringify({ operationalLayers: [] })), false);
+  assert.equal(doc.isLockedText("not json"), false);
+  assert.equal(doc.isLockedMap([true]), false);
+  // a locked map still reads as an ordinary web map
+  const r = doc.readWebMap({ operationalLayers: [], baseMap: { baseMapLayers: [], title: "B" }, authoringApp: "AtlasWhiteLabel", authoringAppVersion: "1.14.6", version: "2.31", atlasLocked: true });
+  assert.equal(r.ok, true);
+});
+
 await Promise.all(pending);
 console.log("All " + passed + " tests passed.");
