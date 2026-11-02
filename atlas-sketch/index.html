@@ -259,6 +259,9 @@
     .tile-icon{ width:44px; height:44px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:#eef0f2; color:#5b5b5b; }
     .tile.primary .tile-icon{ background:var(--brand); color:var(--brand-ink); }
     .tile-icon svg{ width:24px; height:24px; }
+    .tile-tip{ position:fixed; z-index:1000; max-width:270px; background:#2b2b2b; color:#fff; font-size:13px; line-height:1.4; padding:8px 11px; border-radius:6px; box-shadow:0 3px 12px rgba(0,0,0,.25); }
+    .tile-tip::after{ content:""; position:absolute; left:var(--arrow-x,50%); width:10px; height:10px; background:#2b2b2b; transform:translateX(-50%) rotate(45deg); }
+    .tile-tip[data-side="below"]::after{ top:-5px; } .tile-tip[data-side="above"]::after{ bottom:-5px; }
     .note{ font-size:13px; line-height:1.55; color:var(--ink2); margin:0 0 10px; }
     .link-btn{ border:none; background:none; color:var(--brand-strong); padding:0; cursor:pointer; font-size:inherit; text-decoration:underline; }
     .divider{ border:none; border-top:1px solid var(--line); margin:16px 0; }
@@ -657,23 +660,15 @@
         <div class="panel-head"><h2 id="saveH" tabindex="-1" data-i18n="save">Save</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
         <div class="panel-body">
           <div class="tiles">
-            <button class="tile primary" type="button" id="saveTile" data-feature="localSave"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg></span><span data-i18n="saveDevice">Save map</span></button>
-            <button class="tile" type="button" id="saveAsTile" data-feature="localSave"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9"/><path d="M17 3l4 4v5"/><path d="M8 3v5h7"/><path d="M18 15v6M15 18h6"/></svg></span><span data-i18n="saveAs">Save as…</span></button>
-            <button class="tile" type="button" id="lockTile" data-feature="localSave"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span data-i18n="saveLocked">Save a locked copy</span></button>
-            <button class="tile" type="button" id="shotTile" data-feature="screenshot"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm8 3.2A3.3 3.3 0 1 0 12 16.8 3.3 3.3 0 0 0 12 10.2z"/></svg></span><span data-i18n="screenshot">Screenshot</span></button>
-            <button class="tile" type="button" id="printTile" data-feature="print"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 3h10v4H7zM5 8h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2zm4 7v3h6v-3H9z"/></svg></span><span data-i18n="print">Print</span></button>
+            <button class="tile primary" type="button" id="saveTile" data-feature="localSave" aria-describedby="tip-saveTile"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg></span><span data-i18n="saveDevice">Save map</span><span class="sr-only" id="tip-saveTile"></span></button>
+            <button class="tile" type="button" id="saveAsTile" data-feature="localSave" aria-describedby="tip-saveAsTile"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9"/><path d="M17 3l4 4v5"/><path d="M8 3v5h7"/><path d="M18 15v6M15 18h6"/></svg></span><span data-i18n="saveAs">Save as…</span><span class="sr-only" id="tip-saveAsTile"></span></button>
+            <button class="tile" type="button" id="lockTile" data-feature="localSave" aria-describedby="tip-lockTile"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span data-i18n="saveLocked">Save a locked copy</span><span class="sr-only" id="tip-lockTile"></span></button>
+            <button class="tile" type="button" id="shotTile" data-feature="screenshot" aria-describedby="tip-shotTile"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm8 3.2A3.3 3.3 0 1 0 12 16.8 3.3 3.3 0 0 0 12 10.2z"/></svg></span><span data-i18n="screenshot">Screenshot</span><span class="sr-only" id="tip-shotTile"></span></button>
+            <button class="tile" type="button" id="printTile" data-feature="print" aria-describedby="tip-printTile"><span class="tile-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 3h10v4H7zM5 8h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2zm4 7v3h6v-3H9z"/></svg></span><span data-i18n="print">Print</span><span class="sr-only" id="tip-printTile"></span></button>
+            <button class="tile" type="button" id="signInTile" aria-describedby="tip-signInTile" hidden><span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg></span><span data-i18n="signIn">Sign in</span><span class="sr-only" id="tip-signInTile"></span></button>
           </div>
           <p class="note" id="lockedNote" role="status" hidden data-i18n="lockedOpenNote">This map is locked. Save makes your own copy.</p>
-          <p class="note" data-feature="localSave"><span data-i18n="saveNote"></span> <button class="link-btn" type="button" id="openSavedLink" data-i18n="openSaved">Open a saved map</button></p>
-          <p class="note" id="saveSignedInNote" data-feature="localSave" hidden><span data-i18n="saveSignedInNote"></span> <button class="link-btn" type="button" id="openSavedLink2" data-i18n="openSaved">Open a saved map</button></p>
-          <div id="agolSection" hidden>
-            <hr class="divider" />
-            <p class="label" data-i18n="arcgisSection">ArcGIS Online</p>
-            <div id="agolSignedOut"><p class="note" data-i18n="arcgisSignedOut"></p><button class="btn" type="button" id="agolSignIn" data-i18n="signIn">Sign in</button></div>
-            <div id="agolSignedIn" hidden>
-              <div class="status" id="agolStatus" aria-live="polite"></div>
-            </div>
-          </div>
+          <div id="agolSignedIn" hidden><div class="status" id="agolStatus" aria-live="polite"></div></div>
         </div>
       </section>
 
@@ -684,6 +679,7 @@
 
       <div class="drop-overlay" id="dropOverlay" hidden><div class="drop-inner" data-i18n="dropHere">Drop your file to add it to the map</div></div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <div class="tile-tip" id="tileTip" role="tooltip" hidden></div>
     </main>
     <section class="dock table-dock" id="tableDock" hidden aria-labelledby="tableH">
       <div class="panel-head"><h2 id="tableH" tabindex="-1"></h2><button class="x-btn" type="button" id="tableClose" data-i18n-aria="closeTable">&times;</button></div>
@@ -823,6 +819,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=1.15.0-sketch.9"></script>
+  <script type="module" src="./app.js?v=1.15.0-sketch.10"></script>
 </body>
 </html>
