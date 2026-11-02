@@ -2,17 +2,17 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.9";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.10";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=1.15.0-sketch.9";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=1.15.0-sketch.10";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.9";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.10";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.9";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.9";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.9";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.10";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.10";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.10";
 
-const APP_VERSION = "1.15.0-sketch.9";
+const APP_VERSION = "1.15.0-sketch.10";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -166,7 +166,8 @@ function applyHeader() {
   $("tabLayers").textContent = t("layersFrom");
   document.querySelectorAll("[data-feature]").forEach((el) => { if (F[el.dataset.feature] === false) el.hidden = true; });
   $("signInBtn").hidden = F.signIn === false || (cfg.signIn || {}).headerButton === false;
-  $("agolSection").hidden = F.signIn === false;
+  $("signInTile").hidden = F.signIn === false;
+  refreshTileTips();
 }
 // Toolbar icons. The page starts with these built-in outline icons; once the ArcGIS SDK has loaded Esri's
 // Calcite icons (the set MapMaker uses), each one is swapped in as soon as it has drawn.
@@ -2406,8 +2407,6 @@ $("fileNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") c
 $("saveTile").addEventListener("click", () => (portalUser ? saveToAgol(false) : saveToDevice(false)));
 $("saveAsTile").addEventListener("click", () => (portalUser ? saveToAgol(true) : saveToDevice(true)));
 $("lockTile").addEventListener("click", () => { if (!portalUser) saveToDevice(true, true); });
-$("openSavedLink").addEventListener("click", () => { closePanels(false); openOpenModal("tabDevice"); });
-$("openSavedLink2").addEventListener("click", () => { closePanels(false); openOpenModal("tabDevice"); });
 $("shotTile").addEventListener("click", () => {
   view.takeScreenshot({ format: "png" }).then((s) => { fetch(s.dataUrl).then((r) => r.blob()).then((b) => { downloadBlob(b, titleSlug() + ".png"); toast(S.shotSaved); }); })
     .catch(() => toast(S.shotFailed));
@@ -2567,9 +2566,7 @@ function applySaveMode() {
   const local = F.localSave !== false, signed = !!portalUser;
   for (const id of ["saveTile", "saveAsTile"]) $(id).hidden = !(local || signed);
   $("lockTile").hidden = !local || signed;   // a locked copy is a file; signed in, maps save to ArcGIS Online
-  const note = document.querySelector("#savePanel p.note[data-feature='localSave']:not(#saveSignedInNote)");
-  if (note) note.hidden = !local || signed;
-  $("saveSignedInNote").hidden = !local || !signed;
+  refreshTileTips();
 }
 function renderUser() {
   const on = !!portalUser;
@@ -2591,7 +2588,7 @@ function renderUser() {
 }
 function renderAgol() {
   const on = !!portalUser;
-  $("agolSignedOut").hidden = on; $("agolSignedIn").hidden = !on;
+  $("signInTile").hidden = on || F.signIn === false; $("agolSignedIn").hidden = !on;
 }
 function startSignIn() {
   if (!signInConfigured) {
@@ -2630,7 +2627,43 @@ function doSignIn() {
     });
 }
 $("signInBtn").addEventListener("click", startSignIn);
-$("agolSignIn").addEventListener("click", startSignIn);
+$("signInTile").addEventListener("click", startSignIn);
+// Save panel tiles: a short explanation on mouse-over and keyboard focus (and to screen readers, as each
+// tile's description). It can be dismissed with Escape and hovered over (WCAG 1.4.13).
+var TILE_TIPS = {   // var: the config step can ask for the tips before this line has run
+  saveTile: () => (portalUser ? S.tipSaveSignedIn : window.showSaveFilePicker ? S.tipSave : S.tipSaveDownloads),
+  saveAsTile: () => (portalUser ? S.tipSaveAsSignedIn : S.tipSaveAs),
+  lockTile: () => S.tipLock, shotTile: () => S.tipShot, printTile: () => S.tipPrint, signInTile: () => S.tipSignIn
+};
+function refreshTileTips() { if (!TILE_TIPS) return; for (const [id, f] of Object.entries(TILE_TIPS)) { const d = $("tip-" + id); if (d) d.textContent = f(); } }
+let tipFor = null, tipHide = 0;
+function showTileTip(tile) {
+  clearTimeout(tipHide);
+  const tip = $("tileTip"), f = TILE_TIPS[tile.id];
+  if (!f || tile.hidden) return;
+  tip.textContent = f(); tip.hidden = false; tipFor = tile;
+  const r = tile.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, gap = 8;
+  const below = r.bottom + gap + h <= window.innerHeight - 4 || r.top - gap - h < 4;
+  const left = Math.max(6, Math.min(window.innerWidth - w - 6, r.left + r.width / 2 - w / 2));
+  tip.style.left = left + "px"; tip.style.top = (below ? r.bottom + gap : r.top - gap - h) + "px";
+  tip.dataset.side = below ? "below" : "above";
+  tip.style.setProperty("--arrow-x", Math.max(12, Math.min(w - 12, r.left + r.width / 2 - left)) + "px");
+}
+function hideTileTip(now) { clearTimeout(tipHide); const go = () => { $("tileTip").hidden = true; tipFor = null; }; if (now) go(); else tipHide = setTimeout(go, 150); }
+for (const id of Object.keys(TILE_TIPS)) {
+  const tile = $(id);
+  tile.addEventListener("mouseenter", () => showTileTip(tile));
+  tile.addEventListener("mouseleave", () => hideTileTip(false));
+  tile.addEventListener("focus", () => { if (tile.matches(":focus-visible")) showTileTip(tile); });
+  tile.addEventListener("blur", () => hideTileTip(true));
+  tile.addEventListener("click", () => hideTileTip(true));
+}
+$("tileTip").addEventListener("mouseenter", () => clearTimeout(tipHide));
+$("tileTip").addEventListener("mouseleave", () => hideTileTip(false));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && tipFor) { e.stopPropagation(); e.preventDefault(); hideTileTip(true); } }, true);
+window.addEventListener("scroll", () => hideTileTip(true), true);
+refreshTileTips();
+
 $("signInGo").addEventListener("click", doSignIn);
 function closeUserMenu(focusBtn) { $("userMenu").hidden = true; $("userBtn").setAttribute("aria-expanded", "false"); if (focusBtn) $("userBtn").focus(); }
 $("userBtn").addEventListener("click", () => {
