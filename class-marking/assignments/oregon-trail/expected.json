@@ -1,0 +1,689 @@
+{
+ "makeVersion": "0.1",
+ "checksVersion": "0.1",
+ "assignment": "oregon-trail",
+ "results": [
+  {
+   "file": "Oregon Trail - Jordan_locked.amap",
+   "persona": "S1 Jordan (reads below grade level)",
+   "intent": "A rough line with few bends, close enough to the trail most of the way. Four places (no South Pass). Very short pop-ups. Reason: one word.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Independence, Missouri",
+      "found": true,
+      "km": 11,
+      "title": "Independence",
+      "text": "start",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Chimney Rock",
+      "found": true,
+      "km": 13,
+      "title": "Chimney Rock",
+      "text": "big rock",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Independence Rock",
+      "found": true,
+      "km": 12,
+      "title": "Independence Rock",
+      "text": "names on rock",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "South Pass",
+      "found": false,
+      "km": 763,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {},
+      "inNote": false
+     },
+     {
+      "name": "Oregon City",
+      "found": true,
+      "km": 15,
+      "title": "Oregon City",
+      "text": "end",
+      "named": true,
+      "facts": {}
+     }
+    ],
+    "placesFound": 4,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Why",
+      "text": "land"
+     }
+    ],
+    "layers": [
+     "Trails West"
+    ],
+    "missingLayers": [],
+    "route": {
+     "drawn": true,
+     "lengthKm": 2449,
+     "shareOnRoute": 0.8,
+     "startKm": 0,
+     "endKm": 0,
+     "reachesCheckpoint": "Oregon City"
+    }
+   }
+  },
+  {
+   "file": "Oregon Trail - Sofia_locked.amap",
+   "persona": "S2 Sofía (English learner, Spanish speaker)",
+   "intent": "Complete: line, all five places and a reason with a quotation. Pop-ups mostly in Spanish with some English.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Independence, Missouri",
+      "found": true,
+      "km": 8,
+      "title": "Independence, Missouri",
+      "text": "Aquí empezaba el camino. They bought supplies and oxen.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Chimney Rock",
+      "found": true,
+      "km": 5,
+      "title": "Chimney Rock",
+      "text": "Una roca muy alta. Les decía que iban por el camino correcto.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Independence Rock",
+      "found": true,
+      "km": 7,
+      "title": "Independence Rock",
+      "text": "Querían llegar antes del 4 de julio, para cruzar las montañas antes de la nieve.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "South Pass",
+      "found": true,
+      "km": 6,
+      "title": "South Pass",
+      "text": "Un paso fácil para cruzar las Montañas Rocosas con las carretas.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Oregon City",
+      "found": true,
+      "km": 9,
+      "title": "Oregon City",
+      "text": "El final del camino. Buscaban tierra para granjas.",
+      "named": true,
+      "facts": {}
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "¿Por qué fueron al Oeste?",
+      "text": "Mucha gente fue al Oeste por tierra barata. El mapa dice: \"cheap land recently taken from Native Americans\"."
+     }
+    ],
+    "layers": [
+     "Trails West"
+    ],
+    "missingLayers": [],
+    "route": {
+     "drawn": true,
+     "lengthKm": 3282,
+     "shareOnRoute": 1,
+     "startKm": 0,
+     "endKm": 1,
+     "reachesCheckpoint": "Oregon City"
+    }
+   }
+  },
+  {
+   "file": "Oregon Trail - Eli_locked.amap",
+   "persona": "S3 Eli (red-green colour vision deficiency)",
+   "intent": "A strong, complete hand-in: close line, all five places, good explanations and a quoted reason. (The colour difficulty was the volcano task, not this one.)",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Independence, Missouri",
+      "found": true,
+      "km": 6,
+      "title": "Independence, Missouri",
+      "text": "The start. Families bought wagons, oxen and food here and left in spring.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Chimney Rock",
+      "found": true,
+      "km": 3,
+      "title": "Chimney Rock",
+      "text": "A tall rock you could see from far away, so travelers knew they were on the trail.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Independence Rock",
+      "found": true,
+      "km": 9,
+      "title": "Independence Rock",
+      "text": "They wanted to get here by July 4th so they would cross the mountains before snow. People carved their names on it.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "South Pass",
+      "found": true,
+      "km": 5,
+      "title": "South Pass",
+      "text": "A wide flat pass through the Rocky Mountains that wagons could use.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Oregon City",
+      "found": true,
+      "km": 8,
+      "title": "Oregon City",
+      "text": "The end of the trail in the Willamette Valley, where families could get farmland.",
+      "named": true,
+      "facts": {}
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Why go West?",
+      "text": "Most people wanted land and a better living. The Trails West layer says they were \"pursuing economic opportunities or cheap land recently taken from Native Americans.\""
+     }
+    ],
+    "layers": [
+     "Trails West"
+    ],
+    "missingLayers": [],
+    "route": {
+     "drawn": true,
+     "lengthKm": 3345,
+     "shareOnRoute": 1,
+     "startKm": 0,
+     "endKm": 1,
+     "reachesCheckpoint": "Oregon City"
+    }
+   }
+  },
+  {
+   "file": "Oregon Trail - Tariq_locked.amap",
+   "persona": "S5 Tariq (blind, uses a screen reader)",
+   "intent": "No line and no points. Every answer is written, correctly, in one note.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Independence, Missouri",
+      "found": false,
+      "km": 894,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {},
+      "inNote": true
+     },
+     {
+      "name": "Chimney Rock",
+      "found": false,
+      "km": 548,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {},
+      "inNote": true
+     },
+     {
+      "name": "Independence Rock",
+      "found": false,
+      "km": 689,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {},
+      "inNote": true
+     },
+     {
+      "name": "South Pass",
+      "found": false,
+      "km": 818,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {},
+      "inNote": true
+     },
+     {
+      "name": "Oregon City",
+      "found": false,
+      "km": 1752,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {},
+      "inNote": true
+     }
+    ],
+    "placesFound": 0,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "My answers (written)",
+      "text": "Independence, Missouri: the start, where people bought supplies and left in spring. Chimney Rock: a landmark that showed they were on the right route. Independence Rock: they tried to reach it by July 4 to beat the snow in the mountains. South Pass: an easy way over the Rocky Mountains for wagons. Oregon City: the end of the trail, with farmland. Why people went West: the Trails West layer says for \"economic opportunities or cheap land\", and some for the gold rush."
+     }
+    ],
+    "layers": [
+     "Trails West"
+    ],
+    "missingLayers": [],
+    "route": {
+     "drawn": false
+    }
+   }
+  },
+  {
+   "file": "Oregon Trail - Amara_locked.amap",
+   "persona": "S8 Amara (Deaf, uses sign language)",
+   "intent": "Complete and clear, in short plain sentences. Reason gives two causes with evidence.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Independence, Missouri",
+      "found": true,
+      "km": 6,
+      "title": "Independence, Missouri",
+      "text": "The trail started here. People got ready and left in April or May.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Chimney Rock",
+      "found": true,
+      "km": 7,
+      "title": "Chimney Rock",
+      "text": "A tall rock. People could see it from far away. It showed the way.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Independence Rock",
+      "found": true,
+      "km": 5,
+      "title": "Independence Rock",
+      "text": "People wanted to arrive by July 4. Then they had time to cross the mountains before snow.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "South Pass",
+      "found": true,
+      "km": 6,
+      "title": "South Pass",
+      "text": "A low, wide pass. Wagons could cross the Rocky Mountains here.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Oregon City",
+      "found": true,
+      "km": 8,
+      "title": "Oregon City",
+      "text": "The end of the trail. People got land for farms.",
+      "named": true,
+      "facts": {}
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Why go West",
+      "text": "Two reasons. 1. Cheap land: the layer says \"cheap land recently taken from Native Americans\". 2. Gold: some people wanted \"to get rich in the gold rush\"."
+     }
+    ],
+    "layers": [
+     "Trails West"
+    ],
+    "missingLayers": [],
+    "route": {
+     "drawn": true,
+     "lengthKm": 3308,
+     "shareOnRoute": 1,
+     "startKm": 0,
+     "endKm": 1,
+     "reachesCheckpoint": "Oregon City"
+    }
+   }
+  },
+  {
+   "file": "Oregon Trail - Caleb_locked.amap",
+   "persona": "S9 Caleb (dyslexia)",
+   "intent": "Complete and right, but place names and some words misspelled (Independance, Chimny, Soth Pass, Oregon Citty).",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Independence, Missouri",
+      "found": true,
+      "km": 6,
+      "title": "Independance",
+      "text": "the start, they bot suplies",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Chimney Rock",
+      "found": true,
+      "km": 5,
+      "title": "Chimny Rock",
+      "text": "a big rock they could see",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Independence Rock",
+      "found": true,
+      "km": 4,
+      "title": "Indapendence Rock",
+      "text": "get there by july 4 befor snow",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "South Pass",
+      "found": true,
+      "km": 3,
+      "title": "Soth Pass",
+      "text": "the way over the rocky mountins",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Oregon City",
+      "found": true,
+      "km": 5,
+      "title": "Oregon Citty",
+      "text": "the end, farm land",
+      "named": true,
+      "facts": {}
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Why",
+      "text": "they wanted chepe land and to get rich"
+     }
+    ],
+    "layers": [
+     "Trails West"
+    ],
+    "missingLayers": [],
+    "route": {
+     "drawn": true,
+     "lengthKm": 3308,
+     "shareOnRoute": 1,
+     "startKm": 0,
+     "endKm": 1,
+     "reachesCheckpoint": "Oregon City"
+    }
+   }
+  },
+  {
+   "file": "Oregon Trail - Kayla_locked.amap",
+   "persona": "S10 Kayla (attention)",
+   "intent": "The line stops at Independence Rock. Three places done. No South Pass, no Oregon City, no reason note.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Independence, Missouri",
+      "found": true,
+      "km": 4,
+      "title": "Independence, Missouri",
+      "text": "Where the trail starts. People bought supplies.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Chimney Rock",
+      "found": true,
+      "km": 4,
+      "title": "Chimney Rock",
+      "text": "A famous rock landmark.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Independence Rock",
+      "found": true,
+      "km": 6,
+      "title": "Independence Rock",
+      "text": "Get here by July 4.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "South Pass",
+      "found": false,
+      "km": null,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {},
+      "inNote": false
+     },
+     {
+      "name": "Oregon City",
+      "found": false,
+      "km": null,
+      "title": "",
+      "text": "",
+      "named": false,
+      "facts": {},
+      "inNote": false
+     }
+    ],
+    "placesFound": 3,
+    "emptyPopups": 0,
+    "notes": [],
+    "layers": [
+     "Trails West"
+    ],
+    "missingLayers": [],
+    "route": {
+     "drawn": true,
+     "lengthKm": 1263,
+     "shareOnRoute": 1,
+     "startKm": 0,
+     "endKm": 1277,
+     "reachesCheckpoint": "Independence Rock"
+    }
+   }
+  },
+  {
+   "file": "Oregon Trail - Devon_locked.amap",
+   "persona": "S7 Devon (limited fine motor control, uses the keyboard)",
+   "intent": "A line of a few long straight sections (clicked with the keyboard), so parts drift from the trail. All five places with dictated sentences and a reason.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Independence, Missouri",
+      "found": true,
+      "km": 3,
+      "title": "Independence, Missouri",
+      "text": "This is where the Oregon Trail started and people bought their supplies.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Chimney Rock",
+      "found": true,
+      "km": 10,
+      "title": "Chimney Rock",
+      "text": "This rock was a landmark that travelers used to know they were going the right way.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Independence Rock",
+      "found": true,
+      "km": 5,
+      "title": "Independence Rock",
+      "text": "Travelers wanted to reach this rock by the Fourth of July so they would not get stuck in snow.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "South Pass",
+      "found": true,
+      "km": 9,
+      "title": "South Pass",
+      "text": "This pass let wagons cross the Rocky Mountains.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Oregon City",
+      "found": true,
+      "km": 5,
+      "title": "Oregon City",
+      "text": "This is the end of the trail where people started farms.",
+      "named": true,
+      "facts": {}
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Why did people go West",
+      "text": "People went West for cheap land. The layer says they were pursuing economic opportunities or cheap land."
+     }
+    ],
+    "layers": [
+     "Trails West"
+    ],
+    "missingLayers": [],
+    "route": {
+     "drawn": true,
+     "lengthKm": 2444,
+     "shareOnRoute": 0.77,
+     "startKm": 0,
+     "endKm": 0,
+     "reachesCheckpoint": "Oregon City"
+    }
+   }
+  },
+  {
+   "file": "Oregon Trail - Mina_locked.amap",
+   "persona": "S6 Mina (low vision, uses magnification)",
+   "intent": "Zoomed in, she followed the California Trail after Fort Hall, so the last third of her line goes to Sacramento. All five places are in the right spots, with good pop-ups and a reason.",
+   "checks": {
+    "checksVersion": "0.1",
+    "locked": true,
+    "places": [
+     {
+      "name": "Independence, Missouri",
+      "found": true,
+      "km": 9,
+      "title": "Independence, Missouri",
+      "text": "The start of the trail, where people bought what they needed.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Chimney Rock",
+      "found": true,
+      "km": 8,
+      "title": "Chimney Rock",
+      "text": "A tall landmark that showed the way along the river.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Independence Rock",
+      "found": true,
+      "km": 4,
+      "title": "Independence Rock",
+      "text": "People wanted to get here by July 4 to cross the mountains before winter.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "South Pass",
+      "found": true,
+      "km": 9,
+      "title": "South Pass",
+      "text": "The easiest place to cross the Rocky Mountains.",
+      "named": true,
+      "facts": {}
+     },
+     {
+      "name": "Oregon City",
+      "found": true,
+      "km": 10,
+      "title": "Oregon City",
+      "text": "The end of the Oregon Trail.",
+      "named": true,
+      "facts": {}
+     }
+    ],
+    "placesFound": 5,
+    "emptyPopups": 0,
+    "notes": [
+     {
+      "title": "Why go West?",
+      "text": "For land. The layer says people wanted \"economic opportunities or cheap land\"."
+     }
+    ],
+    "layers": [
+     "Trails West"
+    ],
+    "missingLayers": [],
+    "route": {
+     "drawn": true,
+     "lengthKm": 2844,
+     "shareOnRoute": 0.74,
+     "startKm": 0,
+     "endKm": 667,
+     "reachesCheckpoint": "Fort Hall"
+    }
+   }
+  }
+ ]
+}

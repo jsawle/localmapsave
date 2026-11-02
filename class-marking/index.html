@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Class map review (MapMaker Labs)</title>
+  <meta name="description" content="Check a class's .amap map hand-ins against an answer map. Files are read in the browser and nothing is uploaded." />
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="https://js.arcgis.com/5.1/esri/themes/light/main.css" />
+  <script type="module" src="https://js.arcgis.com/5.1/"></script>
+  <style>
+    :root{ --font:"Avenir Next","Helvetica Neue",Arial,sans-serif; --ink:#222; --muted:#5a5a5a; --line:#d6d6d6; --soft:#f4f4f4;
+      --brand:#0079c1; --brand-strong:#005e96; --answer:#6a3d9a; --ok:#1d6b34; --warn:#8a4b00; --bad:#a1262a; --focus:#1a73e8; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; font-family:var(--font); color:var(--ink); background:#fff; line-height:1.45; }
+    button,input,select,textarea{ font:inherit; }
+    :focus-visible{ outline:3px solid var(--focus); outline-offset:2px; }
+    .sr-only{ position:absolute!important; width:1px; height:1px; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    .skip{ position:absolute; left:8px; top:-60px; background:#fff; padding:10px 14px; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,.3); font-weight:600; z-index:10; }
+    .skip:focus{ top:8px; }
+    [hidden]{ display:none!important; }
+    header{ display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--line); }
+    header h1{ font-size:1.25rem; margin:0; }
+    .tag{ font-size:.75rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; background:#000; color:#fff; padding:2px 8px; border-radius:999px; }
+    header .spacer{ flex:1; }
+    main{ padding:16px 20px 40px; max-width:1400px; margin:0 auto; }
+    .lead{ max-width:70ch; margin:0 0 16px; }
+    .btn{ display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); background:#fff; color:var(--ink); padding:8px 14px; border-radius:6px; cursor:pointer; min-height:40px; }
+    .btn:hover{ background:var(--soft); }
+    .btn.primary{ background:var(--brand); border-color:var(--brand); color:#fff; }
+    .btn.primary:hover{ background:var(--brand-strong); }
+    .btn:disabled{ opacity:.55; cursor:not-allowed; }
+    .btn.link{ border:0; background:none; color:var(--brand-strong); text-decoration:underline; padding:4px 6px; min-height:0; }
+    .steps{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin-bottom:16px; }
+    .card{ border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
+    .card h2{ font-size:1.05rem; margin:0 0 8px; }
+    .card p{ margin:6px 0; }
+    .status{ color:var(--muted); font-size:.95rem; }
+    .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    label.inline{ display:inline-flex; align-items:center; gap:6px; }
+    input[type=number]{ width:5.5em; padding:6px; border:1px solid #8a8a8a; border-radius:4px; }
+    .points{ list-style:none; padding:0; margin:8px 0 0; max-height:220px; overflow:auto; }
+    .points li{ padding:3px 0; }
+    .samples{ background:var(--soft); }
+    table{ border-collapse:collapse; width:100%; font-size:.95rem; }
+    caption{ text-align:left; font-weight:700; padding:6px 0; }
+    th,td{ border-bottom:1px solid var(--line); padding:8px 8px; text-align:left; vertical-align:top; }
+    th{ background:var(--soft); font-weight:600; }
+    td.num{ white-space:nowrap; }
+    .pill{ display:inline-block; font-size:.8rem; padding:1px 8px; border-radius:999px; border:1px solid currentColor; margin:0 4px 2px 0; white-space:nowrap; }
+    .ok{ color:var(--ok); } .warn{ color:var(--warn); } .bad{ color:var(--bad); } .muted{ color:var(--muted); }
+    .toolbar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:8px 0 12px; }
+    .toolbar h2{ margin:0 12px 0 0; font-size:1.15rem; }
+    #detail{ border:1px solid var(--line); border-radius:8px; margin-top:16px; }
+    .dhead{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); }
+    .dhead h2{ margin:0; font-size:1.15rem; flex:1; }
+    .dbody{ display:grid; grid-template-columns:minmax(0,3fr) minmax(300px,2fr); }
+    #mapDiv{ height:560px; border-right:1px solid var(--line); }
+    .side{ padding:12px 14px; max-height:560px; overflow:auto; }
+    .side h3{ font-size:1rem; margin:14px 0 6px; }
+    .side h3:first-child{ margin-top:0; }
+    .place{ border-left:4px solid var(--line); padding:4px 0 6px 10px; margin:0 0 10px; }
+    .place.found{ border-left-color:var(--ok); } .place.part{ border-left-color:var(--warn); } .place.missing{ border-left-color:var(--bad); }
+    .place b{ display:block; }
+    .quote{ background:var(--soft); padding:6px 8px; border-radius:4px; margin:4px 0; white-space:pre-wrap; }
+    .mark textarea{ width:100%; min-height:70px; padding:6px; border:1px solid #8a8a8a; border-radius:4px; }
+    .mark input[type=text]{ width:8em; padding:6px; border:1px solid #8a8a8a; border-radius:4px; }
+    .legend{ font-size:.85rem; color:var(--muted); margin:6px 0 0; }
+    .swatch{ display:inline-block; width:14px; height:14px; border-radius:50%; vertical-align:-2px; margin-right:4px; }
+    dialog{ border:1px solid var(--line); border-radius:8px; max-width:640px; width:calc(100% - 32px); }
+    dialog::backdrop{ background:rgba(0,0,0,.35); }
+    @media (max-width:900px){ .dbody{ grid-template-columns:1fr; } #mapDiv{ height:380px; border-right:0; border-bottom:1px solid var(--line); } .side{ max-height:none; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header>
+    <h1>Class map review</h1><span class="tag">MapMaker Labs</span>
+    <span class="spacer"></span>
+    <button class="btn link" type="button" id="aboutBtn">About and versions</button>
+  </header>
+  <main id="main" tabindex="-1">
+    <p class="lead">Check a class's map hand-ins (<code>.amap</code> files from MapMaker) against your answer map. The files are read in this browser: nothing is uploaded. The checks report what each student marked and wrote; the marks are yours.</p>
+    <p class="sr-only" id="live" aria-live="polite"></p>
+
+    <section id="setup" aria-labelledby="setupH">
+      <h2 id="setupH" class="sr-only">Set up</h2>
+      <div class="steps">
+        <div class="card">
+          <h2>1. The hand-ins</h2>
+          <p>Choose the class's hand-in folder, or select the files.</p>
+          <div class="row">
+            <button class="btn primary" type="button" data-pick="folderInput">Choose folder…</button>
+            <input hidden type="file" id="folderInput" webkitdirectory multiple />
+            <button class="btn" type="button" data-pick="filesInput">Choose files…</button>
+            <input hidden type="file" id="filesInput" accept=".amap,.mmap,application/json" multiple />
+          </div>
+          <p class="status" id="classStatus">No hand-ins chosen yet.</p>
+        </div>
+        <div class="card">
+          <h2>2. Your answer map</h2>
+          <p>A map with a point on each right place, and a line for a route if there is one.</p>
+          <div class="row">
+            <button class="btn" type="button" data-pick="answerInput">Choose answer map…</button>
+            <input hidden type="file" id="answerInput" accept=".amap,.mmap,application/json" />
+          </div>
+          <p class="status" id="answerStatus">No answer map chosen yet.</p>
+          <div id="answerSetup" hidden>
+            <p class="row">
+              <label class="inline" for="placeKm">Count a place within</label><input type="number" id="placeKm" min="1" max="2000" value="50" /> km
+            </p>
+            <p class="row" id="routeKmRow" hidden>
+              <label class="inline" for="routeKm">Count a route within</label><input type="number" id="routeKm" min="1" max="2000" value="50" /> km of yours
+            </p>
+            <fieldset class="card" style="padding:8px 12px"><legend>Points to look for</legend>
+              <ul class="points" id="answerPoints"></ul>
+            </fieldset>
+          </div>
+        </div>
+        <div class="card samples">
+          <h2>Or try a sample class</h2>
+          <p>Made-up hand-ins for two assignments, written as students with different needs.</p>
+          <div class="row">
+            <button class="btn" type="button" data-sample="volcanoes">Volcanoes and plate boundaries</button>
+            <button class="btn" type="button" data-sample="oregon-trail">The Oregon Trail</button>
+          </div>
+        </div>
+      </div>
+      <p><button class="btn primary" type="button" id="checkBtn" disabled>Check the class</button></p>
+    </section>
+
+    <section id="review" hidden aria-labelledby="reviewH">
+      <div class="toolbar">
+        <h2 id="reviewH" tabindex="-1">Class</h2>
+        <span class="status" id="reviewStatus"></span>
+        <span class="spacer" style="flex:1"></span>
+        <label class="inline"><input type="checkbox" id="anonymous" /> Numbers instead of names in the export</label>
+        <button class="btn" type="button" id="exportBtn">Export spreadsheet (CSV)</button>
+        <button class="btn" type="button" id="aiBtn">Use your own AI…</button>
+        <button class="btn" type="button" id="restartBtn">Start again</button>
+      </div>
+      <table id="classTable">
+        <caption id="tableCaption">Hand-ins</caption>
+        <thead><tr><th scope="col">Student</th><th scope="col">Places</th><th scope="col">Route</th><th scope="col">Notes and pop-ups</th><th scope="col">Hand-in</th><th scope="col">Mark</th><th scope="col"><span class="sr-only">Review</span></th></tr></thead>
+        <tbody id="classBody"></tbody>
+      </table>
+      <p class="status" id="skipped"></p>
+
+      <section id="detail" hidden aria-labelledby="detailH" tabindex="-1">
+        <div class="dhead">
+          <h2 id="detailH">Student</h2>
+          <button class="btn" type="button" id="prevBtn">Previous</button>
+          <button class="btn" type="button" id="nextBtn">Next</button>
+          <label class="inline"><input type="checkbox" id="showAnswer" checked /> Show the answer map</label>
+          <button class="btn" type="button" id="closeDetail">Back to the class</button>
+        </div>
+        <div class="dbody">
+          <div id="mapDiv" role="region" aria-label="Map of this hand-in. The list beside it has the same information in words."></div>
+          <div class="side" id="side"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="aiDlg" aria-labelledby="aiH">
+    <h2 id="aiH">Use your own AI</h2>
+    <p>Your school's AI (Gemini, Copilot or another) can read the class spreadsheet and suggest points against your rubric, with the students' words as evidence and draft feedback for each. It only suggests: the marks are yours.</p>
+    <ol>
+      <li><button class="btn" type="button" id="aiExport">Export the spreadsheet</button> <label class="inline"><input type="checkbox" id="aiAnonymous" checked /> Numbers instead of names</label></li>
+      <li><label for="aiRubric">Your rubric</label> (each part, its points, and what earns them):<br />
+        <textarea id="aiRubric" rows="7" style="width:100%;padding:6px;border:1px solid #8a8a8a;border-radius:4px" placeholder="Places (5 points): 1 for each place marked within 50 km.&#10;What happened there (10 points): 0 to 2 for each place…"></textarea></li>
+      <li><button class="btn primary" type="button" id="aiCopy">Copy the instructions</button> <span class="status" id="aiCopied" role="status"></span></li>
+      <li>In your school's AI, attach the spreadsheet and paste the instructions. Signed in with your school account, many school AI services don't keep or learn from what you share; check what your school allows.</li>
+    </ol>
+    <details><summary>See the instructions</summary><textarea id="aiText" rows="10" readonly style="width:100%;font-size:.85rem"></textarea></details>
+    <p><button class="btn" type="button" id="aiClose">Close</button></p>
+  </dialog>
+
+  <dialog id="aboutDlg" aria-labelledby="aboutH">
+    <h2 id="aboutH">About Class map review</h2>
+    <p>A MapMaker Labs experiment. It reads the map files that MapMaker saves, compares each student's sketches with your answer map, and keeps your marks and comments in this browser on this device. Nothing is uploaded. The maps are drawn with the ArcGIS Maps SDK, which loads basemap tiles from Esri.</p>
+    <table>
+      <caption>Versions</caption>
+      <thead><tr><th scope="col">Part</th><th scope="col">Version</th></tr></thead>
+      <tbody id="versions"></tbody>
+    </table>
+    <p><button class="btn primary" type="button" id="aboutClose">Close</button></p>
+  </dialog>
+  <script type="module" src="./app.js?v=0.2.0"></script>
+</body>
+</html>
