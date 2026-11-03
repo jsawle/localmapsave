@@ -45,6 +45,8 @@
   nav.rail{width:var(--rail);flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;padding:6px 4px;background:#fff;z-index:1001}
   .railbtn{display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;border-radius:8px;padding:8px 2px;cursor:pointer;font-size:.72rem;color:var(--ink2)}
   .railbtn svg{width:24px;height:24px}
+  .railbtn{min-width:0;padding-left:0;padding-right:0;letter-spacing:-.01em}
+  @media (max-width: 560px){ .railbtn{font-size:.66rem} }
   .railbtn:hover{background:var(--soft)}
   .railbtn[aria-expanded="true"]{background:var(--brand-soft);color:#000;font-weight:600}
   #map{flex:1;height:100%;background:#dfe7ee}
@@ -140,7 +142,6 @@
     #btnNew{display:none}
   }
   @media (max-width: 560px){
-    :root{--rail:56px}
     .panel{left:0;right:0;top:auto;width:auto;max-width:none;height:58%;border-right:0;border-top:1px solid var(--line);box-shadow:0 -4px 12px rgba(0,0,0,.1);margin-left:var(--rail)}
     #btnAbout{display:none}
   }
@@ -154,7 +155,7 @@
     <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="#0b5394"/><path d="M6 19c4-6 7 2 11-3s6-6 9-2" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="22" cy="10" r="2.6" fill="#E69F00"/></svg>
     <label for="mapTitle" class="sr-only">Map title</label>
     <input id="mapTitle" type="text" value="Untitled map" maxlength="120" autocomplete="off">
-    <span class="badge" id="verBadge">v1.0.0</span>
+    <span class="badge" id="verBadge">v1.0.1</span>
     <span class="unsaved" id="unsaved" hidden>Unsaved changes</span>
   </div>
   <nav class="filebar" aria-label="File">
@@ -369,7 +370,7 @@
 'use strict';
 
 /* ---------- Versions ---------- */
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const FORMAT_ID = 'open-map-sketch';
 const FORMAT_VERSION = 1;
 const DOC_KEY = 'openMapSketch';
