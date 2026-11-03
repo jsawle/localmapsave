@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Map Sketch (no-Esri demo)</title>
+<meta name="description" content="A demonstration map app built only with open-source tools (no Esri technology): sketch on a map, add your own CSV or GeoJSON data, and save the map to a local file.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@geoman-io/leaflet-geoman-free@2.20.4/dist/leaflet-geoman.css" integrity="sha384-++juJE6hRzkkV4Ri9H2C+3yjCTdEk4PaZxptm3cpgKKjuMcAHErn35Q/0sGitZCR" crossorigin="anonymous">
+<style>
+  :root{
+    --ink:#1f1f1f; --ink2:#444; --muted:#5f5f5f; --line:#d4d4d4; --soft:#f4f4f4;
+    --brand:#0b5394; --brand-ink:#fff; --brand-soft:#e7f0f9; --danger:#a12a1c;
+    --focus:#1a5fd0; --rail:64px; --head:56px;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{height:100%;margin:0;overflow:hidden;color:var(--ink);background:#fff}
+  button,input,select,textarea{font:inherit;color:inherit}
+  :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  .skip{position:absolute;left:8px;top:-60px;z-index:3000;background:#fff;padding:8px 12px;border:2px solid var(--focus);border-radius:6px}
+  .skip:focus{top:8px}
+
+  /* Header */
+  header.top{height:var(--head);display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:1px solid var(--line);background:#fff}
+  .brand{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+  .logo{width:30px;height:30px;flex:none}
+  #mapTitle{min-width:0;flex:1;max-width:420px;border:1px solid transparent;border-radius:6px;padding:6px 8px;font-size:1.05rem;font-weight:600;background:transparent}
+  #mapTitle:hover{border-color:var(--line)} #mapTitle:focus{border-color:var(--focus);background:#fff}
+  .badge{font-size:.75rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+  .unsaved{font-size:.8rem;color:var(--danger);white-space:nowrap}
+  nav.filebar{display:flex;gap:6px;flex-wrap:nowrap}
+  .btn{border:1px solid #8a8a8a;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer;white-space:nowrap;min-height:36px}
+  .btn:hover{background:var(--soft)}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+  .btn.primary:hover{background:#08406f}
+  .btn.danger{color:var(--danger);border-color:var(--danger)}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .btn.small{padding:3px 8px;min-height:30px;font-size:.85rem}
+
+  /* Layout */
+  .main{position:relative;height:calc(100% - var(--head));display:flex}
+  nav.rail{width:var(--rail);flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;padding:6px 4px;background:#fff;z-index:1001}
+  .railbtn{display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;border-radius:8px;padding:8px 2px;cursor:pointer;font-size:.72rem;color:var(--ink2)}
+  .railbtn svg{width:24px;height:24px}
+  .railbtn:hover{background:var(--soft)}
+  .railbtn[aria-expanded="true"]{background:var(--brand-soft);color:#000;font-weight:600}
+  #map{flex:1;height:100%;background:#dfe7ee}
+  #map:focus-visible{outline-offset:-4px}
+  #map.crosshair{cursor:crosshair}
+
+  /* Panels */
+  .panel{position:absolute;top:0;left:var(--rail);bottom:0;width:340px;max-width:calc(100% - var(--rail));background:#fff;border-right:1px solid var(--line);box-shadow:4px 0 12px rgba(0,0,0,.08);z-index:1000;display:flex;flex-direction:column}
+  .panel[hidden]{display:none}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .panel-head h2{margin:0;font-size:1.05rem}
+  .panel-body{padding:12px;overflow:auto;flex:1}
+  .panel-foot{padding:10px 12px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+  .iconbtn{border:0;background:none;border-radius:6px;padding:6px;cursor:pointer;line-height:0}
+  .iconbtn:hover{background:var(--soft)}
+  .iconbtn svg{width:20px;height:20px}
+  h3{font-size:.95rem;margin:14px 0 6px}
+  p.hint{font-size:.88rem;color:var(--ink2);margin:6px 0 10px}
+  fieldset{border:1px solid var(--line);border-radius:8px;margin:10px 0;padding:8px 10px}
+  legend{font-weight:600;font-size:.9rem;padding:0 4px}
+  label.field{display:block;font-size:.88rem;font-weight:600;margin:8px 0 3px}
+  input[type=text],select,textarea{width:100%;border:1px solid #8a8a8a;border-radius:6px;padding:6px 8px;background:#fff}
+  textarea{min-height:64px;resize:vertical}
+  .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+  /* Tool grid */
+  .tools{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .tool{display:flex;flex-direction:column;align-items:center;gap:3px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 2px;cursor:pointer;font-size:.78rem}
+  .tool svg{width:22px;height:22px}
+  .tool:hover{background:var(--soft)}
+  .tool[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand);font-weight:600}
+
+  /* Swatches */
+  .swatches{display:flex;flex-wrap:wrap;gap:6px}
+  .swatch{position:relative}
+  .swatch input{position:absolute;opacity:0;width:30px;height:30px;margin:0;cursor:pointer}
+  .swatch span{display:block;width:30px;height:30px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #777}
+  .swatch input:checked + span{box-shadow:0 0 0 3px var(--ink)}
+  .swatch input:focus-visible + span{outline:3px solid var(--focus);outline-offset:3px}
+
+  /* Lists */
+  ul.list{list-style:none;margin:0;padding:0}
+  ul.list li{border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px}
+  .lyr-top{display:flex;align-items:center;gap:8px}
+  .lyr-top label{flex:1;font-weight:600;display:flex;gap:8px;align-items:center;cursor:pointer}
+  .lyr-top input[type=checkbox]{width:18px;height:18px}
+  .lyr-actions{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+  .legend{margin:6px 0 0 26px;font-size:.84rem}
+  .legend div{display:flex;align-items:center;gap:6px;margin:2px 0}
+  .lg-dot{display:inline-block;border-radius:50%;border:1px solid #222;flex:none}
+  .lg-line{display:inline-block;width:18px;height:0;border-top:3px solid;flex:none}
+  .lg-area{display:inline-block;width:16px;height:12px;border:1.5px solid;flex:none}
+  .off{color:var(--muted)}
+  .empty{color:var(--muted);font-size:.9rem}
+
+  /* Map overlays */
+  .credit{position:absolute;right:10px;bottom:22px;z-index:999;background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:.78rem;color:var(--ink2)}
+  #dropHint{position:absolute;inset:12px;z-index:2000;border:3px dashed var(--brand);border-radius:12px;background:rgba(231,240,249,.85);display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:600;pointer-events:none}
+  #dropHint[hidden]{display:none}
+  #toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:3000;background:#222;color:#fff;padding:10px 16px;border-radius:8px;max-width:min(90vw,520px);font-size:.92rem;opacity:0;transition:opacity .2s;pointer-events:none}
+  #toast.show{opacity:1}
+  #toast.error{background:var(--danger)}
+  @media (prefers-reduced-motion: reduce){#toast{transition:none}}
+
+  /* Leaflet bits */
+  .sketch-text{background:none;border:0}
+  .sketch-text span{display:inline-block;transform:translate(-50%,-50%);white-space:nowrap;font-weight:700;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 2px #fff}
+  .sketch-text.sel span{outline:2px dashed #000;outline-offset:3px}
+  .leaflet-tooltip.data-label{background:rgba(255,255,255,.88);border:0;box-shadow:none;padding:0 3px;font-size:12px;color:#111}
+  .leaflet-tooltip.data-label::before{display:none}
+  .pop h4{margin:0 0 6px;font-size:1rem}
+  .pop p{margin:0 0 6px;white-space:pre-wrap}
+  .pop img{max-width:100%;border-radius:4px;display:block;margin:4px 0}
+  .pop table{border-collapse:collapse;font-size:.85rem;width:100%}
+  .pop th{text-align:left;padding:2px 8px 2px 0;color:var(--ink2);vertical-align:top;font-weight:600}
+  .pop td{padding:2px 0;word-break:break-word}
+  .leaflet-container{font:inherit}
+  .leaflet-container a{color:var(--brand)}
+
+  /* Dialogs */
+  dialog{border:0;border-radius:10px;padding:0;max-width:min(92vw,520px);box-shadow:0 10px 40px rgba(0,0,0,.3)}
+  dialog::backdrop{background:rgba(0,0,0,.4)}
+  .dlg-body{padding:16px 18px}
+  .dlg-body h2{margin:0 0 8px;font-size:1.1rem}
+  .dlg-foot{display:flex;justify-content:flex-end;gap:8px;padding:10px 18px 16px}
+  table.ver{border-collapse:collapse;width:100%;font-size:.88rem;margin-top:8px}
+  table.ver th,table.ver td{border:1px solid var(--line);padding:4px 8px;text-align:left}
+  table.ver th{background:var(--soft)}
+
+  @media (max-width: 720px){
+    .brand .badge{display:none}
+    nav.filebar .btn{padding:6px 8px}
+    #btnNew{display:none}
+  }
+  @media (max-width: 560px){
+    :root{--rail:56px}
+    .panel{left:0;right:0;top:auto;width:auto;max-width:none;height:58%;border-right:0;border-top:1px solid var(--line);box-shadow:0 -4px 12px rgba(0,0,0,.1);margin-left:var(--rail)}
+    #btnAbout{display:none}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#map">Skip to map</a>
+
+<header class="top">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="#0b5394"/><path d="M6 19c4-6 7 2 11-3s6-6 9-2" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="22" cy="10" r="2.6" fill="#E69F00"/></svg>
+    <label for="mapTitle" class="sr-only">Map title</label>
+    <input id="mapTitle" type="text" value="Untitled map" maxlength="120" autocomplete="off">
+    <span class="badge" id="verBadge">v1.0.0</span>
+    <span class="unsaved" id="unsaved" hidden>Unsaved changes</span>
+  </div>
+  <nav class="filebar" aria-label="File">
+    <button class="btn" id="btnNew" type="button">New</button>
+    <button class="btn" id="btnOpen" type="button">Open</button>
+    <button class="btn primary" id="btnSave" type="button">Save</button>
+    <button class="btn" id="btnSaveAs" type="button">Save as…</button>
+    <button class="btn" id="btnAbout" type="button" aria-haspopup="dialog">About</button>
+  </nav>
+</header>
+
+<div class="main">
+  <nav class="rail" aria-label="Tools">
+    <button class="railbtn" type="button" data-panel="pnlSketch" aria-expanded="false" aria-controls="pnlSketch">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Sketch</button>
+    <button class="railbtn" type="button" data-panel="pnlData" aria-expanded="false" aria-controls="pnlData">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>Add data</button>
+    <button class="railbtn" type="button" data-panel="pnlLayers" aria-expanded="false" aria-controls="pnlLayers">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 10 5-10 5L2 7Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>Layers</button>
+    <button class="railbtn" type="button" data-panel="pnlBookmarks" aria-expanded="false" aria-controls="pnlBookmarks">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Bookmarks</button>
+  </nav>
+
+  <div id="map" aria-label="Map. Use the arrow keys to pan and the plus and minus keys to zoom."></div>
+
+  <!-- SKETCH -->
+  <section class="panel" id="pnlSketch" hidden aria-labelledby="hSketch">
+    <div class="panel-head"><h2 id="hSketch" tabindex="-1">Sketch</h2>
+      <button class="iconbtn" type="button" data-close aria-label="Close Sketch panel"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="panel-body">
+      <div class="tools" role="group" aria-label="Drawing tools">
+        <button class="tool" type="button" data-tool="point" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>Point</button>
+        <button class="tool" type="button" data-tool="line" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 18 9 9l5 6 7-10"/></svg>Line</button>
+        <button class="tool" type="button" data-tool="area" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity=".25" stroke-linejoin="round"><path d="M4 7l7-4 9 6-3 11H6z"/></svg>Area</button>
+        <button class="tool" type="button" data-tool="rect" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity=".25"><rect x="4" y="6" width="16" height="12"/></svg>Rectangle</button>
+        <button class="tool" type="button" data-tool="text" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>Text</button>
+        <button class="tool" type="button" data-tool="edit" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18 10 6l8 10z"/><rect x="2.5" y="16.5" width="3" height="3" fill="#fff"/><rect x="8.5" y="4.5" width="3" height="3" fill="#fff"/><rect x="16.5" y="14.5" width="3" height="3" fill="#fff"/></svg>Reshape</button>
+        <button class="tool" type="button" data-tool="move" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/></svg>Move</button>
+        <button class="tool" type="button" data-tool="delete" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Erase</button>
+      </div>
+      <p class="hint" id="sketchHint" aria-live="polite">Choose a tool, then click the map. Click a sketch to edit its details.</p>
+      <div class="row" id="finishRow" hidden>
+        <button class="btn small primary" type="button" id="btnFinish">Finish shape</button>
+        <button class="btn small" type="button" id="btnStopTool">Cancel</button>
+      </div>
+
+      <fieldset>
+        <legend id="styleLegend">Colour and size for new sketches</legend>
+        <div class="swatches" id="sketchSwatches" role="radiogroup" aria-label="Sketch colour"></div>
+        <label class="field" for="sketchSize">Size <span id="sizeVal">4</span></label>
+        <input type="range" id="sketchSize" min="1" max="10" value="4" style="width:100%">
+      </fieldset>
+
+      <details>
+        <summary>Keyboard options</summary>
+        <p class="hint">Move the map with the arrow keys so the place you want is in the centre, then:</p>
+        <div class="row">
+          <button class="btn small" type="button" id="btnPointCentre">Add point at map centre</button>
+          <button class="btn small" type="button" id="btnTextCentre">Add text at map centre</button>
+        </div>
+        <p class="hint">While drawing a line or area, press Enter to finish.</p>
+      </details>
+
+      <div id="selBox" hidden>
+        <h3 id="selHead">Selected sketch</h3>
+        <div id="selTextWrap" hidden>
+          <label class="field" for="selText">Text on map</label>
+          <input type="text" id="selText" maxlength="80">
+        </div>
+        <label class="field" for="selTitle">Title</label>
+        <input type="text" id="selTitle" maxlength="120">
+        <label class="field" for="selDesc">Description</label>
+        <textarea id="selDesc" maxlength="2000"></textarea>
+        <label class="field" for="selImage">Picture (optional)</label>
+        <input type="file" id="selImage" accept="image/png,image/jpeg,image/webp,image/gif">
+        <div id="selImgWrap" hidden>
+          <img id="selImgPrev" alt="" style="max-width:100%;border-radius:6px;margin-top:6px">
+          <label class="field" for="selAlt">Picture description (for screen readers)</label>
+          <input type="text" id="selAlt" maxlength="200">
+          <button class="btn small" type="button" id="selImgRemove" style="margin-top:6px">Remove picture</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn small danger" type="button" id="selDelete">Delete this sketch</button>
+          <button class="btn small" type="button" id="selDone">Done</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADD DATA -->
+  <section class="panel" id="pnlData" hidden aria-labelledby="hData">
+    <div class="panel-head"><h2 id="hData" tabindex="-1">Add data</h2>
+      <button class="iconbtn" type="button" data-close aria-label="Close Add data panel"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="panel-body">
+      <div id="impStart">
+        <p class="hint">Add a spreadsheet saved as <strong>CSV</strong> with a location in each row, or a <strong>GeoJSON</strong> file. Up to 1,000 rows. You can also drag a file onto the map.</p>
+        <button class="btn primary" type="button" id="btnChooseData">Choose a file…</button>
+        <h3>Location formats that work</h3>
+        <p class="hint">Latitude and longitude columns (e.g. <em>lat</em>, <em>lon</em>), or one column with both, such as <code>51.5074, -0.1278</code>, <code>51.5074N 0.1278W</code> or <code>51°30'27"N 0°07'40"W</code>.</p>
+      </div>
+      <div id="impForm" hidden>
+        <p class="hint" id="impSummary" aria-live="polite"></p>
+        <fieldset id="locSet">
+          <legend>Where is the location?</legend>
+          <div class="row"><label><input type="radio" name="locMode" value="two" checked> Latitude and longitude columns</label></div>
+          <div class="row"><label><input type="radio" name="locMode" value="one"> One column with both</label></div>
+          <div id="locTwo">
+            <label class="field" for="selLat">Latitude column</label><select id="selLat"></select>
+            <label class="field" for="selLon">Longitude column</label><select id="selLon"></select>
+          </div>
+          <div id="locOne" hidden>
+            <label class="field" for="selPair">Coordinates column</label><select id="selPair"></select>
+            <label class="field" for="selOrder">Order</label>
+            <select id="selOrder"><option value="latlon">Latitude, longitude</option><option value="lonlat">Longitude, latitude</option></select>
+          </div>
+        </fieldset>
+        <label class="field" for="impTitle">Layer name</label>
+        <input type="text" id="impTitle" maxlength="120">
+        <fieldset>
+          <legend>Style</legend>
+          <label class="field" for="impMode">Show the data as</label>
+          <select id="impMode">
+            <option value="single">One colour</option>
+            <option value="category">Colours by category</option>
+            <option value="number">Sizes by number</option>
+          </select>
+          <div id="impFieldWrap" hidden>
+            <label class="field" for="impField">Using the column</label>
+            <select id="impField"></select>
+          </div>
+          <div id="impColorWrap">
+            <span class="field" id="impColorLbl">Colour</span>
+            <div class="swatches" id="impSwatches" role="radiogroup" aria-labelledby="impColorLbl"></div>
+          </div>
+          <label class="field" for="impLabel">Labels</label>
+          <select id="impLabel"></select>
+        </fieldset>
+      </div>
+    </div>
+    <div class="panel-foot" id="impFoot" hidden>
+      <button class="btn" type="button" id="impCancel">Cancel</button>
+      <button class="btn primary" type="button" id="impOk">Add to map</button>
+    </div>
+  </section>
+
+  <!-- LAYERS -->
+  <section class="panel" id="pnlLayers" hidden aria-labelledby="hLayers">
+    <div class="panel-head"><h2 id="hLayers" tabindex="-1">Layers</h2>
+      <button class="iconbtn" type="button" data-close aria-label="Close Layers panel"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="panel-body">
+      <ul class="list" id="layerList"></ul>
+      <fieldset>
+        <legend>Basemap</legend>
+        <div id="basemapList"></div>
+      </fieldset>
+    </div>
+  </section>
+
+  <!-- BOOKMARKS -->
+  <section class="panel" id="pnlBookmarks" hidden aria-labelledby="hBm">
+    <div class="panel-head"><h2 id="hBm" tabindex="-1">Bookmarks</h2>
+      <button class="iconbtn" type="button" data-close aria-label="Close Bookmarks panel"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="panel-body">
+      <p class="hint">A bookmark remembers the current view and which layers are switched on.</p>
+      <label class="field" for="bmName">Bookmark name</label>
+      <div class="row"><input type="text" id="bmName" maxlength="80" style="flex:1" placeholder="e.g. Study area">
+        <button class="btn primary" type="button" id="bmAdd">Add</button></div>
+      <ul class="list" id="bmList" style="margin-top:12px"></ul>
+    </div>
+  </section>
+
+  <div class="credit">Created by Jason Sawle</div>
+  <div id="dropHint" hidden>Drop a CSV, GeoJSON or saved map file</div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<dialog id="dlgConfirm" aria-labelledby="cfTitle" aria-describedby="cfMsg">
+  <div class="dlg-body"><h2 id="cfTitle"></h2><p id="cfMsg"></p></div>
+  <div class="dlg-foot"><button class="btn" type="button" id="cfCancel">Cancel</button><button class="btn primary" type="button" id="cfOk">OK</button></div>
+</dialog>
+
+<dialog id="dlgText" aria-labelledby="txTitle">
+  <form class="dlg-body" id="txForm"><h2 id="txTitle">Add text</h2>
+    <label class="field" for="txInput">Text to show on the map</label>
+    <input type="text" id="txInput" maxlength="80" required></form>
+  <div class="dlg-foot"><button class="btn" type="button" id="txCancel">Cancel</button><button class="btn primary" type="submit" form="txForm">Add</button></div>
+</dialog>
+
+<dialog id="dlgAbout" aria-labelledby="abTitle">
+  <div class="dlg-body">
+    <h2 id="abTitle">About Open Map Sketch</h2>
+    <p>A demonstration of what can be built <strong>without any Esri technology</strong>: no ArcGIS code, services, basemaps or accounts. It covers sketching, adding your own data and saving the map to a file on your device.</p>
+    <p>Nothing you draw or import is sent to a server. Map tiles come from the basemap provider you choose, which sees your IP address as any website does. The OpenStreetMap tile servers are run for light use, so a real deployment would need its own tile provider.</p>
+    <p><strong>Save</strong> writes a standard GeoJSON file (.geojson). Other GIS tools such as QGIS can open it; sketch styles and bookmarks are only understood by this app.</p>
+    <table class="ver" aria-label="Versions">
+      <thead><tr><th scope="col">Part</th><th scope="col">Version</th><th scope="col">Licence</th></tr></thead>
+      <tbody id="verRows"></tbody>
+    </table>
+  </div>
+  <div class="dlg-foot"><button class="btn primary" type="button" id="abClose">Close</button></div>
+</dialog>
+
+<input type="file" id="fileOpen" accept=".geojson,.json,application/geo+json,application/json" hidden>
+<input type="file" id="fileData" accept=".csv,.tsv,.txt,.geojson,.json,text/csv" hidden>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@geoman-io/leaflet-geoman-free@2.20.4/dist/leaflet-geoman.js" integrity="sha384-/394di3hXbPgMeiEK2waLpRTbD59HEJM2xBFqT/w5K2S+xdv4txKr7W/YG6x7Fbs" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" integrity="sha384-D/t0ZMqQW31H3az8ktEiNb39wyKnS82iFY52QPACM+IjKW3jDUhyIgh2PApRqJZs" crossorigin="anonymous"></script>
+<script>
+(function(){
+'use strict';
+
+/* ---------- Versions ---------- */
+const APP_VERSION = '1.0.0';
+const FORMAT_ID = 'open-map-sketch';
+const FORMAT_VERSION = 1;
+const DOC_KEY = 'openMapSketch';
+const VERSIONS = [
+  ['Open Map Sketch (app)', APP_VERSION, '—'],
+  ['Map file format', String(FORMAT_VERSION) + ' (GeoJSON)', 'RFC 7946'],
+  ['Leaflet', '1.9.4', 'BSD-2-Clause'],
+  ['Leaflet-Geoman (free)', '2.20.4', 'MIT'],
+  ['PapaParse', '5.4.1', 'MIT'],
+  ['Basemaps', 'OpenStreetMap, OpenTopoMap, Humanitarian OSM', 'ODbL / CC-BY-SA']
+];
+
+if (!window.L || !L.PM || !window.Papa) {
+  document.body.insertAdjacentHTML('afterbegin', '<p role="alert" style="padding:16px;background:#fde;margin:0">The map libraries did not load. Check your internet connection and reload the page.</p>');
+  return;
+}
+
+/* ---------- Limits ---------- */
+const MAX_ROWS = 1000;          // CSV rows per import
+const MAX_FEATURES = 5000;      // features per opened file or GeoJSON import
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+
+/* ---------- Helpers ---------- */
+const $ = s => document.querySelector(s);
+const el = (tag, attrs, ...kids) => {
+  const n = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') n.className = v;
+    else if (k === 'text') n.textContent = v;
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids) if (k != null) n.append(k);
+  return n;
+};
+const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => 'x' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const isHex = c => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c);
+const str = (v, max) => (typeof v === 'string' ? v : (v == null ? '' : String(v))).slice(0, max);
+const isDataImage = s => typeof s === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(s) && s.length < 3e6;
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const plural = (n, w) => `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`;
+
+let toastTimer;
+function announce(msg, isError) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'show' + (isError ? ' error' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, isError ? 6000 : 3500);
+}
+
+/* ---------- Palettes (Okabe–Ito, colour-blind safe) ---------- */
+const PALETTE = [
+  {hex:'#0072B2', name:'Blue'}, {hex:'#D55E00', name:'Vermilion'}, {hex:'#009E73', name:'Green'},
+  {hex:'#E69F00', name:'Orange'}, {hex:'#CC79A7', name:'Pink'}, {hex:'#56B4E9', name:'Sky blue'},
+  {hex:'#F0E442', name:'Yellow'}, {hex:'#000000', name:'Black'}
+];
+const CAT_COLORS = ['#0072B2','#D55E00','#009E73','#E69F00','#CC79A7','#56B4E9','#F0E442'];
+const OTHER_COLOR = '#9a9a9a';
+
+/* ---------- Basemaps (no Esri, no CARTO) ---------- */
+const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const BASEMAPS = {
+  osm:  { name:'OpenStreetMap', url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', opts:{maxZoom:19, attribution:OSM_ATTR} },
+  topo: { name:'Terrain (OpenTopoMap)', url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', opts:{maxZoom:17, subdomains:'abc', attribution:'Map data: ' + OSM_ATTR + ', SRTM | Style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'} },
+  hot:  { name:'Humanitarian (HOT)', url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', opts:{maxZoom:19, subdomains:'abc', attribution:OSM_ATTR + ', style by <a href="https://www.hotosm.org/">HOT</a>, hosted by <a href="https://openstreetmap.fr/">OSM France</a>'} }
+};
+
+/* ---------- Map ---------- */
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const map = L.map('map', {
+  attributionControl:false, zoomControl:false, worldCopyJump:true, keyboardPanDelta:120,
+  zoomAnimation:!reduceMotion, fadeAnimation:!reduceMotion, markerZoomAnimation:!reduceMotion
+}).setView([20, 0], 2);
+L.control.zoom({position:'topright'}).addTo(map);
+L.control.attribution({position:'bottomleft', prefix:'<a href="https://leafletjs.com">Leaflet</a>'}).addTo(map);
+L.control.scale({position:'bottomleft'}).addTo(map);
+map.createPane('dataPane').style.zIndex = 390;   // data under sketches
+
+let basemapKey = 'osm';
+let basemapLayer = null;
+function setBasemap(key) {
+  if (!BASEMAPS[key]) key = 'osm';
+  if (basemapLayer) map.removeLayer(basemapLayer);
+  const b = BASEMAPS[key];
+  basemapLayer = L.tileLayer(b.url, b.opts).addTo(map);
+  basemapKey = key;
+  const r = document.querySelector(`input[name=basemap][value="${key}"]`);
+  if (r) r.checked = true;
+}
+setBasemap('osm');
+
+/* ---------- State ---------- */
+const sketchGroup = L.featureGroup().addTo(map);
+let sketchVisible = true;
+let dataLayers = [];      // {id,title,visible,style,fields,features,layer,scale}
+let bookmarks = [];       // {title, center:[lat,lng], zoom, layers:{id:bool}}
+let dirty = false;
+let fileHandle = null;
+let fileName = null;
+
+function markDirty() {
+  dirty = true;
+  $('#unsaved').hidden = false;
+  document.title = '• ' + getTitle() + ' – Open Map Sketch';
+}
+function markClean() {
+  dirty = false;
+  $('#unsaved').hidden = true;
+  document.title = getTitle() + ' – Open Map Sketch';
+}
+function getTitle() { return ($('#mapTitle').value || '').trim() || 'Untitled map'; }
+$('#mapTitle').addEventListener('input', markDirty);
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------- Panels ---------- */
+function openPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== id; });
+  document.querySelectorAll('.railbtn').forEach(b => b.setAttribute('aria-expanded', String(b.dataset.panel === id)));
+  const p = document.getElementById(id);
+  if (p) { const h = p.querySelector('h2'); if (h) h.focus(); }
+  if (id !== 'pnlSketch') { setTool(null); deselect(); }
+  if (id === 'pnlLayers') renderLayers();
+  if (id === 'pnlBookmarks') renderBookmarks();
+}
+function closePanels() {
+  const wasOpen = document.querySelector('.panel:not([hidden])');
+  if (wasOpen && wasOpen.id === 'pnlData' && imp) cancelImport();
+  document.querySelectorAll('.panel').forEach(p => { p.hidden = true; });
+  document.querySelectorAll('.railbtn').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  setTool(null); deselect();
+  if (wasOpen) { const b = document.querySelector(`.railbtn[data-panel="${wasOpen.id}"]`); if (b) b.focus(); }
+}
+const isOpen = id => !document.getElementById(id).hidden;
+document.querySelectorAll('.railbtn').forEach(b => b.addEventListener('click', () => {
+  if (b.getAttribute('aria-expanded') === 'true') closePanels();
+  else {
+    const cur = document.querySelector('.panel:not([hidden])');
+    if (cur && cur.id === 'pnlData' && imp) cancelImport();
+    openPanel(b.dataset.panel);
+  }
+}));
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closePanels));
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+  if (activeTool) { setTool(null); return; }
+  if (document.querySelector('.panel:not([hidden])')) closePanels();
+});
+
+/* ---------- Dialogs ---------- */
+function confirmDlg(title, msg, okText) {
+  return new Promise(resolve => {
+    const d = $('#dlgConfirm');
+    $('#cfTitle').textContent = title; $('#cfMsg').textContent = msg; $('#cfOk').textContent = okText || 'OK';
+    let done = false;
+    const finish = v => { if (done) return; done = true; d.close(); off(); resolve(v); };
+    const ok = () => finish(true), no = () => finish(false), esc = e => { e.preventDefault(); finish(false); };
+    const off = () => { $('#cfOk').removeEventListener('click', ok); $('#cfCancel').removeEventListener('click', no); d.removeEventListener('cancel', esc); };
+    $('#cfOk').addEventListener('click', ok); $('#cfCancel').addEventListener('click', no); d.addEventListener('cancel', esc);
+    d.showModal(); $('#cfCancel').focus();
+  });
+}
+function textDlg(initial) {
+  return new Promise(resolve => {
+    const d = $('#dlgText'), inp = $('#txInput'), form = $('#txForm');
+    inp.value = initial || '';
+    let done = false;
+    const finish = v => { if (done) return; done = true; d.close(); off(); resolve(v); };
+    const sub = e => { e.preventDefault(); const v = inp.value.trim(); if (v) finish(v); };
+    const no = () => finish(null), esc = e => { e.preventDefault(); finish(null); };
+    const off = () => { form.removeEventListener('submit', sub); $('#txCancel').removeEventListener('click', no); d.removeEventListener('cancel', esc); };
+    form.addEventListener('submit', sub); $('#txCancel').addEventListener('click', no); d.addEventListener('cancel', esc);
+    d.showModal(); inp.focus();
+  });
+}
+$('#btnAbout').addEventListener('click', () => {
+  const tb = $('#verRows'); tb.textContent = '';
+  VERSIONS.forEach(r => tb.append(el('tr', null, el('td', {text:r[0]}), el('td', {text:r[1]}), el('td', {text:r[2]}))));
+  $('#dlgAbout').showModal(); $('#abClose').focus();
+});
+$('#abClose').addEventListener('click', () => $('#dlgAbout').close());
+
+/* ---------- Swatches ---------- */
+function buildSwatches(container, name, initial, onChange) {
+  container.textContent = '';
+  PALETTE.forEach(p => {
+    const inp = el('input', {type:'radio', name, value:p.hex, 'aria-label':p.name});
+    if (p.hex === initial) inp.checked = true;
+    inp.addEventListener('change', () => onChange(p.hex));
+    container.append(el('label', {class:'swatch', title:p.name}, inp, el('span', {style:`background:${p.hex}`})));
+  });
+}
+function setSwatch(name, hex) {
+  const r = document.querySelector(`input[name="${name}"][value="${hex}"]`);
+  document.querySelectorAll(`input[name="${name}"]`).forEach(i => { i.checked = false; });
+  if (r) r.checked = true;
+}
+
+/* =====================================================================
+   SKETCH
+   ===================================================================== */
+const KIND_NAMES = {point:'Point', line:'Line', area:'Area', text:'Text'};
+let curColor = PALETTE[0].hex;
+let curSize = 4;
+let activeTool = null;
+let selected = null;
+
+buildSwatches($('#sketchSwatches'), 'sketchColor', curColor, hex => {
+  curColor = hex;
+  if (selected && !activeTool) { selected._meta.style.color = hex; applySketchStyle(selected); markDirty(); }
+  refreshDrawStyle();
+});
+$('#sketchSize').addEventListener('input', e => {
+  curSize = +e.target.value; $('#sizeVal').textContent = curSize;
+  if (selected && !activeTool) { selected._meta.style.size = curSize; applySketchStyle(selected); markDirty(); }
+  refreshDrawStyle();
+});
+
+map.pm.setGlobalOptions({ layerGroup: sketchGroup, snappable: true, snapDistance: 15, finishOnEnter: true });
+
+function pathFor(kind, style, sel) {
+  const c = style.color, s = style.size;
+  if (kind === 'point') return {radius: 3 + s * 1.4, color: sel ? '#000' : '#1f1f1f', weight: sel ? 3 : 1.5, dashArray: sel ? '4 3' : null, fillColor: c, fillOpacity: .9};
+  if (kind === 'line')  return {color: c, weight: s + 1, opacity: .95, dashArray: sel ? '8 6' : null};
+  return {color: c, weight: Math.max(1.5, s / 2 + 1), fillColor: c, fillOpacity: .25, dashArray: sel ? '8 6' : null};
+}
+function textIcon(meta, sel) {
+  const px = 10 + meta.style.size * 1.6;
+  return L.divIcon({className: 'sketch-text' + (sel ? ' sel' : ''), iconSize: null,
+    html: `<span style="color:${meta.style.color};font-size:${px}px">${escapeHtml(meta.text || '')}</span>`});
+}
+function applySketchStyle(layer) {
+  const m = layer._meta, sel = layer === selected;
+  if (m.kind === 'text') layer.setIcon(textIcon(m, sel));
+  else {
+    layer.setStyle(pathFor(m.kind, m.style, sel));
+    if (m.kind === 'point' && layer.setRadius) layer.setRadius(pathFor('point', m.style).radius);
+  }
+}
+function initSketchLayer(layer, meta) {
+  layer._meta = meta;
+  applySketchStyle(layer);
+  layer.on('click', onSketchClick);
+  layer.on('pm:edit pm:dragend', markDirty);
+  if (!sketchGroup.hasLayer(layer)) sketchGroup.addLayer(layer);
+}
+function onSketchClick(e) {
+  if (activeTool) return;            // let the active tool handle it
+  L.DomEvent.stop(e);
+  if (isOpen('pnlSketch')) { select(e.target); return; }
+  showSketchPopup(e.target, e.latlng);
+}
+function showSketchPopup(layer, latlng) {
+  const m = layer._meta;
+  const box = el('div', {class:'pop'});
+  box.append(el('h4', {text: m.title || (m.kind === 'text' ? m.text : 'Untitled ' + KIND_NAMES[m.kind].toLowerCase())}));
+  if (m.description) box.append(el('p', {text: m.description}));
+  if (m.image) box.append(el('img', {src: m.image, alt: m.imageAlt || ''}));
+  if (!m.title && !m.description && !m.image) box.append(el('p', {class:'off', text:'Open Sketch and click this to add a title, description or picture.'}));
+  L.popup({maxWidth: 300}).setLatLng(latlng || centreOf(layer)).setContent(box).openOn(map);
+}
+function centreOf(layer) { return layer.getLatLng ? layer.getLatLng() : layer.getBounds().getCenter(); }
+
+map.on('pm:create', e => {
+  const layer = e.layer;
+  if (!sketchGroup.hasLayer(layer)) { map.removeLayer(layer); sketchGroup.addLayer(layer); }
+  const kind = {CircleMarker:'point', Line:'line', Polygon:'area', Rectangle:'area'}[e.shape] || 'area';
+  initSketchLayer(layer, {uid: uid(), kind, style: {color: curColor, size: curSize}, title:'', description:''});
+  markDirty();
+  select(layer, true);
+  announce(KIND_NAMES[kind] + ' added');
+});
+map.on('pm:drawend', () => {
+  if (['line','area','rect'].includes(activeTool)) { activeTool = null; updateToolUI(); }
+});
+map.on('pm:remove', e => {
+  if (sketchGroup.hasLayer(e.layer)) sketchGroup.removeLayer(e.layer);
+  if (selected === e.layer) deselect();
+  markDirty(); announce('Sketch erased');
+});
+map.on('click', async e => {
+  if (activeTool !== 'text') return;
+  const ll = e.latlng;
+  setTool(null);
+  const t = await textDlg('');
+  if (t) addText(ll, t);
+});
+
+function addText(latlng, text) {
+  const mk = L.marker(latlng, {keyboard: false});
+  initSketchLayer(mk, {uid: uid(), kind:'text', text, style:{color: curColor, size: curSize}, title:'', description:''});
+  markDirty(); select(mk, true); announce('Text added');
+}
+
+const HINTS = {
+  point: 'Click the map to add points. Press Escape or click Point again to stop.',
+  line: 'Click to add each corner of the line. Double-click, click the last point or press Enter to finish.',
+  area: 'Click to add each corner. Click the first point, double-click or press Enter to finish.',
+  rect: 'Click one corner, then click the opposite corner.',
+  text: 'Click the map where the text should go.',
+  edit: 'Drag the corner handles to reshape lines and areas. Drag points and text to move them.',
+  move: 'Drag a sketch to move it.',
+  delete: 'Click a sketch to erase it.'
+};
+const DEFAULT_HINT = 'Choose a tool, then click the map. Click a sketch to edit its details.';
+
+function setTool(tool, keepSelection) {
+  map.pm.disableDraw();
+  if (map.pm.globalEditModeEnabled()) map.pm.disableGlobalEditMode();
+  if (map.pm.globalDragModeEnabled()) map.pm.disableGlobalDragMode();
+  if (map.pm.globalRemovalModeEnabled()) map.pm.disableGlobalRemovalMode();
+  map.doubleClickZoom.enable();
+  activeTool = tool || null;
+  if (activeTool && !sketchVisible) { sketchVisible = true; map.addLayer(sketchGroup); }
+  const p = pathFor(activeTool === 'point' ? 'point' : (activeTool === 'line' ? 'line' : 'area'), {color: curColor, size: curSize});
+  const temp = {color: curColor, weight: 2};
+  const hint = {color: curColor, dashArray: '5,5', weight: 2};
+  switch (activeTool) {
+    case 'point': map.pm.enableDraw('CircleMarker', {pathOptions: p, continueDrawing: true}); break;
+    case 'line':  map.doubleClickZoom.disable(); map.pm.enableDraw('Line', {pathOptions: p, templineStyle: temp, hintlineStyle: hint, finishOn: 'dblclick'}); break;
+    case 'area':  map.doubleClickZoom.disable(); map.pm.enableDraw('Polygon', {pathOptions: p, templineStyle: temp, hintlineStyle: hint, finishOn: 'dblclick'}); break;
+    case 'rect':  map.pm.enableDraw('Rectangle', {pathOptions: p, templineStyle: temp}); break;
+    case 'edit':  map.pm.enableGlobalEditMode({allowSelfIntersection: true}); break;
+    case 'move':  map.pm.enableGlobalDragMode(); break;
+    case 'delete': map.pm.enableGlobalRemovalMode(); break;
+  }
+  if (activeTool && activeTool !== 'text' && !keepSelection) deselect();
+  updateToolUI();
+}
+function updateToolUI() {
+  document.querySelectorAll('.tool').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === activeTool)));
+  $('#sketchHint').textContent = HINTS[activeTool] || DEFAULT_HINT;
+  $('#finishRow').hidden = !['line','area'].includes(activeTool);
+  $('#map').classList.toggle('crosshair', ['point','text'].includes(activeTool));
+  updateStyleLegend();
+}
+function updateStyleLegend() {
+  $('#styleLegend').textContent = (selected && !activeTool) ? 'Colour and size of the selected sketch' : 'Colour and size for new sketches';
+}
+function refreshDrawStyle() {
+  if (['point','line','area','rect'].includes(activeTool)) { const t = activeTool; setTool(t, true); }
+}
+document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => {
+  setTool(activeTool === b.dataset.tool ? null : b.dataset.tool);
+}));
+$('#btnStopTool').addEventListener('click', () => setTool(null));
+$('#btnFinish').addEventListener('click', () => {
+  let ok = false;
+  try { ok = map.pm.finishDraw(); } catch (err) { console.warn(err); }
+  if (!ok) announce(activeTool === 'line' ? 'Add at least two points first.' : 'Add at least three corners first.', true);
+});
+$('#btnPointCentre').addEventListener('click', () => {
+  setTool(null);
+  const cm = L.circleMarker(map.getCenter());
+  initSketchLayer(cm, {uid: uid(), kind:'point', style:{color: curColor, size: curSize}, title:'', description:''});
+  markDirty(); select(cm, true); announce('Point added at the map centre');
+});
+$('#btnTextCentre').addEventListener('click', async () => {
+  setTool(null);
+  const c = map.getCenter();
+  const t = await textDlg('');
+  if (t) addText(c, t);
+});
+
+/* Selection */
+function select(layer, fromCreate) {
+  if (selected && selected !== layer) { const prev = selected; selected = null; applySketchStyle(prev); }
+  selected = layer;
+  applySketchStyle(layer);
+  const m = layer._meta;
+  $('#selBox').hidden = false;
+  $('#selHead').textContent = 'Selected: ' + KIND_NAMES[m.kind];
+  $('#selTextWrap').hidden = m.kind !== 'text';
+  $('#selText').value = m.text || '';
+  $('#selTitle').value = m.title || '';
+  $('#selDesc').value = m.description || '';
+  $('#selImage').value = '';
+  $('#selImgWrap').hidden = !m.image;
+  $('#selImgPrev').src = m.image || '';
+  $('#selAlt').value = m.imageAlt || '';
+  curColor = m.style.color; curSize = m.style.size;
+  setSwatch('sketchColor', curColor);
+  $('#sketchSize').value = curSize; $('#sizeVal').textContent = curSize;
+  updateStyleLegend();
+  if (!fromCreate) $('#selTitle').focus({preventScroll: true});
+}
+function deselect() {
+  if (!selected) return;
+  const prev = selected; selected = null;
+  if (prev._meta) applySketchStyle(prev);
+  $('#selBox').hidden = true;
+  updateStyleLegend();
+}
+$('#selText').addEventListener('input', e => { if (!selected) return; selected._meta.text = e.target.value.slice(0, 80) || ' '; applySketchStyle(selected); markDirty(); });
+$('#selTitle').addEventListener('input', e => { if (selected) { selected._meta.title = e.target.value; markDirty(); } });
+$('#selDesc').addEventListener('input', e => { if (selected) { selected._meta.description = e.target.value; markDirty(); } });
+$('#selAlt').addEventListener('input', e => { if (selected) { selected._meta.imageAlt = e.target.value; markDirty(); } });
+$('#selImage').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f || !selected) return;
+  try {
+    const url = await readImage(f);
+    selected._meta.image = url;
+    $('#selImgPrev').src = url; $('#selImgWrap').hidden = false;
+    markDirty(); announce('Picture added');
+  } catch (err) { announce(err.message, true); }
+});
+$('#selImgRemove').addEventListener('click', () => {
+  if (!selected) return;
+  delete selected._meta.image; delete selected._meta.imageAlt;
+  $('#selImgWrap').hidden = true; $('#selImage').value = '';
+  markDirty();
+});
+$('#selDelete').addEventListener('click', () => {
+  if (!selected) return;
+  const l = selected; deselect(); sketchGroup.removeLayer(l);
+  markDirty(); announce('Sketch deleted');
+});
+$('#selDone').addEventListener('click', deselect);
+
+function readImage(file) {
+  return new Promise((resolve, reject) => {
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) return reject(new Error('Please use a PNG, JPEG, WebP or GIF picture.'));
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 640 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That picture could not be read.')); };
+    img.src = url;
+  });
+}
+
+/* =====================================================================
+   PARSING: numbers and coordinates
+   ===================================================================== */
+function parseNum(v, commaDecimal) {
+  if (typeof v === 'number') return isFinite(v) ? v : NaN;
+  let s = String(v == null ? '' : v).trim();
+  if (!s) return NaN;
+  if (commaDecimal) { if (/^[-+]?\d+,\d+$/.test(s)) s = s.replace(',', '.'); }
+  else if (/^[-+]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, '');
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s)) return NaN;
+  return parseFloat(s);
+}
+function normSym(s) {
+  return String(s).toUpperCase()
+    .replace(/[º˚]/g, '°').replace(/[′’‘´`]/g, "'").replace(/[″”“]/g, '"').replace(/''/g, '"')
+    .replace(/\s+/g, ' ').trim();
+}
+// One axis value: decimal, or degrees/minutes/seconds with optional hemisphere letter.
+function parseAxis(v, commaDecimal) {
+  const n = parseNum(v, commaDecimal);
+  if (!isNaN(n)) return {value: n, hem: null};
+  let s = normSym(v == null ? '' : v);
+  if (!s) return null;
+  let sign = 1, hem = null;
+  const hm = s.match(/[NSEW]/g);
+  if (hm) { if (hm.length > 1) return null; hem = hm[0]; if (hem === 'S' || hem === 'W') sign = -1; }
+  s = s.replace(/[NSEW]/g, ' ').trim();
+  if (s.startsWith('-')) { sign *= -1; s = s.slice(1); } else if (s.startsWith('+')) s = s.slice(1);
+  if (commaDecimal) s = s.replace(/(\d),(\d)/g, '$1.$2');
+  if (/[^0-9.°'"\s]/.test(s)) return null;
+  const parts = s.match(/\d+(?:\.\d+)?/g);
+  if (!parts || parts.length > 3) return null;
+  const [d, m = 0, sec = 0] = parts.map(Number);
+  if (m >= 60 || sec >= 60) return null;
+  return {value: sign * (d + m / 60 + sec / 3600), hem};
+}
+// A pair in one cell. Returns {a, b, ha, hb} (raw order) or null.
+function splitPair(v, commaDecimal) {
+  let s = normSym(v == null ? '' : v);
+  if (!s) return null;
+  s = s.replace(/^[[(]\s*/, '').replace(/\s*[\])]$/, '');
+  const wkt = s.match(/^POINT\s*\(\s*([-+]?[\d.]+)\s+([-+]?[\d.]+)\s*\)$/);
+  if (wkt) return {a: +wkt[2], b: +wkt[1], ha: 'N', hb: 'E', wkt: true};   // WKT is lon lat
+  let p1, p2;
+  const letters = [];
+  for (let i = 0; i < s.length; i++) if ('NSEW'.includes(s[i])) letters.push(i);
+  if (letters.length === 2) {
+    if (letters[0] === 0) { p1 = s.slice(0, letters[1]); p2 = s.slice(letters[1]); }
+    else { p1 = s.slice(0, letters[0] + 1); p2 = s.slice(letters[0] + 1); }
+  } else if (letters.length === 0) {
+    const degs = [...s.matchAll(/[-+]?\d+(?:[.,]\d+)?\s*°/g)];
+    if (degs.length === 2) { p1 = s.slice(0, degs[1].index); p2 = s.slice(degs[1].index); }
+    else {
+      const parts = commaDecimal ? s.split(/\s*[;/|]\s*|\s+/) : s.split(/\s*[,;/|]\s*|\s+/);
+      const nums = parts.filter(x => x !== '');
+      if (nums.length !== 2) return null;
+      [p1, p2] = nums;
+    }
+  } else return null;
+  p1 = p1.replace(/^[\s,;/|]+|[\s,;/|]+$/g, ''); p2 = p2.replace(/^[\s,;/|]+|[\s,;/|]+$/g, '');
+  const A = parseAxis(p1, commaDecimal), B = parseAxis(p2, commaDecimal);
+  if (!A || !B) return null;
+  return {a: A.value, b: B.value, ha: A.hem, hb: B.hem};
+}
+function pairToLatLon(p, order) {
+  if (!p) return null;
+  let lat, lon;
+  if (p.ha && p.hb) {
+    if ('NS'.includes(p.ha) && 'EW'.includes(p.hb)) { lat = p.a; lon = p.b; }
+    else if ('EW'.includes(p.ha) && 'NS'.includes(p.hb)) { lat = p.b; lon = p.a; }
+    else return null;
+  } else if (order === 'lonlat') { lat = p.b; lon = p.a; }
+  else { lat = p.a; lon = p.b; }
+  return validLL(lat, lon) ? [lat, lon] : null;
+}
+const validLL = (lat, lon) => isFinite(lat) && isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+const normName = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+const LAT_NAMES = ['lat','latitude','y','latdd','latitudedd','decimallatitude','declat','gpslatitude','ycoord','ycoordinate','latdeg','breite'];
+const LON_NAMES = ['lon','lng','long','longitude','x','londd','longitudedd','decimallongitude','declon','gpslongitude','xcoord','xcoordinate','londeg','lange','laenge'];
+const PAIR_NAMES = ['coordinates','coordinate','coords','coord','latlong','latlon','latlng','lonlat','location','position','gps','point','geometry','wkt','latitudelongitude'];
+
+/* =====================================================================
+   ADD DATA
+   ===================================================================== */
+let imp = null;   // import / restyle session
+
+$('#btnChooseData').addEventListener('click', () => $('#fileData').click());
+$('#fileData').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleDataFile(f); });
+
+async function handleDataFile(file) {
+  if (file.size > MAX_FILE_BYTES) return announce('That file is too large (limit 20 MB).', true);
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  let text;
+  try { text = await file.text(); } catch { return announce('That file could not be read.', true); }
+  if (ext === 'geojson' || ext === 'json' || /^\s*\{/.test(text.slice(0, 200))) {
+    let obj;
+    try { obj = JSON.parse(text); } catch { return announce('That file is not valid JSON.', true); }
+    if (obj && obj[DOC_KEY]) return openMapFromObject(obj, null, file.name, false);
+    return startImportGeoJSON(obj, file.name);
+  }
+  return startImportCSV(text, file.name);
+}
+
+function inferFields(features) {
+  const names = [];
+  const seen = new Set();
+  features.slice(0, 500).forEach(f => Object.keys(f.properties || {}).forEach(k => { if (!seen.has(k)) { seen.add(k); names.push(k); } }));
+  return names.slice(0, 100).map(name => {
+    let n = 0, num = 0;
+    const uniq = new Set();
+    for (const f of features) {
+      const v = f.properties[name];
+      if (v == null || v === '') continue;
+      n++; if (typeof v === 'number') num++;
+      if (uniq.size < 50) uniq.add(String(v));
+    }
+    return {name, type: (n > 0 && num === n) ? 'number' : 'text', unique: uniq.size};
+  });
+}
+
+function startImportCSV(text, name) {
+  const res = Papa.parse(text.replace(/^﻿/, ''), {header: true, skipEmptyLines: 'greedy', transformHeader: h => String(h).trim()});
+  const fields = (res.meta.fields || []).filter(f => f !== '');
+  if (!fields.length || !res.data.length) return announce('No rows were found in that file. Check the first row has column names.', true);
+  const commaDecimal = res.meta.delimiter !== ',';
+  const total = res.data.length;
+  const rows = res.data.slice(0, MAX_ROWS);
+  // Detect location columns
+  const norm = fields.map(normName);
+  let lat = fields[norm.findIndex(n => LAT_NAMES.includes(n))];
+  let lon = fields[norm.findIndex(n => LON_NAMES.includes(n))];
+  if (!lat) lat = fields[norm.findIndex(n => n.startsWith('lat'))];
+  if (!lon) lon = fields[norm.findIndex(n => n.startsWith('lon') || n.startsWith('lng'))];
+  let pair = fields[norm.findIndex(n => PAIR_NAMES.includes(n))];
+  const sample = rows.slice(0, 50);
+  const pairScore = f => sample.filter(r => splitPair(r[f], commaDecimal)).length / Math.max(1, sample.filter(r => String(r[f] || '').trim()).length);
+  if (!pair) pair = fields.find(f => pairScore(f) >= 0.8 && sample.some(r => String(r[f] || '').trim()));
+  const twoOk = lat && lon && lat !== lon;
+  let mode = twoOk ? 'two' : (pair ? 'one' : 'two');
+  if (twoOk && pair && rowsToFeatures(rows, {mode:'two', lat, lon}, commaDecimal).features.length === 0) mode = 'one';
+  imp = {
+    kind: 'new', source: 'csv', name, rows, total, fields, commaDecimal,
+    loc: {mode, lat: lat || fields[0], lon: lon || fields[Math.min(1, fields.length - 1)], pair: pair || fields[0], order: guessOrder(rows, pair, commaDecimal)},
+    def: {id: uid(), title: name.replace(/\.[^.]+$/, ''), visible: true, style: {mode: 'single', color: '#D55E00', field: null, labelField: null}, fields: [], features: []},
+    preview: null, fitted: false
+  };
+  showImportForm(true);
+}
+function guessOrder(rows, field, commaDecimal) {
+  if (!field) return 'latlon';
+  for (const r of rows.slice(0, 200)) {
+    const p = splitPair(r[field], commaDecimal);
+    if (!p || p.ha || p.hb) continue;
+    if (p.wkt) return 'latlon';
+    if (Math.abs(p.a) > 90 && Math.abs(p.b) <= 90) return 'lonlat';
+    if (Math.abs(p.b) > 90 && Math.abs(p.a) <= 90) return 'latlon';
+  }
+  return 'latlon';
+}
+function rowsToFeatures(rows, loc, commaDecimal) {
+  const features = []; let skipped = 0;
+  for (const r of rows) {
+    let ll = null;
+    if (loc.mode === 'two') {
+      const a = parseAxis(r[loc.lat], commaDecimal), b = parseAxis(r[loc.lon], commaDecimal);
+      if (a && b && validLL(a.value, b.value)) ll = [a.value, b.value];
+    } else ll = pairToLatLon(splitPair(r[loc.pair], commaDecimal), loc.order);
+    if (!ll) { skipped++; continue; }
+    const props = {};
+    for (const [k, v] of Object.entries(r)) {
+      if (k === '' || k === '__parsed_extra') continue;
+      const key = k === '_layer' ? 'layer (original)' : k.slice(0, 80);
+      const n = parseNum(v, commaDecimal);
+      props[key] = (v === '' || v == null) ? null : (!isNaN(n) && !/^0\d/.test(String(v).trim()) ? n : str(v, 1000));
+    }
+    features.push({type:'Feature', geometry:{type:'Point', coordinates:[+ll[1].toFixed(6), +ll[0].toFixed(6)]}, properties: props});
+  }
+  return {features, skipped};
+}
+
+function startImportGeoJSON(obj, name) {
+  let feats = [];
+  if (obj && obj.type === 'FeatureCollection' && Array.isArray(obj.features)) feats = obj.features;
+  else if (obj && obj.type === 'Feature') feats = [obj];
+  else if (obj && typeof obj.type === 'string' && obj.coordinates) feats = [{type:'Feature', geometry: obj, properties: {}}];
+  else return announce('That does not look like GeoJSON.', true);
+  const total = feats.length;
+  const OK = ['Point','MultiPoint','LineString','MultiLineString','Polygon','MultiPolygon'];
+  const features = [];
+  for (const f of feats) {
+    if (features.length >= MAX_FEATURES) break;
+    if (!f || !f.geometry || !OK.includes(f.geometry.type) || !Array.isArray(f.geometry.coordinates)) continue;
+    const props = {};
+    Object.entries(f.properties || {}).slice(0, 100).forEach(([k, v]) => {
+      const key = k === '_layer' ? 'layer (original)' : String(k).slice(0, 80);
+      props[key] = (typeof v === 'number' && isFinite(v)) ? v : (v == null ? null : (typeof v === 'object' ? str(JSON.stringify(v), 1000) : str(v, 1000)));
+    });
+    features.push({type:'Feature', geometry: f.geometry, properties: props});
+  }
+  if (!features.length) return announce('No usable features were found in that GeoJSON file.', true);
+  imp = {
+    kind: 'new', source: 'geojson', name, total,
+    def: {id: uid(), title: name.replace(/\.[^.]+$/, ''), visible: true, style: {mode:'single', color:'#D55E00', field:null, labelField:null}, fields: inferFields(features), features},
+    skipped: total - features.length, preview: null, fitted: false
+  };
+  showImportForm(true);
+}
+
+function restyleLayer(id) {
+  const d = dataLayers.find(x => x.id === id);
+  if (!d) return;
+  if (imp) cancelImport();
+  imp = {kind: 'restyle', def: d, original: JSON.parse(JSON.stringify(d.style)), originalTitle: d.title, preview: d.layer, fitted: true};
+  openPanel('pnlData');
+  showImportForm(false);
+}
+
+function showImportForm(isNew) {
+  if (!isOpen('pnlData')) openPanel('pnlData');
+  $('#impStart').hidden = true; $('#impForm').hidden = false; $('#impFoot').hidden = false;
+  $('#locSet').hidden = !(imp.kind === 'new' && imp.source === 'csv');
+  $('#impOk').textContent = imp.kind === 'restyle' ? 'Done' : 'Add to map';
+  $('#impTitle').value = imp.def.title;
+  if (imp.source === 'csv' && imp.kind === 'new') {
+    const opts = sel => { sel.textContent = ''; imp.fields.forEach(f => sel.append(el('option', {value: f, text: f}))); };
+    opts($('#selLat')); opts($('#selLon')); opts($('#selPair'));
+    $('#selLat').value = imp.loc.lat; $('#selLon').value = imp.loc.lon; $('#selPair').value = imp.loc.pair;
+    $('#selOrder').value = imp.loc.order;
+    document.querySelector(`input[name=locMode][value="${imp.loc.mode}"]`).checked = true;
+    $('#locTwo').hidden = imp.loc.mode !== 'two'; $('#locOne').hidden = imp.loc.mode !== 'one';
+  }
+  buildSwatches($('#impSwatches'), 'impColor', imp.def.style.color, hex => { imp.def.style.color = hex; rebuildPreview(); });
+  $('#impMode').value = imp.def.style.mode;
+  if (imp.kind === 'new' && imp.source === 'csv') recomputeFeatures();
+  refreshStyleFields();
+  rebuildPreview();
+  if (isNew) $('#impTitle').focus();
+}
+
+function recomputeFeatures() {
+  const r = rowsToFeatures(imp.rows, imp.loc, imp.commaDecimal);
+  imp.def.features = r.features;
+  imp.skipped = r.skipped;
+  const exclude = imp.loc.mode === 'two' ? [imp.loc.lat, imp.loc.lon] : [imp.loc.pair];
+  imp.def.fields = inferFields(r.features).filter(f => !exclude.includes(f.name));
+}
+function refreshStyleFields() {
+  const st = imp.def.style, fields = imp.def.fields;
+  const numeric = fields.filter(f => f.type === 'number');
+  $('#impMode').querySelector('option[value=number]').disabled = numeric.length === 0;
+  if (st.mode === 'number' && !numeric.length) st.mode = 'single';
+  $('#impMode').value = st.mode;
+  const list = st.mode === 'number' ? numeric : fields;
+  const fs = $('#impField'); fs.textContent = '';
+  list.forEach(f => fs.append(el('option', {value: f.name, text: f.name + (f.type === 'number' ? ' (number)' : '')})));
+  if (st.mode !== 'single') {
+    if (!list.find(f => f.name === st.field)) {
+      const pick = st.mode === 'category' ? (fields.find(f => f.type === 'text' && f.unique <= 8 && f.unique > 1) || fields[0]) : numeric[0];
+      st.field = pick ? pick.name : null;
+    }
+    fs.value = st.field || '';
+  }
+  $('#impFieldWrap').hidden = st.mode === 'single';
+  $('#impColorWrap').hidden = st.mode === 'category';
+  const ls = $('#impLabel'); ls.textContent = '';
+  ls.append(el('option', {value: '', text: 'No labels'}));
+  fields.forEach(f => ls.append(el('option', {value: f.name, text: f.name})));
+  ls.value = st.labelField || '';
+  updateImportSummary();
+}
+function updateImportSummary() {
+  const d = imp.def;
+  const n = d.features.length;
+  const numC = d.fields.filter(f => f.type === 'number').length, txtC = d.fields.length - numC;
+  let s;
+  if (imp.kind === 'restyle') s = `Changing the style of “${d.title}” (${plural(n, 'feature')}).`;
+  else {
+    s = `Found ${plural(n, imp.source === 'csv' ? 'point' : 'feature')} · columns: ${numC} number, ${txtC} text.`;
+    if (imp.skipped) s += ` ${plural(imp.skipped, 'row')} skipped (no usable location).`;
+    if (imp.source === 'csv' && imp.total > MAX_ROWS) s += ` Only the first ${MAX_ROWS.toLocaleString()} of ${imp.total.toLocaleString()} rows were used.`;
+    if (imp.source === 'geojson' && imp.total > MAX_FEATURES) s += ` Only the first ${MAX_FEATURES.toLocaleString()} features were used.`;
+    if (!n) s = 'No rows had a usable location. Check the location columns below.';
+  }
+  $('#impSummary').textContent = s;
+  $('#impOk').disabled = n === 0;
+}
+
+const rebuildPreview = debounce(() => {
+  if (!imp) return;
+  const d = imp.def;
+  if (imp.preview) map.removeLayer(imp.preview);
+  const built = buildDataLayer(d);
+  d.scale = built.scale;
+  imp.preview = built.layer;
+  if (imp.kind === 'restyle') { d.layer = built.layer; if (d.visible) map.addLayer(built.layer); }
+  else map.addLayer(built.layer);
+  if (!imp.fitted && d.features.length) {
+    try { map.fitBounds(built.layer.getBounds(), {padding: [40, 40], maxZoom: 15}); imp.fitted = true; } catch {}
+  }
+}, 120);
+
+document.querySelectorAll('input[name=locMode]').forEach(r => r.addEventListener('change', () => {
+  imp.loc.mode = r.value; $('#locTwo').hidden = r.value !== 'two'; $('#locOne').hidden = r.value !== 'one';
+  imp.fitted = false; recomputeFeatures(); refreshStyleFields(); rebuildPreview();
+}));
+['selLat','selLon','selPair'].forEach(id => $('#' + id).addEventListener('change', e => {
+  imp.loc[{selLat:'lat', selLon:'lon', selPair:'pair'}[id]] = e.target.value;
+  if (id === 'selPair') { imp.loc.order = guessOrder(imp.rows, e.target.value, imp.commaDecimal); $('#selOrder').value = imp.loc.order; }
+  imp.fitted = false; recomputeFeatures(); refreshStyleFields(); rebuildPreview();
+}));
+$('#selOrder').addEventListener('change', e => { imp.loc.order = e.target.value; imp.fitted = false; recomputeFeatures(); refreshStyleFields(); rebuildPreview(); });
+$('#impTitle').addEventListener('input', e => { if (imp) imp.def.title = e.target.value.slice(0, 120); });
+$('#impMode').addEventListener('change', e => { imp.def.style.mode = e.target.value; refreshStyleFields(); rebuildPreview(); });
+$('#impField').addEventListener('change', e => { imp.def.style.field = e.target.value; rebuildPreview(); });
+$('#impLabel').addEventListener('change', e => { imp.def.style.labelField = e.target.value || null; rebuildPreview(); });
+$('#impCancel').addEventListener('click', () => { cancelImport(); });
+$('#impOk').addEventListener('click', commitImport);
+
+function resetImportUI() {
+  $('#impStart').hidden = false; $('#impForm').hidden = true; $('#impFoot').hidden = true;
+}
+function cancelImport() {
+  if (!imp) return resetImportUI();
+  if (imp.kind === 'new') { if (imp.preview) map.removeLayer(imp.preview); }
+  else {
+    const d = imp.def;
+    d.style = imp.original; d.title = imp.originalTitle;
+    if (d.layer) map.removeLayer(d.layer);
+    const b = buildDataLayer(d); d.layer = b.layer; d.scale = b.scale;
+    if (d.visible) map.addLayer(d.layer);
+  }
+  imp = null; resetImportUI();
+}
+function commitImport() {
+  if (!imp) return;
+  const d = imp.def;
+  d.title = ($('#impTitle').value.trim() || 'My data').slice(0, 120);
+  if (imp.preview) map.removeLayer(imp.preview);
+  const b = buildDataLayer(d); d.layer = b.layer; d.scale = b.scale;
+  if (d.visible) map.addLayer(d.layer);
+  if (imp.kind === 'new') {
+    dataLayers.push(d);
+    announce(`Added “${d.title}” (${plural(d.features.length, 'feature')})`);
+  } else announce(`Updated “${d.title}”`);
+  imp = null; resetImportUI(); markDirty();
+  openPanel('pnlLayers');
+}
+
+/* Build a styled Leaflet layer + legend scale from a layer definition */
+function buildDataLayer(d) {
+  const st = d.style;
+  const scale = {mode: st.mode, color: isHex(st.color) ? st.color : '#D55E00', field: st.field, entries: []};
+  if (st.mode === 'category' && st.field) {
+    const counts = new Map();
+    d.features.forEach(f => { const v = f.properties[st.field]; const k = (v == null || v === '') ? '(blank)' : String(v); counts.set(k, (counts.get(k) || 0) + 1); });
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    scale.map = new Map();
+    sorted.slice(0, CAT_COLORS.length).forEach(([k], i) => { scale.map.set(k, CAT_COLORS[i]); scale.entries.push({label: k, color: CAT_COLORS[i]}); });
+    if (sorted.length > CAT_COLORS.length) scale.entries.push({label: `Other (${sorted.length - CAT_COLORS.length} more)`, color: OTHER_COLOR});
+    scale.colorOf = f => { const v = f.properties[st.field]; const k = (v == null || v === '') ? '(blank)' : String(v); return scale.map.get(k) || OTHER_COLOR; };
+    scale.radiusOf = () => 7;
+  } else if (st.mode === 'number' && st.field) {
+    const vals = d.features.map(f => f.properties[st.field]).filter(v => typeof v === 'number' && isFinite(v));
+    const min = vals.length ? Math.min(...vals) : 0, max = vals.length ? Math.max(...vals) : 1;
+    scale.min = min; scale.max = max;
+    scale.colorOf = f => typeof f.properties[st.field] === 'number' ? scale.color : OTHER_COLOR;
+    scale.radiusOf = f => {
+      const v = f.properties[st.field];
+      if (typeof v !== 'number' || !isFinite(v)) return 3;
+      const t = max > min ? (v - min) / (max - min) : 0.5;
+      return 4 + 16 * Math.sqrt(t);
+    };
+  } else {
+    scale.mode = 'single';
+    scale.colorOf = () => scale.color;
+    scale.radiusOf = () => 7;
+  }
+  const layer = L.geoJSON({type:'FeatureCollection', features: d.features}, {
+    pane: 'dataPane', pmIgnore: true,
+    pointToLayer: (f, ll) => L.circleMarker(ll, {pane:'dataPane', pmIgnore:true, radius: scale.radiusOf(f), color:'#1f1f1f', weight:1, fillColor: scale.colorOf(f), fillOpacity:.85}),
+    style: f => {
+      const c = scale.colorOf(f);
+      return /Polygon/.test(f.geometry.type) ? {color: c, weight: 1.5, fillColor: c, fillOpacity: .35} : {color: c, weight: 3, opacity: .9};
+    },
+    onEachFeature: (f, lyr) => {
+      lyr.bindPopup(() => featurePopup(d, f), {maxWidth: 320});
+      if (st.labelField) {
+        const v = f.properties[st.labelField];
+        if (v != null && v !== '') {
+          const pt = f.geometry.type === 'Point';
+          lyr.bindTooltip(String(v).slice(0, 60), {permanent: true, direction: pt ? 'right' : 'center', offset: pt ? [scale.radiusOf(f) + 2, 0] : [0, 0], className: 'data-label', pane: 'tooltipPane'});
+        }
+      }
+    }
+  });
+  return {layer, scale};
+}
+function featurePopup(d, f) {
+  const box = el('div', {class:'pop'});
+  const props = f.properties || {};
+  const keys = Object.keys(props).filter(k => props[k] != null && props[k] !== '');
+  const firstText = keys.find(k => typeof props[k] === 'string');
+  box.append(el('h4', {text: firstText ? String(props[firstText]).slice(0, 100) : d.title}));
+  const tbl = el('table');
+  keys.slice(0, 40).forEach(k => {
+    const v = props[k];
+    let cell;
+    if (typeof v === 'string' && /^https?:\/\/\S+$/i.test(v)) cell = el('a', {href: v, target: '_blank', rel: 'noopener noreferrer', text: v.length > 50 ? v.slice(0, 47) + '…' : v});
+    else cell = document.createTextNode(typeof v === 'number' ? v.toLocaleString() : String(v));
+    tbl.append(el('tr', null, el('th', {scope: 'row', text: k}), el('td', null, cell)));
+  });
+  box.append(tbl);
+  return box;
+}
+
+/* =====================================================================
+   LAYERS PANEL
+   ===================================================================== */
+(function buildBasemapList() {
+  const host = $('#basemapList');
+  Object.entries(BASEMAPS).forEach(([k, b]) => {
+    const r = el('input', {type:'radio', name:'basemap', value:k});
+    if (k === basemapKey) r.checked = true;
+    r.addEventListener('change', () => { setBasemap(k); markDirty(); });
+    host.append(el('div', {class:'row'}, el('label', null, r, ' ' + b.name)));
+  });
+})();
+
+function legendFor(d) {
+  const box = el('div', {class:'legend'});
+  const geomTypes = new Set(d.features.map(f => f.geometry.type.replace('Multi', '')));
+  const swatch = (color, r) => {
+    if (geomTypes.has('Point') || geomTypes.size === 0) return el('span', {class:'lg-dot', style:`width:${r * 2}px;height:${r * 2}px;background:${color}`, 'aria-hidden':'true'});
+    if (geomTypes.has('Polygon')) return el('span', {class:'lg-area', style:`border-color:${color};background:${color}59`, 'aria-hidden':'true'});
+    return el('span', {class:'lg-line', style:`border-color:${color}`, 'aria-hidden':'true'});
+  };
+  const s = d.scale;
+  if (!s) return box;
+  if (s.mode === 'category') {
+    box.append(el('div', {class:'off', text: s.field}));
+    s.entries.forEach(e => box.append(el('div', null, swatch(e.color, 6), e.label)));
+  } else if (s.mode === 'number') {
+    box.append(el('div', {class:'off', text: s.field}));
+    box.append(el('div', null, swatch(s.color, 4), (s.min ?? 0).toLocaleString()));
+    box.append(el('div', null, swatch(s.color, 10), (s.max ?? 0).toLocaleString()));
+  } else box.append(el('div', null, swatch(s.color, 6), plural(d.features.length, 'feature')));
+  return box;
+}
+
+function renderLayers() {
+  const ul = $('#layerList'); ul.textContent = '';
+  // Sketch layer
+  const n = sketchGroup.getLayers().length;
+  const sk = el('input', {type:'checkbox', id:'lyr__sketch'}); sk.checked = sketchVisible;
+  sk.addEventListener('change', () => { sketchVisible = sk.checked; sketchVisible ? map.addLayer(sketchGroup) : map.removeLayer(sketchGroup); markDirty(); });
+  const skLi = el('li', null,
+    el('div', {class:'lyr-top'}, el('label', {for:'lyr__sketch'}, sk, `My sketches (${n})`)),
+    el('div', {class:'lyr-actions'}, el('button', {class:'btn small', type:'button', disabled: n === 0 ? true : null, onclick: () => zoomTo(sketchGroup), 'aria-label':'Zoom to my sketches', text:'Zoom to'})));
+  ul.append(skLi);
+  if (!dataLayers.length) ul.append(el('li', {class:'empty', text:'No data layers yet. Use Add data to add a CSV or GeoJSON file.'}));
+  [...dataLayers].reverse().forEach(d => {
+    const cb = el('input', {type:'checkbox', id:'lyr_' + d.id}); cb.checked = d.visible;
+    cb.addEventListener('change', () => { d.visible = cb.checked; d.visible ? map.addLayer(d.layer) : map.removeLayer(d.layer); markDirty(); });
+    const li = el('li', null,
+      el('div', {class:'lyr-top'}, el('label', {for:'lyr_' + d.id}, cb, d.title)),
+      legendFor(d),
+      el('div', {class:'lyr-actions'},
+        el('button', {class:'btn small', type:'button', 'aria-label':`Zoom to ${d.title}`, text:'Zoom to', onclick: () => zoomTo(d.layer)}),
+        el('button', {class:'btn small', type:'button', 'aria-label':`Change style of ${d.title}`, text:'Style', onclick: () => restyleLayer(d.id)}),
+        el('button', {class:'btn small danger', type:'button', 'aria-label':`Remove ${d.title}`, text:'Remove', onclick: async () => {
+          if (!(await confirmDlg('Remove layer?', `Remove “${d.title}” from this map? This does not change the original file.`, 'Remove'))) return;
+          map.removeLayer(d.layer); dataLayers = dataLayers.filter(x => x !== d); markDirty(); renderLayers(); announce('Layer removed');
+        }})));
+    ul.append(li);
+  });
+}
+function zoomTo(layer) {
+  try { const b = layer.getBounds(); if (b.isValid()) map.fitBounds(b, {padding: [40, 40], maxZoom: 15}); } catch {}
+}
+
+/* =====================================================================
+   BOOKMARKS
+   ===================================================================== */
+function layerStates() {
+  const s = {__sketch: sketchVisible};
+  dataLayers.forEach(d => { s[d.id] = d.visible; });
+  return s;
+}
+$('#bmAdd').addEventListener('click', addBookmark);
+$('#bmName').addEventListener('keydown', e => { if (e.key === 'Enter') addBookmark(); });
+function addBookmark() {
+  const name = $('#bmName').value.trim() || `Bookmark ${bookmarks.length + 1}`;
+  const c = map.getCenter();
+  bookmarks.push({title: name.slice(0, 80), center: [+c.lat.toFixed(6), +c.lng.toFixed(6)], zoom: map.getZoom(), layers: layerStates()});
+  $('#bmName').value = '';
+  markDirty(); renderBookmarks(); announce(`Bookmark “${name}” added`);
+}
+function goBookmark(b) {
+  map.setView(b.center, b.zoom);
+  if (b.layers) {
+    if ('__sketch' in b.layers) { sketchVisible = !!b.layers.__sketch; sketchVisible ? map.addLayer(sketchGroup) : map.removeLayer(sketchGroup); }
+    dataLayers.forEach(d => { if (d.id in b.layers) { d.visible = !!b.layers[d.id]; d.visible ? map.addLayer(d.layer) : map.removeLayer(d.layer); } });
+  }
+  announce(`Showing “${b.title}”`);
+}
+function renderBookmarks() {
+  const ul = $('#bmList'); ul.textContent = '';
+  if (!bookmarks.length) { ul.append(el('li', {class:'empty', text:'No bookmarks yet.'})); return; }
+  bookmarks.forEach((b, i) => {
+    ul.append(el('li', {class:'row'},
+      el('button', {class:'btn small', type:'button', style:'flex:1;text-align:left', text: b.title, 'aria-label': `Go to bookmark ${b.title}`, onclick: () => goBookmark(b)}),
+      el('button', {class:'btn small danger', type:'button', text:'Delete', 'aria-label': `Delete bookmark ${b.title}`, onclick: () => { bookmarks.splice(i, 1); markDirty(); renderBookmarks(); }})));
+  });
+}
+
+/* =====================================================================
+   SAVE / OPEN (local file)
+   ===================================================================== */
+const FILE_TYPES = [{description: 'Map file (GeoJSON)', accept: {'application/geo+json': ['.geojson'], 'application/json': ['.json']}}];
+
+function buildDoc() {
+  const features = [];
+  sketchGroup.eachLayer(l => {
+    const m = l._meta; if (!m) return;
+    const props = {_layer: '__sketch', _kind: m.kind, _uid: m.uid, _color: m.style.color, _size: m.style.size, title: m.title || '', description: m.description || ''};
+    if (m.kind === 'text') props.text = m.text || '';
+    if (m.image) { props.image = m.image; props.imageAlt = m.imageAlt || ''; }
+    features.push({type:'Feature', geometry: l.toGeoJSON(6).geometry, properties: props});
+  });
+  dataLayers.forEach(d => d.features.forEach(f => features.push({type:'Feature', geometry: f.geometry, properties: Object.assign({_layer: d.id}, f.properties)})));
+  const c = map.getCenter();
+  return {
+    type: 'FeatureCollection',
+    [DOC_KEY]: {
+      format: FORMAT_ID, formatVersion: FORMAT_VERSION, appVersion: APP_VERSION,
+      title: getTitle(), savedAt: new Date().toISOString(),
+      basemap: basemapKey, view: {center: [+c.lat.toFixed(6), +c.lng.toFixed(6)], zoom: map.getZoom()},
+      layers: [{id:'__sketch', kind:'sketch', title:'My sketches', visible: sketchVisible}].concat(
+        dataLayers.map(d => ({id: d.id, kind:'data', title: d.title, visible: d.visible, style: d.style, fields: d.fields}))),
+      bookmarks
+    },
+    features
+  };
+}
+const safeName = s => (s.replace(/[\\/:*?"<>|]+/g, '').trim() || 'map').slice(0, 80);
+
+async function saveMap(forceAs, retried) {
+  if (imp) commitOrCancelPending();
+  const json = JSON.stringify(buildDoc());
+  const suggested = (forceAs || !fileName) ? safeName(getTitle()) + '.geojson' : fileName;
+  if (window.showSaveFilePicker) {
+    try {
+      if (!fileHandle || forceAs) fileHandle = await window.showSaveFilePicker({suggestedName: suggested, types: FILE_TYPES});
+      const w = await fileHandle.createWritable();
+      await w.write(new Blob([json], {type: 'application/geo+json'}));
+      await w.close();
+      fileName = fileHandle.name;
+      markClean(); announce(`Saved “${fileName}”`);
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      if (err && err.name === 'NotAllowedError' && !retried) { fileHandle = null; return saveMap(true, true); }
+      console.warn('File picker unavailable, downloading instead:', err);
+    }
+  }
+  const blob = new Blob([json], {type: 'application/geo+json'});
+  const a = el('a', {href: URL.createObjectURL(blob), download: suggested});
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  fileName = suggested;
+  markClean(); announce(`Saved “${suggested}” to your Downloads folder`);
+}
+function commitOrCancelPending() {
+  // A half-finished import is not saved
+  cancelImport();
+}
+
+async function openMapDialog() {
+  if (dirty && !(await confirmDlg('Open another map?', 'This map has unsaved changes. Open another map anyway?', 'Open anyway'))) return;
+  if (window.showOpenFilePicker) {
+    try {
+      const [h] = await window.showOpenFilePicker({types: FILE_TYPES, multiple: false});
+      const f = await h.getFile();
+      return loadMapFile(f, h);
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      console.warn('Open picker unavailable:', err);
+    }
+  }
+  $('#fileOpen').click();
+}
+$('#fileOpen').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) loadMapFile(f, null); });
+async function loadMapFile(file, handle) {
+  if (file.size > MAX_FILE_BYTES) return announce('That file is too large (limit 20 MB).', true);
+  let obj;
+  try { obj = JSON.parse(await file.text()); } catch { return announce('That file is not a map file this app can open.', true); }
+  if (obj && obj[DOC_KEY]) return openMapFromObject(obj, handle, file.name, true);
+  announce('That GeoJSON was not saved by this app, so it is being added as a data layer.');
+  startImportGeoJSON(obj, file.name);
+}
+
+async function openMapFromObject(obj, handle, name, skipConfirm) {
+  if (!skipConfirm && dirty && !(await confirmDlg('Open this map?', 'Your current map has unsaved changes. Open the dropped map anyway?', 'Open anyway'))) return;
+  const meta = obj[DOC_KEY];
+  if (meta.format !== FORMAT_ID || !Array.isArray(obj.features)) return announce('That map file is damaged or from a different app.', true);
+  const warnings = [];
+  if (meta.formatVersion > FORMAT_VERSION) warnings.push('it was made with a newer version, so some parts may not load');
+  clearAll();
+  $('#mapTitle').value = str(meta.title, 120) || 'Untitled map';
+  setBasemap(BASEMAPS[meta.basemap] ? meta.basemap : 'osm');
+  const feats = obj.features.slice(0, MAX_FEATURES);
+  if (obj.features.length > MAX_FEATURES) warnings.push(`only the first ${MAX_FEATURES.toLocaleString()} features were loaded`);
+  const layersMeta = Array.isArray(meta.layers) ? meta.layers : [];
+  // Sketches
+  let lost = 0;
+  feats.filter(f => f && f.properties && f.properties._layer === '__sketch').forEach(f => { if (!createSketchFromFeature(f)) lost++; });
+  const skMeta = layersMeta.find(l => l && l.id === '__sketch');
+  sketchVisible = skMeta ? skMeta.visible !== false : true;
+  if (!sketchVisible) map.removeLayer(sketchGroup);
+  // Data layers
+  layersMeta.filter(l => l && l.kind === 'data' && typeof l.id === 'string').slice(0, 50).forEach(l => {
+    const features = feats.filter(f => f && f.geometry && f.properties && f.properties._layer === l.id).map(f => {
+      const p = Object.assign({}, f.properties); delete p._layer;
+      return {type:'Feature', geometry: f.geometry, properties: p};
+    });
+    const s = l.style || {};
+    const d = {
+      id: l.id.slice(0, 40), title: str(l.title, 120) || 'Data', visible: l.visible !== false,
+      style: {mode: ['single','category','number'].includes(s.mode) ? s.mode : 'single', color: isHex(s.color) ? s.color : '#D55E00', field: s.field ? str(s.field, 80) : null, labelField: s.labelField ? str(s.labelField, 80) : null},
+      fields: inferFields(features), features
+    };
+    try {
+      const b = buildDataLayer(d); d.layer = b.layer; d.scale = b.scale;
+      if (d.visible) map.addLayer(d.layer);
+      dataLayers.push(d);
+    } catch (err) { console.warn(err); lost += features.length; }
+  });
+  if (lost) warnings.push(`${plural(lost, 'item')} could not be read`);
+  // Bookmarks
+  bookmarks = (Array.isArray(meta.bookmarks) ? meta.bookmarks : []).slice(0, 100).filter(b => b && Array.isArray(b.center) && validLL(+b.center[0], +b.center[1])).map(b => ({
+    title: str(b.title, 80) || 'Bookmark', center: [+b.center[0], +b.center[1]], zoom: clamp(+b.zoom || 2, 0, 19),
+    layers: (b.layers && typeof b.layers === 'object') ? Object.fromEntries(Object.entries(b.layers).slice(0, 60).map(([k, v]) => [k, !!v])) : null
+  }));
+  // View
+  const v = meta.view || {};
+  if (Array.isArray(v.center) && validLL(+v.center[0], +v.center[1])) map.setView([+v.center[0], +v.center[1]], clamp(+v.zoom || 2, 0, 19));
+  fileHandle = handle || null; fileName = name || null;
+  markClean();
+  renderLayers(); renderBookmarks();
+  announce(`Opened “${getTitle()}”` + (warnings.length ? ' — note: ' + warnings.join('; ') + '.' : ''), warnings.length > 0);
+}
+
+function createSketchFromFeature(f) {
+  const p = f.properties, g = f.geometry;
+  if (!g || !Array.isArray(g.coordinates)) return false;
+  const kind = ['point','line','area','text'].includes(p._kind) ? p._kind : null;
+  if (!kind) return false;
+  const meta = {
+    uid: str(p._uid, 40) || uid(), kind,
+    style: {color: isHex(p._color) ? p._color : PALETTE[0].hex, size: clamp(Math.round(+p._size) || 4, 1, 10)},
+    title: str(p.title, 120), description: str(p.description, 2000)
+  };
+  if (kind === 'text') meta.text = str(p.text, 80) || ' ';
+  if (isDataImage(p.image)) { meta.image = p.image; meta.imageAlt = str(p.imageAlt, 200); }
+  let layer;
+  try {
+    if ((kind === 'point' || kind === 'text') && g.type === 'Point') {
+      const ll = L.GeoJSON.coordsToLatLng(g.coordinates);
+      if (!validLL(ll.lat, ll.lng)) return false;
+      layer = kind === 'point' ? L.circleMarker(ll) : L.marker(ll, {keyboard: false});
+    } else if (kind === 'line' && g.type === 'LineString') layer = L.polyline(L.GeoJSON.coordsToLatLngs(g.coordinates, 0));
+    else if (kind === 'area' && g.type === 'Polygon') layer = L.polygon(L.GeoJSON.coordsToLatLngs(g.coordinates, 1));
+    else return false;
+  } catch { return false; }
+  initSketchLayer(layer, meta);
+  return true;
+}
+
+function clearAll() {
+  setTool(null); deselect();
+  if (imp) cancelImport();
+  map.closePopup();
+  sketchGroup.clearLayers();
+  if (!map.hasLayer(sketchGroup)) map.addLayer(sketchGroup);
+  sketchVisible = true;
+  dataLayers.forEach(d => map.removeLayer(d.layer));
+  dataLayers = []; bookmarks = [];
+}
+
+$('#btnSave').addEventListener('click', () => saveMap(false));
+$('#btnSaveAs').addEventListener('click', () => saveMap(true));
+$('#btnOpen').addEventListener('click', openMapDialog);
+$('#btnNew').addEventListener('click', async () => {
+  if (dirty && !(await confirmDlg('Start a new map?', 'This map has unsaved changes. Start a new map anyway?', 'Start new map'))) return;
+  clearAll();
+  $('#mapTitle').value = 'Untitled map';
+  setBasemap('osm'); map.setView([20, 0], 2);
+  fileHandle = null; fileName = null;
+  markClean(); renderLayers(); renderBookmarks();
+  announce('New map started');
+});
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveMap(e.shiftKey); }
+});
+
+/* ---------- Drag and drop ---------- */
+let dragDepth = 0;
+const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+window.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; $('#dropHint').hidden = false; });
+window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener('dragleave', e => { if (!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $('#dropHint').hidden = true; });
+window.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); dragDepth = 0; $('#dropHint').hidden = true;
+  const f = e.dataTransfer.files[0];
+  if (f) handleDataFile(f);
+});
+
+/* ---------- Start ---------- */
+$('#verBadge').textContent = 'v' + APP_VERSION;
+markClean();
+renderLayers();
+
+// Test hook (read-only summary) — handy for checking a build in the browser console.
+window.__oms = {version: APP_VERSION, summary: () => ({sketches: sketchGroup.getLayers().length, layers: dataLayers.map(d => ({title: d.title, n: d.features.length, visible: d.visible})), bookmarks: bookmarks.length, dirty, title: getTitle()}), doc: buildDoc};
+})();
+</script>
+</body>
+</html>
