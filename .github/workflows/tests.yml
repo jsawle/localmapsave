@@ -1,0 +1,23 @@
+# Unit tests for the parts that don't need a browser or the ArcGIS SDK.
+# The browser tests (atlas/tests/smoke, real-sdk, live) still run by hand: they need Playwright and Chromium.
+name: Tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Atlas unit tests
+        run: node atlas/tests/run.mjs
+      - name: Class map review checks
+        run: node class-marking/tools/test.mjs
+      - name: Lab copy parses
+        run: node --check atlas-sketch/app.js
