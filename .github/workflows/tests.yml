@@ -19,5 +19,7 @@ jobs:
         run: node atlas/tests/run.mjs
       - name: Class map review checks
         run: node class-marking/tools/test.mjs
+      - name: Lab filter tests
+        run: node atlas-sketch/tests/filter.test.mjs
       - name: Lab copy parses
         run: node --check atlas-sketch/app.js
