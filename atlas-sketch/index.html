@@ -308,7 +308,8 @@
     .toast{ position:absolute; left:50%; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 18px); transform:translateX(-50%); background:#323232; color:#fff; font-size:13.5px; padding:9px 16px; border-radius:18px; z-index:40; box-shadow:0 2px 10px rgba(0,0,0,.28); max-width:calc(100% - 32px); text-align:center; }
     .toast:empty{ display:none; }
     /* Filter panel (lab): Map Viewer's layout, in Calcite components */
-    .flt-panel{ width:372px; }
+    /* tall enough for one condition without scrolling: it may reach down over the toolbar (it sits above it) */
+    .flt-panel{ width:372px; max-height:calc(100% - var(--attr-h, 16px) - 30px); }
     .flt-layer{ flex:0 0 auto; background:#2b2b2b; color:#fff; padding:11px 14px; font-size:14px; font-weight:500; border-radius:5px 5px 0 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .flt-panel .panel-body{ background:#f8f8f8; }
     .flt-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 10px; }
@@ -327,9 +328,9 @@
     .flt-hist-host arcgis-histogram{ height:92px; }
     .flt-hist-body.none{ height:auto; padding:6px 0 0; }
     .flt-hist-host{ width:100%; }
-    .flt-add{ display:flex; justify-content:center; margin:4px 0 12px; }
-    .flt-count{ margin:0; font-size:13.5px; font-weight:600; color:#151515; min-height:1.3em; }
-    .flt-panel .panel-foot{ gap:0; padding:10px 14px; }
+    .flt-add{ display:flex; justify-content:center; margin:4px 0 0; }
+    .flt-count{ flex:0 0 auto; margin:0; padding:9px 14px 0; border-top:1px solid #ededed; background:#fff; font-size:13.5px; font-weight:600; color:#151515; min-height:1.3em; }
+    .flt-panel .panel-foot{ gap:0; padding:9px 14px 10px; border-top:0; }
     .flt-panel .panel-foot calcite-button{ flex:1 1 50%; }
     .lt.on{ border-color:var(--brand); color:#151515; position:relative; }
     .lt.on::after{ content:""; position:absolute; top:3px; right:3px; width:7px; height:7px; border-radius:50%; background:var(--brand); }
@@ -624,8 +625,8 @@
           <div id="filterMatchRow" hidden></div>
           <div id="filterConds"></div>
           <div class="flt-add"><calcite-button id="filterAdd" appearance="outline" kind="neutral" round icon-start="plus" data-i18n="filterAddNew">Add new</calcite-button></div>
-          <p class="flt-count" id="filterCount" role="status" aria-live="polite"></p>
         </div>
+        <p class="flt-count" id="filterCount" role="status" aria-live="polite"></p>
         <div class="panel-foot"><calcite-button id="filterApply" data-i18n="filterApply">Apply</calcite-button><calcite-button id="filterCancel" appearance="outline" data-i18n="cancel">Cancel</calcite-button></div>
       </section>
 
@@ -867,6 +868,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=1.15.0-sketch.12"></script>
+  <script type="module" src="./app.js?v=1.15.0-sketch.13"></script>
 </body>
 </html>

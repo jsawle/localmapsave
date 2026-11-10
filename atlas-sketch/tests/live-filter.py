@@ -6,7 +6,8 @@ Needs network access to js.arcgis.com and www.arcgis.com (an HTTPS proxy is take
 Python Playwright with Chromium. --axe is axe-core's axe.min.js (the main app's smoke test fetches it); without it the
 accessibility scan is skipped.
 
-Checks: the Filter button on a layer; a number condition with the histogram and slider (the SDK's Histogram and Slider
+Checks: the Filter button on a layer; one condition fits the panel without scrolling; a number typed in the box shows on the map
+straight away, for a field the layer doesn't draw with; a number condition with the histogram and slider (the SDK's Histogram and Slider
 components) in step with the number box; the count of features shown; Cancel puts the layer back; two conditions and
 match all / at least one; Apply marks the button; the saved map file holds the filter as the layer's
 definitionExpression and nothing outside the Web Map Specification; opening that file brings the conditions back;
@@ -45,7 +46,7 @@ def main():
         if chrome: launch["executable_path"] = chrome
         if a.proxy: launch["proxy"] = {"server": a.proxy, "bypass": "localhost,127.0.0.1"}
         browser = p.chromium.launch(**launch)
-        ctx = browser.new_context(viewport={"width": 1400, "height": 860}, accept_downloads=True)
+        ctx = browser.new_context(viewport={"width": 1366, "height": 768}, accept_downloads=True)
         ctx.add_init_script("delete window.showSaveFilePicker; delete window.showOpenFilePicker;")   # saves become downloads the test can read
         page = ctx.new_page(); errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
@@ -89,6 +90,19 @@ def main():
         check(page.inner_text("#filterLayer") == "Earthquakes (Major)" and page.inner_text("#filterH") == "Filter" and page.is_visible("text=Show features where"), "panel: layer name, Filter, Show features where")
         check(count_is("Showing all 949 features"), "nothing filtered yet: " + count())
         check(val("value") == "", "the value box starts empty")
+        check(page.evaluate("(() => { const b = document.querySelector('#filterPanel .panel-body'); return b.scrollHeight <= b.clientHeight; })()"), "one condition fits without scrolling (the panel may reach over the toolbar)")
+        # A condition typed in the box shows on the map straight away, on a field the layer doesn't draw with (Depth; the
+        # layer is drawn by Magnitude). The map is read from a screenshot: the earthquake symbols are the orange pixels.
+        def orange():
+            from PIL import Image; import io
+            im = Image.open(io.BytesIO(page.screenshot(clip={"x": 60, "y": 80, "width": 900, "height": 560}))).convert("RGB")
+            return sum(1 for r, g, b in im.getdata() if r > 200 and 120 < g < 200 and b < 70)
+        page.wait_for_selector("#filterConds arcgis-slider", timeout=40000); page.wait_for_timeout(2500)
+        before = orange()
+        page.locator("#filterConds calcite-input-number").click(); page.keyboard.type("500", delay=100)
+        check(count_is("Showing 65 of 949"), "typing Depth is at least 500 in the box: " + count())
+        page.wait_for_timeout(3000); after = orange()
+        check(before > 2000 and after < before * 0.4, f"and the map follows without Apply (earthquake-coloured pixels {before} -> {after})")
         select("field", "mag")
         page.wait_for_selector("#filterConds arcgis-slider arcgis-histogram", timeout=40000)
         check(page.evaluate("!!customElements.get('arcgis-slider') && !!customElements.get('arcgis-histogram')"), "the histogram and slider are the SDK's Histogram and Slider components")

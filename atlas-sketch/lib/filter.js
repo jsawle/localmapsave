@@ -4,7 +4,7 @@
 // the SQL: the forms this module writes are the forms it reads. SQL it can't read (written by hand, or by another app
 // in a form not listed here) is kept as it is and shown as text; conditions added in the panel are added to it.
 // No ArcGIS SDK here, so it runs in Node for the unit tests.
-export const FILTER_VERSION = "1.0";
+export const FILTER_VERSION = "1.1";
 export const MAX_CONDITIONS = 6;
 
 const NUMBER_TYPES = new Set(["small-integer", "integer", "single", "double", "long", "big-integer",
