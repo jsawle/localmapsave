@@ -2,17 +2,17 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.14.7";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.14.8";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=1.14.7";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=1.14.8";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.14.7";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.14.8";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.14.7";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.14.7";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.14.7";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.14.8";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.14.8";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.14.8";
 
-const APP_VERSION = "1.14.7";
+const APP_VERSION = "1.14.8";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -219,9 +219,34 @@ applyHeader();
 paintIcons();
 
 // ============================================================ ArcGIS SDK
+// The map library comes from js.arcgis.com. A school network can block it or be slow to deliver it; without it nothing
+// on the page works, so the page says so (with a Reload button) and doesn't leave a toolbar that does nothing.
+const SDK_SLOW_MS = 20000;
+function loadNote(text, failed) {
+  const box = $("loadNote");
+  if (!box) return;
+  $("loadNoteText").textContent = text || "";
+  $("loadNoteBtn").hidden = !failed;
+  box.classList.toggle("failed", !!failed);
+  box.hidden = !text;
+  if (failed) { $("toolbar").inert = true; $("loadNoteBtn").focus(); }
+}
+$("loadNoteBtn").addEventListener("click", () => location.reload());
+async function loadSdk(paths) {
+  const slow = setTimeout(() => loadNote(S.sdkSlow, false), SDK_SLOW_MS);
+  try {
+    if (typeof $arcgis === "undefined" || !$arcgis.import) throw new Error("The ArcGIS Maps SDK script didn't load");
+    const mods = await $arcgis.import(paths);
+    clearTimeout(slow); loadNote("", false);
+    return mods;
+  } catch (e) {
+    clearTimeout(slow); loadNote(S.sdkFailed, true);
+    throw e;
+  }
+}
 const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, SketchViewModel, Basemap,
   Measurement, ElevationProfile, ElevationLayer, CoordinateConversion, ScaleBar, Search, Expand, Home, Legend, Layer,
-  Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils] = await $arcgis.import([
+  Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils] = await loadSdk([
   "@arcgis/core/Map.js", "@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js", "@arcgis/core/views/SceneView.js",
   "@arcgis/core/layers/GraphicsLayer.js", "@arcgis/core/layers/FeatureLayer.js", "@arcgis/core/Graphic.js",
   "@arcgis/core/widgets/Sketch/SketchViewModel.js", "@arcgis/core/Basemap.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js", "@arcgis/core/layers/ElevationLayer.js",
@@ -356,7 +381,7 @@ function markDirty() { dirty = true; }
 function markClean() { dirty = false; }
 // Unsaved map changes, or data in Add data / Change style that isn't on the map yet.
 function confirmDiscard() { return (!dirty && !unfinishedData()) || window.confirm(S.discard); }
-window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("beforeunload", (e) => { if (dirty || unfinishedData()) { e.preventDefault(); e.returnValue = ""; } });
 function sizeTitle() { const el = $("docTitle"); el.size = Math.max(8, Math.min(60, (el.value || el.placeholder || "").length + 2)); }
 $("docTitle").addEventListener("input", () => { markDirty(); sizeTitle(); });
 function currentTitle() { return ($("docTitle").value || "").trim() || S.untitled; }
@@ -408,6 +433,18 @@ function titleSlug() { return currentTitle().replace(/[^\w\-]+/g, "_").replace(/
 // ============================================================ Toast, panels, modals (keyboard accessible)
 let toastTimer = 0;
 function toast(msg, ms) { const el = $("toast"); el.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.textContent = ""; }, ms || 3400); }
+// Several messages, one after another, each for its own time: [[text, ms], ...], starting after `delay`.
+function toastSeries(list, delay) {
+  let at = delay || 0;
+  for (const [msg, ms] of list) { setTimeout(() => toast(msg, ms), at); at += ms + 300; }
+}
+// What a save left out, said after the "saved" message has been read.
+function saveNotes(toFile) {
+  const notes = [];
+  if (unsavedLayers) notes.push([t("layersNotSaved", { n: unsavedLayers }), 5000]);
+  if (toFile && privateLeftOut) notes.push([t("privateLayersLeftOut", { n: privateLeftOut }), 6000]);
+  toastSeries(notes, 3000);
+}
 
 const PANELS = { data: "dataPanel", layers: "layersPanel", legend: "legendPanel", basemaps: "basemapsPanel",
   measure: "measurePanel", profile: "profilePanel", sketch: "sketchPanel", bookmarks: "bookmarksPanel", save: "savePanel", about: "aboutPanel" };
@@ -2338,12 +2375,10 @@ async function writeToHandle(forceNew, locked) {
     }
     currentFileHandle = target; openedLocked = false; $("lockedNote").hidden = true;
     setTitle(titleFromFileName(name));   // a saved map is named by its file: the header shows what reopening shows
-    setTitle(titleFromFileName(currentFileHandle.name));   // a saved map is named by its file: the header shows what reopening shows
     markClean();
     toast(t("savedFile", { name }));
     recordSave({ handle: target, fileName: name });
-    if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
-    if (privateLeftOut) setTimeout(() => toast(t("privateLayersLeftOut", { n: privateLeftOut }), 6000), 3500);
+    saveNotes(true);
   } catch (err) {
     // Chrome reports two things as AbortError: Cancel in the save box ("The user aborted a request."), and a file
     // it couldn't open for writing ("Failed to create or truncate file": someone else's file, a read-only one).
@@ -2368,8 +2403,7 @@ async function confirmNameDialog() {
     markClean(); toast(t("savedDownload", { name: name + FILE_EXT }));
     recordSave({ json: text, fileName: name + FILE_EXT });
   } catch (e) { console.error(e); toast(S.saveFailed); return; }
-  if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
-  if (privateLeftOut) setTimeout(() => toast(t("privateLayersLeftOut", { n: privateLeftOut }), 6000), 3500);
+  saveNotes(true);
 }
 $("nameConfirm").addEventListener("click", confirmNameDialog);
 $("fileNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") confirmNameDialog(); });
@@ -2753,7 +2787,7 @@ async function saveToArcGIS(update) {
     box.append(a2);
     agolStatus(box);
     toast(S.arcgisSaved);
-    if (unsavedLayers) setTimeout(() => toast(t("layersNotSaved", { n: unsavedLayers }), 5000), 3000);
+    saveNotes(false);
   } catch (e) {
     console.error("Save to ArcGIS Online failed", e);
     const s = document.createElement("span"); s.textContent = t("arcgisFailed", { msg: e.message || e.name || "" }); agolStatus(s);

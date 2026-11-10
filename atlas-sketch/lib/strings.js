@@ -345,6 +345,11 @@ export const DEFAULT_STRINGS = {
   skippedOnOpen: "{n} item(s) in the file couldn't be used and were left out.",
   notMapFile: "That isn't a saved map (.amap or .mmap) or a web map file.",
   cantRead: "Couldn't read that file.",
+
+  // The map library (ArcGIS Maps SDK) is slow to load, or didn't load
+  sdkSlow: "The map is taking longer than usual to load. If it doesn't appear, check the internet connection.",
+  sdkFailed: "The map couldn't load. The internet connection may be down, or this network may be blocking js.arcgis.com. Check the connection and reload the page; if it keeps happening, ask whoever looks after the network.",
+  reloadPage: "Reload the page",
   mapFile: "Map",
 
   // Sign in

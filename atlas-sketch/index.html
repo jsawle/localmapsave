@@ -307,6 +307,11 @@
     .drop-inner{ background:#fff; border-radius:8px; padding:14px 22px; font-size:15px; font-weight:600; box-shadow:0 4px 18px rgba(0,0,0,.18); }
     .toast{ position:absolute; left:50%; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 18px); transform:translateX(-50%); background:#323232; color:#fff; font-size:13.5px; padding:9px 16px; border-radius:18px; z-index:40; box-shadow:0 2px 10px rgba(0,0,0,.28); max-width:calc(100% - 32px); text-align:center; }
     .toast:empty{ display:none; }
+    /* the map library is slow to load, or didn't load */
+    .load-note{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:45; max-width:min(440px, calc(100% - 32px)); background:#fff; color:var(--ink); border:1px solid var(--line2); border-radius:8px; padding:16px 20px; box-shadow:0 4px 18px rgba(0,0,0,.25); font-size:14.5px; line-height:1.45; text-align:center; }
+    .load-note p{ margin:0; }
+    .load-note .btn{ margin-top:12px; }
+    .load-note.failed{ border-color:#b3261e; border-width:2px; }
 
     /* pop-up content */
     .mm-popup-text{ margin:0 0 8px; font-size:13.5px; line-height:1.5; white-space:pre-wrap; }
@@ -679,6 +684,7 @@
 
       <div class="drop-overlay" id="dropOverlay" hidden><div class="drop-inner" data-i18n="dropHere">Drop your file to add it to the map</div></div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <div class="load-note" id="loadNote" role="alert" hidden><p id="loadNoteText"></p><button type="button" class="btn primary" id="loadNoteBtn" data-i18n="reloadPage" hidden>Reload the page</button></div>
       <div class="tile-tip" id="tileTip" role="tooltip" hidden></div>
     </main>
     <section class="dock table-dock" id="tableDock" hidden aria-labelledby="tableH">
@@ -819,6 +825,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=1.15.0-sketch.10"></script>
+  <script type="module" src="./app.js?v=1.15.0-sketch.11"></script>
 </body>
 </html>
