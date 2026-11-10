@@ -2,19 +2,19 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.12";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.13";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=1.15.0-sketch.12";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=1.15.0-sketch.13";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.12";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.13";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.12";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.12";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.12";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.13";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.13";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.13";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=1.15.0-sketch.12";
+  filterFields } from "./lib/filter.js?v=1.15.0-sketch.13";
 
-const APP_VERSION = "1.15.0-sketch.12";
+const APP_VERSION = "1.15.0-sketch.13";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -1582,6 +1582,14 @@ async function openFilter(l) {
   const offered = filterFields(l.fields || [], popupFieldNames(l), l.objectIdField);
   for (const c of parsed.conditions) { const f = all.find((x) => x.name === c.field); if (f && !offered.includes(f)) offered.push(f); }   // a field the map's own filter uses
   if (!offered.length) { toast(S.filterNoFields, 5000); return; }
+  // The map previews a condition in the browser, against the fields the layer has loaded, and a layer loads only the
+  // fields it draws with. So the fields the panel offers are asked for here; without this a condition on any other
+  // field (Depth, on a layer drawn by Magnitude) changed the count but not the map. (Filter 1.1)
+  if ("outFields" in l) {
+    const have = Array.isArray(l.outFields) ? l.outFields : [];
+    const add = offered.map((f) => f.name).filter((n) => !have.includes(n));
+    if (!have.includes("*") && add.length) l.outFields = [...have, ...add];
+  }
   const st = filterState = { layer: l, all, fields: offered, original, base: parsed.base, conditions: parsed.conditions, match: parsed.match,
     layerView: null, lvFilter: null, sliders: [], stats: new Map(), values: new Map(), total: null, countSeq: 0, saved: false, previewTimer: 0 };
   if (!st.conditions.length) st.conditions = [newCondition()];

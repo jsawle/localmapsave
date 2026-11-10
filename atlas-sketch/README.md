@@ -1,6 +1,6 @@
 # Atlas: Sketch and Filter lab
 
-A lab copy of the white-label Atlas app (`../atlas/`) for demos. It's the same app, version **1.15.0-sketch.12**, but Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+A lab copy of the white-label Atlas app (`../atlas/`) for demos. It's the same app, version **1.15.0-sketch.13**, but Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -12,7 +12,9 @@ Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, an
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
 
-## Filter (lab only, 1.15.0-sketch.12)
+## Filter (lab only, from 1.15.0-sketch.12)
+
+1.15.0-sketch.13 (Filter 1.1): a condition shows on the map as it's typed or the slider moves, for any field (before, only fields the layer draws with did; others changed the count but not the map until Apply). The panel is tall enough for one condition without scrolling and may reach down over the toolbar. The count stays in view above Apply / Cancel.
 
 Each layer in **Map layers** that holds features has a **Filter** button beside Table. It opens a panel laid out like Map Viewer's filter: the layer's name, *Show features where*, then one or more conditions (field, condition, value), **Add new**, **Clear all**, and **Apply** / **Cancel**.
 
@@ -24,7 +26,7 @@ Each layer in **Map layers** that holds features has a **Filter** button beside 
 - **Fields offered** are the ones the layer's pop-up shows (under their aliases); if the pop-up has no field list, every number and text field.
 - **Spreadsheet (CSV) layers** can be filtered too. All their rows stay in the saved map.
 
-**What it's built from.** Map Viewer's filter panel isn't published as a component, so the panel is assembled from the same standard parts: Esri's Calcite components (`calcite-select`, `calcite-input-number`, `calcite-input-text`, `calcite-combobox`, `calcite-button`) and the SDK's **Histogram** and **Slider** components (`arcgis-histogram` inside `arcgis-slider`, as in Esri's "Histogram Range Slider" sample; these replace the HistogramRangeSlider widget, deprecated in SDK 5.0). The layout, the logic that turns conditions into SQL and back (`lib/filter.js`, Filter 1.0) and the count are this app's.
+**What it's built from.** Map Viewer's filter panel isn't published as a component, so the panel is assembled from the same standard parts: Esri's Calcite components (`calcite-select`, `calcite-input-number`, `calcite-input-text`, `calcite-combobox`, `calcite-button`) and the SDK's **Histogram** and **Slider** components (`arcgis-histogram` inside `arcgis-slider`, as in Esri's "Histogram Range Slider" sample; these replace the HistogramRangeSlider widget, deprecated in SDK 5.0). The layout, the logic that turns conditions into SQL and back (`lib/filter.js`, Filter 1.1) and the count are this app's.
 
 **How it's saved.** A filter is the layer's `definitionExpression` in the web map (`layerDefinition.definitionExpression`, Web Map Specification), which is how Map Viewer saves one, so the `.amap` still holds only what the specification defines and the filter shows in other ArcGIS apps. Nothing else is stored: when a map is opened, the conditions are read back from that SQL. A filter that was cleared from a layer that came with one is saved as `1=1`, so the layer's original filter doesn't return.
 
@@ -36,7 +38,7 @@ Each layer in **Map layers** that holds features has a **Filter** button beside 
 - **"Apply", not Map Viewer's "Save":** in this app Save means saving the map, and a filter isn't saved until the map is.
 - **Switching 2D/3D** while the panel is open closes it without applying.
 - **The histogram** needs the field to have a range of values; with one value, or if the components don't load, the number box still works.
-- **Tests:** `node atlas-sketch/tests/filter.test.mjs` (the SQL logic, 12 tests) and `python3 atlas-sketch/tests/live-filter.py` (the panel on the real SDK against MapMaker's Major Earthquakes map: 34 checks, with an axe-core scan of the panel).
+- **Tests:** `node atlas-sketch/tests/filter.test.mjs` (the SQL logic, 12 tests) and `python3 atlas-sketch/tests/live-filter.py` (the panel on the real SDK against MapMaker's Major Earthquakes map: 37 checks, with an axe-core scan of the panel).
 
 The working app stays at `https://jsawle.github.io/localmapsave/atlas/` (1.14.8), so the two can be shown side by side.
 
