@@ -93,7 +93,7 @@ def main():
         start("point"); tap(500, 300)
         check(count(1) and page.evaluate(SKETCHES)[0]["kind"] == "point", "a point is drawn with one click")
         finish()
-        start("polyline"); tap(300, 200); tap(450, 220); page.mouse.move(600, 200); page.wait_for_timeout(1500); page.mouse.dblclick(600, 200); page.wait_for_timeout(4000)
+        start("polyline"); tap(300, 200); tap(450, 220); page.mouse.move(540, 200); page.wait_for_timeout(1500); page.mouse.dblclick(540, 200); page.wait_for_timeout(4000)
         check(count(2) and page.evaluate(SKETCHES)[1]["kind"] == "polyline", "a line: click, click, double-click to finish")
         finish()
         start("polygon"); tap(350, 380); tap(550, 380); tap(550, 480); page.mouse.move(350, 480); page.wait_for_timeout(1500); page.mouse.dblclick(350, 480); page.wait_for_timeout(4000)

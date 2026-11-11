@@ -320,7 +320,15 @@ export const DEFAULT_STRINGS = {
 
   // Sketch
   sketchToolsJump: "Go to the drawing tools",
-  sketchToolsHint: "Draw with the tools at the top of the map. Select a sketch to give it a pop-up, colour and size.",
+  sketchToolsHint: "Choose a drawing tool on the right of the map. Select a sketch to change it or give it a pop-up.",
+  sketchKind_point: "Point", sketchKind_polyline: "Line", sketchKind_polygon: "Area", sketchKind_text: "Text", sketchKind_mixed: "Several sketches",
+  sketchNext: "next one drawn",
+  pointSymbol: "Symbol", symbolsShapes: "Shapes", symbolsPlaces: "Places and pins", symbolCircle: "Circle",
+  symbolsLoading: "Loading symbols…", symbolsFailed: "The symbols couldn't be loaded. The circle still works.",
+  lineWidth: "Width", linePattern: "Pattern", outlinePattern: "Outline",
+  pattern_solid: "Solid", pattern_dash: "Dashed", pattern_dot: "Dotted", "pattern_dash-dot": "Dash and dot", "pattern_long-dash": "Long dashes",
+  lineArrow: "Arrow", arrow_none: "No arrow", arrow_end: "Arrow at the end", arrow_start: "Arrow at the start", arrow_both: "Arrows at both ends",
+  fillSolid: "Fill",
   popup: "Pop-up",
   manySelected: "{n} sketches selected: colour and size change them all. Select just one to edit its pop-up.",
   addImage: "Add image (optional)",
