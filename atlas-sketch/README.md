@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.3**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.4**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -11,6 +11,22 @@
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Sketch in 3D, and loading on a slow connection (5.0.0-beta.4)
+
+**Sketch in 3D.** The Sketch toolbar (the SDK's Sketch component) works in the 3D view of a map and in a web scene with the same tools as in 2D: point, line, area, rectangle, circle and text. Nothing had to be built for drawing. One thing was wrong: a sketch drawn in 3D was saved with a height of 0 on every point. Sketches lie on the ground, so they are now saved as flat shapes, the same as ones drawn in 2D. Not tested: moving and reshaping a sketch in 3D, freehand drawing in 3D, and drawing on a tilted view.
+
+**Loading.** Opening `?config=mapmaker&webmap=…` (Major Earthquakes) with an empty cache on a connection held to 1.6 Mbit/s with 150 ms delay, one run each:
+
+| | beta.3 | beta.4 |
+|---|---|---|
+| Usable (map drawn, layers listed) | 37.0 s | 30.2 s |
+| Requests | 683 | 349 |
+| Downloaded | 4.0 MB | 3.1 MB |
+
+What changed: the opened map's item and JSON were each downloaded twice, now once; a linked map starts downloading at once and no default basemap is loaded first; the code for Legend, Measure, Coordinates, Elevation and Sketch is downloaded when the tool is first opened. Of what is left, 1.7 MB in 275 requests is the SDK itself. The test serves the app's own files uncompressed (435 kB); GitHub Pages compresses them.
+
+Measure it: `python3 atlas-sketch/tests/perf.py` (add `--fast` for no throttling). Tests: `python3 atlas-sketch/tests/live-sketch3d.py` (16 checks).
 
 ## Filtering and spreadsheet data in 3D (5.0.0-beta.3)
 
