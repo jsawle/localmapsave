@@ -206,7 +206,19 @@
     .sym-btn{ aspect-ratio:1; min-width:0; display:flex; align-items:center; justify-content:center; padding:2px; background:#fff; border:2px solid transparent; border-radius:4px; cursor:pointer; }
     .sym-btn:hover{ background:#f3f3f3; }
     .sym-btn[aria-pressed="true"], .pat-btn[aria-pressed="true"]{ border-color:var(--ink); background:#eef4fb; }
+    .sym-pic .sym-area{ position:absolute; left:50%; top:50%; width:22px; height:16px; margin:-9px 0 0 -12px; background:#b8b8b8; border:1.5px solid #323232; clip-path:polygon(0 0, 100% 35%, 100% 100%, 0 100%); }
+    .sk-none{ margin:0 0 10px; padding:9px 11px; border:1px solid var(--line2); border-radius:4px; color:#4a4a4a; font-size:14px; }
+    .sk-none[hidden]{ display:none; }
+    .colour-row{ display:flex; align-items:center; gap:8px; }
+    .colour-row .swatches{ flex:1 1 auto; gap:6px; }
+    .colour-row .swatch{ width:26px; height:26px; }
+    .swatch.none{ background:#fff linear-gradient(to top left, transparent calc(50% - 1.5px), #c0392b calc(50% - 1.5px), #c0392b calc(50% + 1.5px), transparent calc(50% + 1.5px)); }
+    .custom-colour{ flex:none; display:flex; }
+    .custom-colour input{ width:34px; height:30px; padding:0; border:1px solid var(--line2); border-radius:4px; background:#fff; cursor:pointer; }
+    .num-wrap{ flex:none; display:flex; align-items:center; gap:3px; font-size:13px; color:#4a4a4a; }
+    .num{ width:58px; padding:4px 6px; border:1px solid var(--line2); border-radius:4px; font:inherit; font-size:14px; color:var(--ink); }
     .sym-recent{ display:flex; gap:6px; margin-bottom:10px; }
+    .sym-recent[hidden]{ display:none; }
     .sym-recent .sym-btn{ width:44px; height:44px; aspect-ratio:auto; border-color:var(--line2); }
     .sym-cur{ margin-top:0; }
     .sym-cur-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -729,15 +741,19 @@
               <div class="sk-acts"><button class="btn" type="button" id="skDuplicate" data-i18n="sketchDuplicate">Duplicate</button><button class="btn danger" type="button" id="skDelete" data-i18n="sketchDelete">Delete</button></div>
             </div>
             <div class="section" id="secSymbol" hidden>
-              <div id="recentWrap" hidden><p class="label" id="recentLabel" data-i18n="recentSymbols">Recent symbols</p><div class="sym-recent" id="recentRow" role="group" aria-labelledby="recentLabel"></div></div>
+              <div id="recentWrap"><p class="label" id="recentLabel">Recent symbols</p><div class="sym-recent" id="recentRow" role="group" aria-labelledby="recentLabel"></div><p class="sk-none" id="recentNone"></p></div>
               <p class="label" data-i18n="currentSymbol">Current symbol</p>
               <button class="sk-row sym-cur" type="button" id="skSymbolOpen"></button>
             </div>
             <div class="section" id="secColour" hidden><p class="label" data-i18n="symbol">Colour</p><div class="swatches" id="swatches" role="group"></div></div>
             <div class="section" id="secSize" hidden><label class="label" for="fSize" id="sizeLabel">Size</label><div class="slider-row"><input type="range" id="fSize" min="6" max="48" value="12" /><span class="slider-val" id="sizeVal">12</span></div></div>
+            <div class="section" id="secFillColour" hidden><p class="label" id="fillColourLabel" data-i18n="fillColour">Fill colour</p><div class="colour-row"><div class="swatches" id="fillSwatches" role="group" aria-labelledby="fillColourLabel"></div><label class="custom-colour"><span class="sr-only" data-i18n="customFillColour">Fill colour of your own</span><input type="color" id="fillCustom" value="#0079c1" /></label></div></div>
+            <div class="section" id="secFillT" hidden><label class="label" for="fFillT" data-i18n="fillTransparency">Fill transparency</label><div class="slider-row"><input type="range" id="fFillT" min="0" max="100" step="1" value="75" /><span class="num-wrap"><input class="num" type="number" id="fFillTN" min="0" max="100" step="1" value="75" data-i18n-aria="fillTransparency" aria-label="Fill transparency" /><span aria-hidden="true">%</span></span></div></div>
+            <div class="section" id="secOutlineColour" hidden><p class="label" id="outlineColourLabel" data-i18n="outlineColour">Outline colour</p><div class="colour-row"><div class="swatches" id="outlineSwatches" role="group" aria-labelledby="outlineColourLabel"></div><label class="custom-colour"><span class="sr-only" data-i18n="customOutlineColour">Outline colour of your own</span><input type="color" id="outlineCustom" value="#0079c1" /></label></div></div>
+            <div class="section" id="secOutlineT" hidden><label class="label" for="fOutlineT" data-i18n="outlineTransparency">Outline transparency</label><div class="slider-row"><input type="range" id="fOutlineT" min="0" max="100" step="1" value="0" /><span class="num-wrap"><input class="num" type="number" id="fOutlineTN" min="0" max="100" step="1" value="0" data-i18n-aria="outlineTransparency" aria-label="Outline transparency" /><span aria-hidden="true">%</span></span></div></div>
+            <div class="section" id="secOutlineW" hidden><label class="label" for="fOutlineW" data-i18n="outlineWidth">Outline width</label><div class="slider-row"><input type="range" id="fOutlineW" min="0" max="12" step="0.5" value="2" /><span class="num-wrap"><input class="num" type="number" id="fOutlineWN" min="0" max="12" step="0.5" value="2" data-i18n-aria="outlineWidth" aria-label="Outline width" /><span aria-hidden="true">px</span></span></div></div>
             <div class="section" id="secPattern" hidden><p class="label" id="patternLabel">Pattern</p><div class="pat-row" id="patternRow" role="group" aria-labelledby="patternLabel"></div></div>
             <div class="section" id="secArrow" hidden><p class="label" id="arrowLabel" data-i18n="lineArrow">Arrow</p><div class="pat-row" id="arrowRow" role="group" aria-labelledby="arrowLabel"></div></div>
-            <div class="section" id="secFill" hidden><label class="label" for="fFill" data-i18n="fillSolid">Fill</label><div class="slider-row"><input type="range" id="fFill" min="0" max="100" step="5" value="25" /><span class="slider-val" id="fillVal">25%</span></div></div>
             <div class="section" id="rotSection" hidden><label class="label" for="fRot" data-i18n="rotation">Rotation</label><div class="slider-row"><input type="range" id="fRot" min="0" max="360" value="0" /><span class="slider-val" id="rotVal">0°</span></div></div>
           </div>
           <div id="skSymbols" class="sk-sub" hidden>
@@ -746,6 +762,7 @@
               <div><label class="label" for="symbolSet" data-i18n="symbolCategory">Category</label><select class="field" id="symbolSet"></select></div>
               <div><label class="label" for="symbolSearch" data-i18n="symbolSearch">Search</label><input class="field" id="symbolSearch" type="search" autocomplete="off" /></div>
             </div>
+            <p class="hint" id="symbolNote" data-i18n="styledFillNote" hidden>In 3D a styled fill is shown as its outline only.</p>
             <p class="hint" id="symbolStatus" role="status"></p>
             <div class="sym-grid" id="symbolGrid" role="group" aria-labelledby="skSymbolsH"></div>
             <button class="btn primary sk-done" type="button" id="skSymbolsDone" data-i18n="done">Done</button>
@@ -948,6 +965,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.6"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.7"></script>
 </body>
 </html>

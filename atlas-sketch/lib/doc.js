@@ -4,7 +4,7 @@
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "3.1";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill)
+export const WEBMAP_WRITER_VERSION = "3.2";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill). 3.2: areas have a fill colour, outline transparency and width, and can take a styled fill
 export const WEBMAP_SPEC_VERSION = "2.31";
 export const WEBSCENE_SPEC_VERSION = "1.40";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
@@ -53,7 +53,12 @@ export function cleanSketchAttributes(a, geometry, symbol) {
     shape: typeof a.shape === "string" && SHAPE_NAME.test(a.shape) ? a.shape : "",
     pattern: LINE_PATTERNS[a.pattern] ? a.pattern : "solid",
     arrow: ARROWS[a.arrow] !== undefined ? a.arrow : "none",
-    fill: clamp(a.fill, 0, 100, 25)
+    fill: clamp(a.fill, 0, 100, 25),
+    // Sketch styles 2.2, areas as Map Viewer sets them up: a fill colour of its own ("" = the outline's), and the
+    // outline's transparency (%) and width (0 = no outline). "fill" stays how solid the fill is (100 - its transparency).
+    fillColor: HEX_COLOR.test(a.fillColor) ? a.fillColor.toLowerCase() : "",
+    outlineTransparency: clamp(a.outlineTransparency, 0, 100, 0),
+    outlineWidth: clamp(a.outlineWidth, 0, 20, 2)
   };
 }
 // A point symbol is the plain circle ("") or one of Esri's vector point symbols by name ("web:school"): the 2D point
@@ -206,6 +211,9 @@ const SKETCH_FIELDS = [
   { name: "pattern", alias: "pattern", type: "esriFieldTypeString", length: 12 },
   { name: "arrow", alias: "arrow", type: "esriFieldTypeString", length: 8 },
   { name: "fill", alias: "fill", type: "esriFieldTypeDouble" },
+  { name: "fillColor", alias: "fillColor", type: "esriFieldTypeString", length: 7 },
+  { name: "outlineTransparency", alias: "outlineTransparency", type: "esriFieldTypeDouble" },
+  { name: "outlineWidth", alias: "outlineWidth", type: "esriFieldTypeDouble" },
   { name: "_style", alias: "_style", type: "esriFieldTypeString", length: 200 }
 ];
 export const SKETCH_LAYER_PREFIX = "__sketch_";
@@ -217,7 +225,13 @@ function sketchSymbol(kind, a, icon) {
     if (ARROWS[a.arrow]) s.marker = { style: "arrow", placement: ARROWS[a.arrow] };
     return s;
   }
-  if (kind === "polygon") return { type: "esriSFS", style: "esriSFSSolid", color: hexToRgba(a.color, Math.round(255 * (finite(a.fill) ? a.fill : 25) / 100)), outline: { type: "esriSLS", style, color: hexToRgba(a.color, 255), width: 2 } };
+  if (kind === "polygon") {
+    const styled = a.shape && typeof icon === "function" ? icon(a) : null;
+    if (styled && styled.type === "CIMSymbolReference") return styled;
+    const w = finite(a.outlineWidth) ? a.outlineWidth : 2, ot = finite(a.outlineTransparency) ? a.outlineTransparency : 0;
+    return { type: "esriSFS", style: "esriSFSSolid", color: hexToRgba(a.fillColor || a.color, Math.round(255 * (finite(a.fill) ? a.fill : 25) / 100)),
+      outline: { type: "esriSLS", style: w > 0 ? style : "esriSLSNull", color: hexToRgba(a.color, Math.round(255 * (100 - ot) / 100)), width: w } };
+  }
   // icon: the app hands over the vector symbol (a CIMSymbolReference, as Map Viewer saves) for a named point symbol
   const vector = a.shape && typeof icon === "function" ? icon(a) : null;
   if (vector && vector.type === "CIMSymbolReference") return vector;
@@ -233,7 +247,7 @@ function sketchPopupInfo(withImage) {
   return info;
 }
 function styleKey(kind, a) {
-  if (kind === "polygon") return [a.color, a.fill == null ? 25 : a.fill, a.pattern || "solid"].join("|");
+  if (kind === "polygon") return [a.color, a.fill == null ? 25 : a.fill, a.pattern || "solid", a.fillColor || "", a.outlineTransparency || 0, a.outlineWidth == null ? 2 : a.outlineWidth, a.shape || ""].join("|");
   if (kind === "polyline") return [a.color, a.size, a.pattern || "solid", a.arrow || "none"].join("|");
   return [a.color, a.size, a.rotation || 0, a.shape || ""].join("|");
 }
@@ -252,7 +266,8 @@ export function sketchToOperationalLayers(graphics, title, visible, icon) {
       const a = g.attributes;
       return { geometry: g.geometry, attributes: { ObjectId: i + 1, uid: a.uid, kind: a.kind, title: a.title, description: a.description,
         imageUrl: a.imageUrl || "", color: a.color, size: a.size, rotation: a.rotation || 0,
-        shape: a.shape || "", pattern: a.pattern || "solid", arrow: a.arrow || "none", fill: a.fill == null ? 25 : a.fill, _style: k === "text" ? a.color + "|" + a.size : styleKey(gkind, a) } };
+        shape: a.shape || "", pattern: a.pattern || "solid", arrow: a.arrow || "none", fill: a.fill == null ? 25 : a.fill,
+        fillColor: a.fillColor || "", outlineTransparency: a.outlineTransparency || 0, outlineWidth: a.outlineWidth == null ? 2 : a.outlineWidth, _style: k === "text" ? a.color + "|" + a.size : styleKey(gkind, a) } };
     });
     const layerDefinition = { name: (title || "Sketches") + " (" + names[k] + ")", type: "Feature Layer", geometryType: ESRI_GEOM[gkind],
       objectIdField: "ObjectId", fields: SKETCH_FIELDS, drawingInfo: {} };

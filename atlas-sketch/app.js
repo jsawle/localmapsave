@@ -2,20 +2,20 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.6";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.7";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.6";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.7";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.6";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.7";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.6";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.6";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.6";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.7";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.7";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.7";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.6";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.7";
 
-const APP_VERSION = "5.0.0-beta.6";
+const APP_VERSION = "5.0.0-beta.7";
 const COMPASS_VERSION = "1.1";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -259,7 +259,7 @@ const [EsriMap, WebMap, WebScene, Camera, GraphicsLayer, FeatureLayer, Graphic, 
   "@arcgis/core/identity/OAuthInfo.js", "@arcgis/core/portal/Portal.js", "@arcgis/core/request.js", "@arcgis/core/core/reactiveUtils.js",
   "@arcgis/core/symbols/SimpleMarkerSymbol.js", "@arcgis/core/symbols/SimpleLineSymbol.js", "@arcgis/core/symbols/SimpleFillSymbol.js", "@arcgis/core/symbols/TextSymbol.js"
 ]);
-// The SDK code for a tool is downloaded when the tool is first opened, not when the app starts (5.0.0-beta.6): on a slow
+// The SDK code for a tool is downloaded when the tool is first opened, not when the app starts (5.0.0-beta.7): on a slow
 // connection the map is there sooner, and a class that never measures never downloads Measure.
 let Legend, Measurement, CoordinateConversion, ElevationProfile, ElevationLayer, densifyOperator, WebStyleSymbol, cimSymbolUtils;
 const TOOL_CODE = {
@@ -291,7 +291,7 @@ async function restGet(path, query) {
 const graphicsLayer = new GraphicsLayer({ id: "__sketch", title: S.sketchLayer, elevationInfo: { mode: "on-the-ground" }, listMode: "hide" });
 const defaultBasemap = () => new Basemap({ portalItem: { id: cfg.defaultBasemap } });
 // A link that opens a map or scene starts without the default basemap: that map brings its own, and the default one
-// (its item, style and first tiles) would be downloaded only to be replaced (5.0.0-beta.6). It is put in if the open fails.
+// (its item, style and first tiles) would be downloaded only to be replaced (5.0.0-beta.7). It is put in if the open fails.
 const linkedScene = !authStash && F.threeD !== false && HEX32.test(params.get("webscene") || "") ? params.get("webscene") : null;
 const linkedMap = !authStash && !linkedScene && HEX32.test(params.get("webmap") || "") ? params.get("webmap") : null;
 const localMap = new EsriMap({ basemap: linkedScene || linkedMap ? null : defaultBasemap(), ground: "world-elevation", layers: [graphicsLayer] });
@@ -304,7 +304,7 @@ if (linkedScene || linkedMap) {
 function takePreloaded(itemId, Type) { const p = preloaded; preloaded = null; return p && p.id === itemId && p.map instanceof Type && p.map.loadStatus !== "failed" ? p.map : new Type({ portalItem: { id: itemId } }); }
 const startCenter = Array.isArray(cfg.startView.center) ? cfg.startView.center : [0, 20];
 // The views are made by the SDK's map and scene components (arcgis-map, arcgis-scene), the supported way from SDK 5 on;
-// the rest of the app works with the MapView / SceneView each one holds (5.0.0-beta.6).
+// the rest of the app works with the MapView / SceneView each one holds (5.0.0-beta.7).
 async function componentView(tag, hostId, props) {
   const el = document.createElement(tag); el.className = "view-el";
   Object.assign(el, props);
@@ -627,13 +627,14 @@ function updatePopupEnabled() {
 // (title, description, picture), colour and size, and rotation for text.
 const COLOUR_NAMES = String(S.colourNames || "").split(",");
 let selectedGraphics = [], selectedFeature = null;   // selectedFeature: the one sketch whose pop-up is being edited
-let pendingStyle = { color: PALETTE_HEX[0], size: 12, rotation: 0, shape: "", pattern: "solid", arrow: "none", fill: 25 };
+// areaShape: an area's styled fill (a point's symbol and an area's are chosen separately; on a sketch both are its "shape")
+let pendingStyle = { color: PALETTE_HEX[0], size: 12, rotation: 0, shape: "", areaShape: "", pattern: "solid", arrow: "none", fill: 25, fillColor: "", outlineTransparency: 0, outlineWidth: 2 };
 const newUid = () => "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 // Freehand is a segment option inside the line and area tools (as in Map Viewer), not a button of its own.
 const SKETCH_TOOLS = ["point", "polyline", "freehandPolyline", "polygon", "freehandPolygon", "rectangle", "circle", "text"];
 const sketch = document.createElement("arcgis-sketch");
 sketch.defaultGraphicsLayerDisabled = true;   // draw on the app's sketch layer only, never a layer of its own
-// It goes on the page (and its code is downloaded) when Sketch is first opened: see sketchToolsOn (5.0.0-beta.6).
+// It goes on the page (and its code is downloaded) when Sketch is first opened: see sketchToolsOn (5.0.0-beta.7).
 let sketchPlaced = null;
 const sketchOnPage = new Promise((res) => { sketchPlaced = res; });
 function placeSketch() { if (!sketch.isConnected) { $("sketchBar").appendChild(sketch); sketchPlaced(); } }
@@ -654,9 +655,12 @@ const sketchReady = (async () => {
     updateOnGraphicClickDisabled: $("sketchBar").hidden,   // outside sketching, clicking a sketch opens its pop-up
     label: S.sketch
   });
+  // Tooltips on from the start (5.0.0-beta.7): beside the pointer, the place while drawing a point, and a line's length
+  // or an area's size as it is drawn. The toolbar's Settings can turn them off. A config can start with them off.
+  if (cfg.sketchTooltips !== false) { try { if (sketch.tooltipOptions) sketch.tooltipOptions.enabled = true; else sketch.tooltipOptions = { enabled: true }; } catch (e) { console.warn("Tooltips not turned on", e); } }
 })().catch((e) => console.error("Sketch couldn't start", e));
 
-// ---- Sketch styles (2.0 in 5.0.0-beta.6; 2.1 in beta.6: Map Viewer's sketch styles)
+// ---- Sketch styles (2.0 in 5.0.0-beta.7; 2.1 in beta.6: Map Viewer's sketch styles)
 // Point symbols: the plain circle, or a symbol from one of Esri's sketch styles: the web styles in the "Esri Sketch
 // Styles" group, which is where Map Viewer's Sketch gets its categories (Animals, Buildings, Pins...). A sketch keeps
 // the style's item id and the symbol's name ("web:<item id>/Fox"); the symbol is fetched once, then sized (and, for a
@@ -676,7 +680,11 @@ const SYMBOL_SETS = [
   { key: "natural1", item: "bedfab602abc49e0800482182f0c3e19" },
   { key: "natural2", item: "f2aaebea3bf04c65ba97f7f5c020ce3b" },
   { key: "human1", item: "e9cb6bb3273342b69628e0da4be1b60c" },
-  { key: "human2", item: "8560ce55ee7547a0b6b1d59df76d3f6b" }
+  { key: "human2", item: "8560ce55ee7547a0b6b1d59df76d3f6b" },
+  // Styled fills for areas (2.2), from the same group. In 3D the SDK draws these as outlines only.
+  { key: "hatch", item: "807adef8568448318173798e15954ee5", geom: "polygon" },
+  { key: "landuse", item: "e6ad877235bc41a395a17bed100cf2f4", geom: "polygon" },
+  { key: "pencil", item: "c4d80992510449289edc5cc0db28d5c0", geom: "polygon" }
 ].filter((x) => !Array.isArray(cfg.sketchSymbolSets) || cfg.sketchSymbolSets.includes(x.key));
 const styleBase = (item) => "https://cdn.arcgis.com/sharing/rest/content/items/" + item;
 function parseShape(shape) {
@@ -702,6 +710,7 @@ function vectorSymbol(o) {
   const p = parseShape(o.shape), base = p ? vectorCache.get(p.key) : null;
   if (!base) return null;
   const sym = base.clone(), rgb = hexToRgb(o.color);
+  if (p.set.geom === "polygon") return sym;   // a styled fill is used as it is
   try { if (p.set.tint) cimSymbolUtils.applyCIMSymbolColor(sym, { r: rgb[0], g: rgb[1], b: rgb[2], a: 1 }); cimSymbolUtils.scaleCIMSymbolTo(sym, Math.round((o.size || 12) * 2.5)); } catch (e) { console.warn("Couldn't style a symbol", e); }
   return sym;
 }
@@ -715,14 +724,21 @@ function symbolFor(kind, o) {
     if (ARROWS[o.arrow]) sym.marker = { style: "arrow", placement: ARROWS[o.arrow], color: o.color };
     return sym;
   }
-  if (kind === "polygon") return { type: "simple-fill", color: [rgb[0], rgb[1], rgb[2], (o.fill == null ? 25 : o.fill) / 100], outline: { color: o.color, width: 2, style } };
+  if (kind === "polygon") {
+    // as Map Viewer sets an area up: a fill colour and its transparency, an outline colour, its transparency and width
+    const f = hexToRgb(o.fillColor || o.color), w = o.outlineWidth == null ? 2 : o.outlineWidth, ot = o.outlineTransparency || 0;
+    return { type: "simple-fill", color: [f[0], f[1], f[2], (o.fill == null ? 25 : o.fill) / 100], outline: { color: [rgb[0], rgb[1], rgb[2], (100 - ot) / 100], width: w, style: w > 0 ? style : "none" } };
+  }
   return { type: "simple-marker", style: "circle", color: o.color, size: o.size || 12, angle: o.rotation || 0, outline: { color: "#ffffff", width: 1.5 } };
 }
 const kindOf = (g) => (g.attributes && g.attributes.kind === "text" ? "text" : (g.geometry && g.geometry.type) || "point");
-const styleOf = (a) => ({ color: a.color || PALETTE_HEX[0], size: a.size || 12, rotation: a.rotation || 0, text: a.title, shape: a.shape || "", pattern: a.pattern || "solid", arrow: a.arrow || "none", fill: a.fill == null ? 25 : a.fill });
+const styleOf = (a) => ({ color: a.color || PALETTE_HEX[0], size: a.size || 12, rotation: a.rotation || 0, text: a.title, shape: a.shape || "", pattern: a.pattern || "solid", arrow: a.arrow || "none", fill: a.fill == null ? 25 : a.fill,
+  fillColor: a.fillColor || "", outlineTransparency: a.outlineTransparency || 0, outlineWidth: a.outlineWidth == null ? 2 : a.outlineWidth });
+// what the tools draw an area with next, in a sketch's own terms
+const pendingArea = () => ({ ...pendingStyle, shape: pendingStyle.areaShape });
 function applyStyle(g) {
   const a = g.attributes || (g.attributes = {}), kind = kindOf(g), o = styleOf(a);
-  if (kind === "point" && o.shape) {
+  if ((kind === "point" || kind === "polygon") && o.shape) {
     const v = vectorSymbol(o);
     if (v) { g.symbol = v; return; }
     loadVector(o.shape).then(() => { if (g.attributes && g.attributes.shape === o.shape) applyStyle(g); }).catch(() => {});   // the circle meanwhile
@@ -736,7 +752,9 @@ async function syncSketchSymbols() {
   sketch.pointSymbol = (o.shape && vectorSymbol(o)) || new SimpleMarkerSymbol(props("point", o));
   if (o.shape && !vectorSymbol(o)) loadVector(o.shape).then(() => { if (pendingStyle.shape === o.shape) syncSketchSymbols(); }).catch(() => {});
   sketch.polylineSymbol = new SimpleLineSymbol(props("polyline", o));
-  sketch.polygonSymbol = new SimpleFillSymbol(props("polygon", o));
+  const ar = pendingArea();
+  sketch.polygonSymbol = (ar.shape && vectorSymbol(ar)) || new SimpleFillSymbol(props("polygon", ar));
+  if (ar.shape && !vectorSymbol(ar)) loadVector(ar.shape).then(() => { if (pendingStyle.areaShape === ar.shape) syncSketchSymbols(); }).catch(() => {});
   sketch.textSymbol = new TextSymbol(props("text", { ...o, size: Math.max(14, o.size) }));
 }
 syncSketchSymbols();
@@ -804,12 +822,12 @@ function showSketchView(name, focusEl) {
   if (name === "symbols") { ensureSymbolSet(); }
   if (focusEl) focusEl.focus();
 }
-const currentShape = () => (selectedGraphics.length ? (selectedGraphics[0].attributes || {}).shape || "" : pendingStyle.shape || "");
-function symbolTitle(shape) { if (!shape) return S.symbolCircle; const p = parseShape(shape); return (p && symbolTitles.get(p.key)) || (p ? p.name : shape); }
+const currentShape = () => (selectedGraphics.length ? (selectedGraphics[0].attributes || {}).shape || "" : (symbolGeom() === "polygon" ? pendingStyle.areaShape : pendingStyle.shape) || "");
+function symbolTitle(shape) { if (!shape) return symbolGeom() === "polygon" ? S.basicPolygon : S.symbolCircle; const p = parseShape(shape); return (p && symbolTitles.get(p.key)) || (p ? p.name : shape); }
 function symbolPicture(shape, size) {
   const p = parseShape(shape), box = document.createElement("span"); box.className = "sym-pic"; box.style.width = box.style.height = size + "px";
   if (p) { const im = document.createElement("img"); im.src = shapeThumb(p); im.alt = ""; im.loading = "lazy"; im.style.width = im.style.height = Math.round(size * 2.2) + "px"; box.appendChild(im); }
-  else { const d = document.createElement("span"); d.className = "sym-dot"; box.appendChild(d); }
+  else { const d = document.createElement("span"); d.className = symbolGeom() === "polygon" ? "sym-area" : "sym-dot"; box.appendChild(d); }
   return box;
 }
 function symbolButton(shape, title, size) {
@@ -819,24 +837,28 @@ function symbolButton(shape, title, size) {
   return b;
 }
 // Recent symbols: the last few used, kept on this device for next time (a convenience; nothing is lost without it)
-let recentSymbols = [];
-try { const r = JSON.parse(localStorage.getItem("atlas.recentSymbols") || "[]"); if (Array.isArray(r)) recentSymbols = r.filter((x) => x && (x.shape === "" || parseShape(x.shape))).slice(0, 5).map((x) => ({ shape: x.shape, title: String(x.title || "").slice(0, 80) })); } catch (e) { /* no storage */ }
-function noteRecent(shape, title) {
-  recentSymbols = [{ shape, title }, ...recentSymbols.filter((x) => x.shape !== shape)].slice(0, 5);
-  try { localStorage.setItem("atlas.recentSymbols", JSON.stringify(recentSymbols)); } catch (e) { /* no storage */ }
+const recentSymbols = { point: [], polygon: [] };
+for (const g of ["point", "polygon"]) {
+  try { const r = JSON.parse(localStorage.getItem("atlas.recentSymbols" + (g === "point" ? "" : "." + g)) || "[]"); if (Array.isArray(r)) recentSymbols[g] = r.filter((x) => x && (x.shape === "" || parseShape(x.shape))).slice(0, 5).map((x) => ({ shape: x.shape, title: String(x.title || "").slice(0, 80) })); } catch (e) { /* no storage */ }
 }
+function noteRecent(geom, shape, title) {
+  recentSymbols[geom] = [{ shape, title }, ...recentSymbols[geom].filter((x) => x.shape !== shape)].slice(0, 5);
+  try { localStorage.setItem("atlas.recentSymbols" + (geom === "point" ? "" : "." + geom), JSON.stringify(recentSymbols[geom])); } catch (e) { /* no storage */ }
+}
+const symbolGeom = () => (sketchContext() === "polygon" ? "polygon" : "point");
 function chooseSymbol(shape, title) {
-  noteRecent(shape, title || symbolTitle(shape));
-  restyleSelection("shape", shape);
+  const geom = symbolGeom();
+  noteRecent(geom, shape, title || symbolTitle(shape));
+  restyleSelection(geom === "polygon" ? "areaShape" : "shape", shape);
   populateSketchPanel();
   if (skView === "symbols") pressOne("symbolGrid", "shape", shape);
 }
 function populateSketchPanel() {
   const many = selectedGraphics.length > 1, sel = selectedFeature, a = sel ? sel.attributes : null;
-  const first = selectedGraphics.length ? styleOf(selectedGraphics[0].attributes || {}) : pendingStyle;
   const kind = sketchContext(), tool = sketch.activeTool || null;
+  const first = selectedGraphics.length ? styleOf(selectedGraphics[0].attributes || {}) : kind === "polygon" ? pendingArea() : pendingStyle;
   if (!kind && skView !== "main") showSketchView("main");
-  if (skView === "symbols" && kind !== "point") showSketchView("main");
+  if (skView === "symbols" && kind !== "point" && kind !== "polygon") showSketchView("main");
   if (skView === "popup" && !sel) showSketchView("main");
   // what the tool in hand does (Map Viewer: "Click the map to add point.")
   const hint = selectedGraphics.length ? (many ? fmt(S.manySelected, { n: selectedGraphics.length }) : S.sketchHintSelected) : S["sketchHint_" + (TOOL_KIND[tool] ? (tool === "rectangle" || tool === "circle" ? "drag" : /^freehand/.test(tool) ? "freehand" : TOOL_KIND[tool]) : "none")];
@@ -845,14 +867,22 @@ function populateSketchPanel() {
   $("secFeature").hidden = !selectedGraphics.length;
   $("nameRow").hidden = !sel; $("skPopupOpen").hidden = !sel || kind === "text";
   $("nameLabel").textContent = kind === "text" ? S.sketchText : S.sketchName;
-  $("secSymbol").hidden = kind !== "point";
-  $("secColour").hidden = !kind || (kind === "point" && !shapeTints(first.shape));
+  const styledArea = kind === "polygon" && !!first.shape;   // a styled fill is used as it is: no colours or outline to set
+  $("secSymbol").hidden = kind !== "point" && kind !== "polygon";
+  $("recentLabel").textContent = kind === "polygon" ? S.recentPolygonSymbols : S.recentSymbols;
+  $("secColour").hidden = !kind || kind === "polygon" || (kind === "point" && !shapeTints(first.shape));
+  for (const id of ["secFillColour", "secFillT", "secOutlineColour", "secOutlineT", "secOutlineW"]) $(id).hidden = kind !== "polygon" || styledArea;
   $("secSize").hidden = !kind || kind === "polygon" || kind === "mixed";
   $("sizeLabel").textContent = kind === "polyline" ? S.lineWidth : S.size;
-  $("secPattern").hidden = !(kind === "polyline" || kind === "polygon");
+  $("secPattern").hidden = !(kind === "polyline" || (kind === "polygon" && !styledArea));
   $("patternLabel").textContent = kind === "polygon" ? S.outlinePattern : S.linePattern;
   $("secArrow").hidden = kind !== "polyline";
-  $("secFill").hidden = kind !== "polygon";
+  if (kind === "polygon") {
+    const fc = first.fillColor || first.color, ft = 100 - (first.fill == null ? 25 : first.fill);
+    pressSwatch("fillSwatches", first.fill === 0 ? "none" : fc); $("fillCustom").value = fc;
+    pressSwatch("outlineSwatches", first.outlineWidth === 0 ? "none" : first.color); $("outlineCustom").value = first.color;
+    setPair("fFillT", ft); setPair("fOutlineT", first.outlineTransparency || 0); setPair("fOutlineW", first.outlineWidth == null ? 2 : first.outlineWidth);
+  }
   $("rotSection").hidden = kind !== "text";
   popupFieldsEnabled(!!sel);
   setImagePreview(a ? a.imageUrl || "" : "");
@@ -862,28 +892,28 @@ function populateSketchPanel() {
   highlightSwatch(first.color || PALETTE_HEX[0]);
   $("fSize").value = first.size || 12; $("sizeVal").textContent = first.size || 12;
   $("fRot").value = first.rotation || 0; $("rotVal").textContent = (first.rotation || 0) + "°";
-  $("fFill").value = first.fill == null ? 25 : first.fill; $("fillVal").textContent = (first.fill == null ? 25 : first.fill) + "%";
   pressOne("patternRow", "pattern", first.pattern || "solid"); pressOne("arrowRow", "arrow", first.arrow || "none");
-  if (kind === "point") {
+  if (kind === "point" || kind === "polygon") {
     const shape = first.shape || "";
     const cur = $("skSymbolOpen"); cur.replaceChildren(symbolPicture(shape, 30));
     const nm = document.createElement("span"); nm.className = "sym-cur-name"; nm.textContent = symbolTitle(shape); const ch = document.createElement("span"); ch.className = "chev"; ch.setAttribute("aria-hidden", "true"); ch.textContent = "›";
     cur.append(nm, ch); cur.setAttribute("aria-label", S.currentSymbol + ": " + symbolTitle(shape) + ". " + S.changeSymbol);
     const row = $("recentRow"); row.replaceChildren();
-    for (const r of recentSymbols) row.appendChild(symbolButton(r.shape, r.title || symbolTitle(r.shape), 30));
-    $("recentWrap").hidden = !recentSymbols.length;
+    const recents = recentSymbols[symbolGeom()];
+    for (const r of recents) row.appendChild(symbolButton(r.shape, r.title || symbolTitle(r.shape), 30));
+    $("recentNone").hidden = recents.length > 0; $("recentNone").textContent = kind === "polygon" ? S.noRecentPolygonSymbols : S.noRecentSymbols; row.hidden = !recents.length;
     pressOne("recentRow", "shape", shape);
     if (skView === "symbols") pressOne("symbolGrid", "shape", shape);
   }
 }
 // What a style control may change on a sketch of each kind
-const STYLE_KINDS = { shape: ["point"], arrow: ["polyline"], pattern: ["polyline", "polygon"], fill: ["polygon"], rotation: ["text"] };
+const STYLE_KINDS = { shape: ["point"], areaShape: ["polygon"], arrow: ["polyline"], pattern: ["polyline", "polygon"], fill: ["polygon"], fillColor: ["polygon"], outlineTransparency: ["polygon"], outlineWidth: ["polygon"], rotation: ["text"] };
 // Change symbol: each category is one of the sketch styles; its list (names, titles, small pictures) is fetched when first chosen.
 const symbolLists = new Map(), symbolTitles = new Map();
 const LEFT_OUT = new Set((Array.isArray(cfg.sketchSymbolsLeftOut) ? cfg.sketchSymbolsLeftOut : ["bar", "casino", "vineyard"]).map((x) => String(x).toLowerCase()));   // not for a school atlas; a config can choose
 function loadSymbolSet(set) {
   if (!symbolLists.has(set.key)) symbolLists.set(set.key, restGetUrl(styleBase(set.item) + "/data").then((d) => {
-    const items = (d.items || []).filter((it) => it && it.itemType === "pointSymbol" && (!set.category || it.category === set.category) && SHAPE_NAME.test("web:" + set.item + "/" + it.name) && !LEFT_OUT.has(String(it.name).toLowerCase()))
+    const items = (d.items || []).filter((it) => it && it.itemType === (set.geom === "polygon" ? "polygonSymbol" : "pointSymbol") && (!set.category || it.category === set.category) && SHAPE_NAME.test("web:" + set.item + "/" + it.name) && !LEFT_OUT.has(String(it.name).toLowerCase()))
       .map((it) => ({ shape: "web:" + set.item + "/" + it.name, title: String(it.title || it.name).slice(0, 80), tags: (Array.isArray(it.tags) ? it.tags.join(" ") : "").toLowerCase() }));
     for (const it of items) symbolTitles.set(set.item + "/" + it.shape.slice(37), it.title);
     return items;
@@ -892,7 +922,13 @@ function loadSymbolSet(set) {
 }
 let symbolSeq = 0;
 async function ensureSymbolSet() {
-  const set = SYMBOL_SETS.find((x) => x.key === $("symbolSet").value) || SYMBOL_SETS[0], grid = $("symbolGrid"), seq = ++symbolSeq;
+  const geom = symbolGeom(), sets = SYMBOL_SETS.filter((x) => (x.geom || "point") === geom);
+  if ($("symbolSet").dataset.geom !== geom) {   // the categories for points, or for areas
+    $("symbolSet").replaceChildren(...sets.map((x) => { const o = document.createElement("option"); o.value = x.key; o.textContent = S["symbolSet_" + x.key] || x.key; return o; }));
+    $("symbolSet").dataset.geom = geom;
+  }
+  $("symbolNote").hidden = geom !== "polygon";
+  const set = sets.find((x) => x.key === $("symbolSet").value) || sets[0], grid = $("symbolGrid"), seq = ++symbolSeq;
   if (!set) return;
   $("symbolStatus").textContent = S.symbolsLoading;
   let items;
@@ -902,6 +938,7 @@ async function ensureSymbolSet() {
   const shown = q ? items.filter((it) => it.title.toLowerCase().includes(q) || it.tags.includes(q)) : items;
   grid.replaceChildren();
   if (set.circle && (!q || S.symbolCircle.toLowerCase().includes(q))) grid.appendChild(symbolButton("", S.symbolCircle, 36));
+  if (geom === "polygon" && set === sets[0] && (!q || S.basicPolygon.toLowerCase().includes(q))) grid.appendChild(symbolButton("", S.basicPolygon, 36));   // back to the plain fill
   const setName = S["symbolSet_" + set.key] || set.key;
   for (const it of shown) grid.appendChild(symbolButton(it.shape, /^Symbol \d/.test(it.title) ? setName + ", " + it.title : it.title, 36));   // the drawn sets only number their symbols
   $("symbolStatus").textContent = q ? t("symbolsFound", { n: grid.children.length }) : "";
@@ -916,7 +953,7 @@ function selectForEdit(g) { setSelection(g ? [g] : []); }
 // Colour, size and rotation change every selected sketch, or (with none selected) what the tools draw next.
 function restyleSelection(key, value) {
   if (selectedGraphics.length) {
-    for (const g of selectedGraphics) { if (STYLE_KINDS[key] && !STYLE_KINDS[key].includes(kindOf(g))) continue; g.attributes[key] = value; applyStyle(g); }
+    for (const g of selectedGraphics) { if (STYLE_KINDS[key] && !STYLE_KINDS[key].includes(kindOf(g))) continue; g.attributes[key === "areaShape" ? "shape" : key] = value; applyStyle(g); }
     markDirty();
   }
   // the choice is also what the tools draw with next (as in Map Viewer, where a style carries on to the next sketch)
@@ -962,7 +999,31 @@ $("fImageFile").addEventListener("change", () => {
 $("imgRemove").addEventListener("click", () => { if (!selectedFeature) return; selectedFeature.attributes.imageUrl = ""; setImagePreview(""); markDirty(); });
 $("fSize").addEventListener("input", () => { const v = parseInt($("fSize").value, 10); $("sizeVal").textContent = v; restyleSelection("size", v); });
 $("fRot").addEventListener("input", () => { const v = parseInt($("fRot").value, 10); $("rotVal").textContent = v + "°"; restyleSelection("rotation", v); });
-$("fFill").addEventListener("input", () => { const v = parseInt($("fFill").value, 10); $("fillVal").textContent = v + "%"; restyleSelection("fill", v); });
+// Areas: fill and outline colours (the palette, a colour of your own, or none), transparencies and width, each a slider with its number box
+function pressSwatch(hostId, value) { [...$(hostId).querySelectorAll("button")].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.color === value))); }
+function setPair(id, v) { $(id).value = v; $(id + "N").value = v; }
+function swatchRow(hostId, customId, onColour, onNone, noneLabel) {
+  PALETTE_HEX.forEach((hex, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "swatch"; b.style.background = hex; b.dataset.color = hex;
+    const name = (COLOUR_NAMES[i] || hex).trim(); b.setAttribute("aria-label", name); b.title = name; b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => { onColour(hex); populateSketchPanel(); });
+    $(hostId).appendChild(b);
+  });
+  const n = document.createElement("button"); n.type = "button"; n.className = "swatch none"; n.dataset.color = "none"; n.setAttribute("aria-label", noneLabel); n.title = noneLabel; n.setAttribute("aria-pressed", "false");
+  n.addEventListener("click", () => { onNone(); populateSketchPanel(); });
+  $(hostId).appendChild(n);
+  $(customId).addEventListener("input", () => { onColour($(customId).value.toLowerCase()); pressSwatch(hostId, $(customId).value.toLowerCase()); });
+}
+swatchRow("fillSwatches", "fillCustom", (hex) => { restyleSelection("fillColor", hex); if ((selectedGraphics.length ? styleOf(selectedGraphics[0].attributes).fill : pendingStyle.fill) === 0) restyleSelection("fill", 25); }, () => restyleSelection("fill", 0), S.noFill);
+swatchRow("outlineSwatches", "outlineCustom", (hex) => { restyleSelection("color", hex); if ((selectedGraphics.length ? styleOf(selectedGraphics[0].attributes).outlineWidth : pendingStyle.outlineWidth) === 0) restyleSelection("outlineWidth", 2); }, () => restyleSelection("outlineWidth", 0), S.noOutline);
+function pair(id, key, toValue) {
+  const set = (raw) => { const el = $(id), v = Math.min(Number(el.max), Math.max(Number(el.min), Number(raw))); if (!Number.isFinite(v)) return; setPair(id, v); restyleSelection(key, toValue ? toValue(v) : v); };
+  $(id).addEventListener("input", () => set($(id).value));
+  $(id + "N").addEventListener("change", () => set($(id + "N").value));
+}
+pair("fFillT", "fill", (t) => 100 - t);            // kept as how solid the fill is; shown, as in Map Viewer, as its transparency
+pair("fOutlineT", "outlineTransparency");
+pair("fOutlineW", "outlineWidth");
 // Pattern and arrow choices: small pictures of the line, each a button
 {
   const NS = "http://www.w3.org/2000/svg", DASH = { solid: "", dash: "7 4", dot: "2 4", "dash-dot": "8 3 2 3", "long-dash": "12 4" };
@@ -979,13 +1040,12 @@ $("fFill").addEventListener("input", () => { const v = parseInt($("fFill").value
   button("arrowRow", "arrow", "end", S.arrow_end, (svg) => { line(svg, 3, 34); head(svg, 42, 1); });
   button("arrowRow", "arrow", "start", S.arrow_start, (svg) => { line(svg, 10, 41); head(svg, 2, -1); });
   button("arrowRow", "arrow", "both", S.arrow_both, (svg) => { line(svg, 10, 34); head(svg, 42, 1); head(svg, 2, -1); });
-  for (const set of SYMBOL_SETS) { const o = document.createElement("option"); o.value = set.key; o.textContent = S["symbolSet_" + set.key] || set.key; $("symbolSet").appendChild(o); }
   $("symbolSet").addEventListener("change", () => { $("symbolSearch").value = ""; ensureSymbolSet(); });
   let searchTimer = 0;
   $("symbolSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(ensureSymbolSet, 150); });
   $("skSymbolOpen").addEventListener("click", () => {
-    const p = parseShape(currentShape()); if (p && [...$("symbolSet").options].some((o) => o.value === p.set.key)) $("symbolSet").value = p.set.key;   // open on the current symbol's own category
     $("symbolSearch").value = ""; showSketchView("symbols", $("skSymbolsH"));
+    const p = parseShape(currentShape()); if (p && [...$("symbolSet").options].some((o) => o.value === p.set.key) && $("symbolSet").value !== p.set.key) { $("symbolSet").value = p.set.key; ensureSymbolSet(); }   // open on the current symbol's own category
   });
   for (const id of ["skSymbolsBack", "skSymbolsDone"]) $(id).addEventListener("click", () => showSketchView("main", $("skSymbolOpen")));
   $("skPopupOpen").addEventListener("click", () => showSketchView("popup", $("skPopupH")));
@@ -1022,7 +1082,8 @@ sketch.addEventListener("arcgisCreate", (e) => {
   graphic.attributes = { uid: newUid(), kind: isText ? "text" : (graphic.geometry && graphic.geometry.type) || "point",
     title: isText ? (typed && typed !== "hello world" ? typed : S.textDefault) : "", description: "", imageUrl: "",
     color: pendingStyle.color, size: isText ? Math.max(14, pendingStyle.size) : pendingStyle.size, rotation: isText ? pendingStyle.rotation : 0,
-    shape: isText ? "" : pendingStyle.shape, pattern: pendingStyle.pattern, arrow: pendingStyle.arrow, fill: pendingStyle.fill };
+    shape: isText ? "" : graphic.geometry && graphic.geometry.type === "polygon" ? pendingStyle.areaShape : graphic.geometry && graphic.geometry.type === "point" ? pendingStyle.shape : "",
+    pattern: pendingStyle.pattern, arrow: pendingStyle.arrow, fill: pendingStyle.fill, fillColor: pendingStyle.fillColor, outlineTransparency: pendingStyle.outlineTransparency, outlineWidth: pendingStyle.outlineWidth };
   applyStyle(graphic);
   graphic.popupTemplate = popupTemplate();
   markDirty();
@@ -1282,7 +1343,7 @@ function tune3d(v) {
   calm(); reactiveUtils.watch(() => v.map, () => v.when().then(calm).catch(() => {}));   // a scene brings its own lighting
 }
 const TILT_3D = Math.max(0, Math.min(80, Number(cfg.threeDTilt) || 0));
-// Which views a map allows (5.0.0-beta.6):
+// Which views a map allows (5.0.0-beta.7):
 //  - a web scene is 3D only (sceneOnly): it can hold layers and a camera that have no 2D form
 //  - a web map tagged "atlas-2d-only" on its ArcGIS Online item is 2D only (twoDOnly): its author switched 3D off
 const TAG_2D_ONLY = "atlas-2d-only";
@@ -1464,7 +1525,7 @@ function applyParsedWebMap(parsed) {
   bookmarks = parsed.bookmarks; updateToolBadges();
   keepSketchOnTop();
 }
-// The item's details and its map JSON, as the SDK fetched them when it loaded the map. (Before 5.0.0-beta.6 the app
+// The item's details and its map JSON, as the SDK fetched them when it loaded the map. (Before 5.0.0-beta.7 the app
 // asked ArcGIS Online for both itself as well, so each was downloaded twice.) If the SDK doesn't hand them over, they are fetched.
 async function loadedItemJson(m, itemId) {
   const copy = (o) => (o && typeof o === "object" ? JSON.parse(JSON.stringify(o)) : null);
@@ -2602,7 +2663,7 @@ function createBrowser(o) {
 
 // ---------- Open map
 const openCollectionMap = (it) => (it.type === "Web Scene" ? openWebSceneItem(it.id, { title: it.title }) : openWebMapItem(it.id, { title: it.title }));
-// The collection's web maps and, where 3D is on, its web scenes (5.0.0-beta.6); a scene's card says 3D.
+// The collection's web maps and, where 3D is on, its web scenes (5.0.0-beta.7); a scene's card says 3D.
 const mapBrowser = createBrowser({ p: "om", query: F.threeD === false ? 'type:"Web Map"' : '(type:"Web Map" OR type:"Web Scene")', accept: () => true, kind: "maps", thumbOpens: true, descLabel: () => S.mapDescription,
   decorate(b, item) { b.textContent = S.openThisMap; b.setAttribute("aria-label", S.openThisMap + ": " + (item.title || "")); },
   share: F.share === false ? null : shareMapLink,
@@ -3667,8 +3728,8 @@ function renderVersions() {
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
     ["3D scenes", "1.0", "Web scenes from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],
     ["Loading", "1.0", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Elevation and Sketch is downloaded when the tool is first opened."],
-    ["Sketch panel", "3.0", "Laid out like Map Viewer's Sketch pane: what the tool in hand does, then what suits it. A point has recent symbols and a Change symbol view (category, search, symbols). A selected sketch has its name, Pop-up, Duplicate and Delete. One toolbar on the map."],
-    ["Sketch styles", "2.1", "Points: symbols from 14 of Esri's sketch styles, the ones Map Viewer's Sketch offers (pins, numbers, shapes, arrows, places, animals, buildings, vehicles, trees, landforms, landscapes). Lines: patterns and arrows. Areas: fill and outline pattern."],
+    ["Sketch panel", "3.1", "Laid out like Map Viewer's Sketch pane: what the tool in hand does, then what suits it. A point has recent symbols and a Change symbol view (category, search, symbols). A selected sketch has its name, Pop-up, Duplicate and Delete. One toolbar on the map."],
+    ["Sketch styles", "2.2", "Points: symbols from 14 of Esri's sketch styles, the ones Map Viewer's Sketch offers. Lines: patterns and arrows. Areas, set up as in Map Viewer: fill colour and transparency, outline colour, transparency, width and pattern, or a styled fill (hatches, land use, pencil landscape; 2D only). Tooltips are on while drawing."],
     ["Sketch in 3D", "1.0", "The Sketch toolbar works in the 3D view and in scenes with the same tools. Sketches lie on the ground and are saved as flat shapes, so they are the same in 2D."],
     ["3D quality", "1.0", "How much work the 3D view does. Low (smaller textures, less memory, no shadows or stars) is chosen for a device with 4 GB of memory or less, 4 processor cores or fewer, or no graphics chip; otherwise medium. A config (threeDQuality) or a link (?quality=low, medium or high) can fix it."],
     ["Views", "2.0", "The 2D and 3D views are the SDK's map and scene components, with Search, Home, Zoom, the navigation toggle and the scale bar as components in their slots."],
