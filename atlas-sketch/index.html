@@ -61,6 +61,7 @@
     /* ---------- Map area ---------- */
     .map-wrap{ position:relative; flex:1 1 auto; min-height:0; }
     #viewDiv, #sceneDiv{ position:absolute; inset:0; }
+    .view-el{ display:block; width:100%; height:100%; }
     .corner{ position:absolute; right:8px; bottom:calc(var(--attr-h, 16px) + 10px); z-index:15; display:flex; align-items:center; gap:6px; pointer-events:none; }
     .corner.raised{ bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 18px); }
     .map-wrap .esri-attribution__powered-by::before{ content:var(--atlas-disclaimer, ""); }

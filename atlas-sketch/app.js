@@ -247,14 +247,13 @@ async function loadSdk(paths) {
   }
 }
 const [EsriMap, WebMap, MapView, SceneView, GraphicsLayer, FeatureLayer, Graphic, Basemap,
-  Measurement, ElevationProfile, ElevationLayer, CoordinateConversion, ScaleBar, Search, Expand, Home, Legend, Layer,
+  Measurement, ElevationProfile, ElevationLayer, CoordinateConversion, Legend, Layer,
   Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils,
   SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol, densifyOperator] = await loadSdk([
   "@arcgis/core/Map.js", "@arcgis/core/WebMap.js", "@arcgis/core/views/MapView.js", "@arcgis/core/views/SceneView.js",
   "@arcgis/core/layers/GraphicsLayer.js", "@arcgis/core/layers/FeatureLayer.js", "@arcgis/core/Graphic.js",
   "@arcgis/core/Basemap.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js", "@arcgis/core/layers/ElevationLayer.js",
-  "@arcgis/core/widgets/CoordinateConversion.js", "@arcgis/core/widgets/ScaleBar.js", "@arcgis/core/widgets/Search.js",
-  "@arcgis/core/widgets/Expand.js", "@arcgis/core/widgets/Home.js",
+  "@arcgis/core/widgets/CoordinateConversion.js",
   "@arcgis/core/widgets/Legend.js", "@arcgis/core/layers/Layer.js",
   "@arcgis/core/layers/support/Field.js", "@arcgis/core/layers/support/LabelClass.js", "@arcgis/core/renderers/support/jsonUtils.js",
   "@arcgis/core/geometry/Extent.js", "@arcgis/core/config.js", "@arcgis/core/intl.js", "@arcgis/core/identity/IdentityManager.js",
@@ -276,29 +275,46 @@ const graphicsLayer = new GraphicsLayer({ id: "__sketch", title: S.sketchLayer, 
 const defaultBasemap = () => new Basemap({ portalItem: { id: cfg.defaultBasemap } });
 const localMap = new EsriMap({ basemap: defaultBasemap(), ground: "world-elevation", layers: [graphicsLayer] });
 const startCenter = Array.isArray(cfg.startView.center) ? cfg.startView.center : [0, 20];
-const mapView = new MapView({ container: "viewDiv", map: localMap, center: startCenter, zoom: Number(cfg.startView.zoom) || 2 });
+// The views are made by the SDK's map and scene components (arcgis-map, arcgis-scene), the supported way from SDK 5 on;
+// the rest of the app works with the MapView / SceneView each one holds (5.0.0-beta.2).
+async function componentView(tag, hostId, props) {
+  const el = document.createElement(tag); el.className = "view-el";
+  Object.assign(el, props);
+  $(hostId).appendChild(el);
+  await customElements.whenDefined(tag);
+  await el.viewOnReady();
+  viewEls.set(el.view, el);
+  return el.view;
+}
+// A view's map is set on its component, which owns the view: set on the view alone, the component can put its own back.
+const viewEls = new Map();
+function setViewMap(v, m) { const el = viewEls.get(v); if (el) el.map = m; if (v.map !== m) v.map = m; }
+const mapView = await componentView("arcgis-map", "viewDiv", { map: localMap, center: startCenter, zoom: Number(cfg.startView.zoom) || 2 });
 let view = mapView, sceneView = null, mode = "2d";
 const viewHandlers = [];
 function onViews(evt, fn) { viewHandlers.push([evt, fn]); mapView.on(evt, fn); if (sceneView) sceneView.on(evt, fn); }
 function activeMap() { return view.map; }
 function addViewUI(v, is3d) {
-  if (F.search !== false) v.ui.add(new Expand({ view: v, content: new Search({ view: v }), expandIcon: "search", expandTooltip: S.search, group: "top-left" }), { position: "top-left", index: 0 });
-  v.ui.add(new Home({ view: v }), { position: "top-left", index: 1 });
-  // The SDK's 3D default also has a small compass; the rose replaces it. Only "compass", "navigation-toggle" and "zoom"
-  // are allowed here: any other id makes the SDK throw while drawing, and the 3D view then shows no basemap (1.3.1).
-  if (is3d) v.ui.components = ["zoom", "navigation-toggle"];
+  // The controls on the view are SDK components placed in the map / scene component's slots (5.0.0-beta.2; they were
+  // widgets added to view.ui, which SDK 6 removes). The 3D compass is left out: the rose replaces it.
+  const el = viewEls.get(v);
+  const slot = (tag, where, attrs) => { const c = document.createElement(tag); c.slot = where; for (const k in (attrs || {})) c.setAttribute(k, attrs[k]); el.appendChild(c); return c; };
+  if (F.search !== false) { const ex = slot("arcgis-expand", "top-left", { "expand-icon": "search", "expand-tooltip": S.search, group: "top-left" }); ex.appendChild(document.createElement("arcgis-search")); }
+  slot("arcgis-home", "top-left");
+  slot("arcgis-zoom", "top-left");
+  if (is3d) slot("arcgis-navigation-toggle", "top-left");
   const stack = document.createElement("div"); stack.className = "ll-stack";
   if (F.compass !== false) stack.appendChild(makeCompass(v, is3d));
   if (!is3d && cfg.scalebar !== "none") {
-    const sb = document.createElement("div"); stack.appendChild(sb);
-    new ScaleBar({ view: v, container: sb, unit: ["dual", "metric", "imperial"].includes(cfg.scalebar) ? cfg.scalebar : "dual" });
+    const sb = document.createElement("arcgis-scale-bar"); sb.unit = ["dual", "metric", "imperial"].includes(cfg.scalebar) ? cfg.scalebar : "dual";
+    sb.referenceElement = el; stack.appendChild(sb);
   }
   // While Elevation profile is docked under the map the toolbar is tucked away; this button brings it back.
   const tt = document.createElement("button"); tt.type = "button"; tt.className = "tools-toggle"; tt.setAttribute("aria-controls", "toolbar");
   tt.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="19" cy="19" r="2"/></svg>';
   tt.addEventListener("click", () => { $("app").classList.toggle("tools-shown"); syncToolsToggles(); layoutBottom(); });
   stack.appendChild(tt);
-  v.ui.add(stack, "bottom-left");
+  stack.slot = "bottom-left"; el.appendChild(stack);
   // Map layers greys a layer outside its scale range: check again whenever this view stops moving
   reactiveUtils.watch(() => v.stationary, (st) => { if (st && v === view && !$("layersPanel").hidden) updateScaleStates(); });
   syncToolsToggles();
@@ -994,8 +1010,8 @@ async function setMode(m, opts) {
     if (m === "3d") {
       if (!curMap.ground || !curMap.ground.layers || !curMap.ground.layers.length) curMap.ground = "world-elevation";
       $("sceneDiv").hidden = false;
-      if (!sceneView) { sceneView = new SceneView({ container: "sceneDiv", map: curMap }); addViewUI(sceneView, true); viewHandlers.forEach((h) => sceneView.on(h[0], h[1])); }
-      else if (sceneView.map !== curMap) sceneView.map = curMap;
+      if (!sceneView) { sceneView = await componentView("arcgis-scene", "sceneDiv", { map: curMap }); addViewUI(sceneView, true); viewHandlers.forEach((h) => sceneView.on(h[0], h[1])); }
+      else if (sceneView.map !== curMap) setViewMap(sceneView, curMap);
       await sceneView.when();
       if (vp) sceneView.viewpoint = vp;
       $("viewDiv").hidden = true; view = sceneView;
@@ -1004,7 +1020,7 @@ async function setMode(m, opts) {
       if (TILT_3D && !(opts && opts.keepCamera)) sceneView.goTo({ tilt: TILT_3D }, { animate: !reduceMotion, duration: 1400 }).catch(() => {});
     } else {
       $("viewDiv").hidden = false;
-      if (mapView.map !== curMap) mapView.map = curMap;
+      if (mapView.map !== curMap) setViewMap(mapView, curMap);
       await mapView.when();
       if (vp) mapView.viewpoint = vp;
       $("sceneDiv").hidden = true; view = mapView;
@@ -1039,8 +1055,8 @@ function setActiveMap(m) {
   endLayerTools(null);
   if (old && old !== m) { try { old.remove(graphicsLayer); } catch (e) { /* not there */ } }
   if (!m.layers.includes(graphicsLayer)) m.add(graphicsLayer);
-  mapView.map = m;
-  if (sceneView) sceneView.map = m;
+  setViewMap(mapView, m);
+  if (sceneView) setViewMap(sceneView, m);
   syncTimeBar();
 }
 // ---- Time (time-aware maps)
