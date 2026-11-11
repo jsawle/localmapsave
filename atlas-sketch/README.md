@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.7**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.8**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -11,6 +11,21 @@
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Segment labels, snapping, whole-number measurements (5.0.0-beta.8)
+
+On from the start while sketching, each with a switch in the toolbar's Settings and in a config:
+
+| What | Config | Notes |
+|---|---|---|
+| Tooltips | `sketchTooltips` | Since beta.7. |
+| Segment labels | `sketchLabels` | The length of each side while a line or area is drawn or reshaped. |
+| Snapping | `sketchSnapping` | To other sketches and to spreadsheet layers, and to right angles and parallels within the shape being drawn. The SDK snaps within 5 pixels. Layers of the opened map are not snapping layers by default: looking for nearby features in a large layer at every move of the pointer is work a slow device would feel. |
+| Decimal places | `sketchDecimals` | Lengths and areas in tooltips and labels are shown with none ("1,199 km", "8,610 m²"). A number gives that many places; `null` leaves the SDK's two. |
+
+**How the rounding is done.** The SDK has no setting for decimal places: the Sketch component's value options choose units only. The tooltips and labels are ordinary page text inside the map component, so the app rounds that text as it is written. It depends on how the SDK writes those texts today, so an SDK update could bring the decimals back; the live test would then fail. Coordinates and angles are left as they are. The SDK still changes unit with scale (km, then m), so short lengths do not become "0 km".
+
+Tests: `python3 atlas-sketch/tests/live-sketch-measure.py` (12 checks): the four side labels of a rectangle, no decimals on any length or area, and a line started 4 pixels from a sketched point, and from a spreadsheet point, starting exactly on it (0.00 m apart where a pixel was 19,568 m), against the same start with snapping off (70 km away). Not tested: labels, snapping and rounding in 3D; snapping to edges and to right angles.
 
 ## Areas as Map Viewer sets them up, and tooltips (5.0.0-beta.7)
 
