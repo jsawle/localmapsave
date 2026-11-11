@@ -12,7 +12,7 @@ let fails = 0, n = 0;
 const ok = (cond, name, detail) => { n++; if (!cond) { fails++; console.log("FAIL " + name, detail === undefined ? "" : JSON.stringify(detail)); } };
 
 // The checks read the map file format Atlas writes now. If Atlas changes it, check the reader before changing this.
-ok(WEBMAP_WRITER_VERSION === "3.0", "Atlas still writes map file format 3.0 (2.3 added time settings at the root; 3.0 adds web scene files and a 2D-only mark; the checks read operationalLayers only)", WEBMAP_WRITER_VERSION);
+ok(WEBMAP_WRITER_VERSION === "3.1", "Atlas still writes map file format 3.1 (3.0 added web scene files; 3.1 adds sketch styles; the checks read the layers and each sketch's kind, title and description, which did not change)", WEBMAP_WRITER_VERSION);
 
 const T = JSON.parse(fs.readFileSync(path.join(HERE, "trails-west.json"), "utf8")).trails;
 function load(assignment) {

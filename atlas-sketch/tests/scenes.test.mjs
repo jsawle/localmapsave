@@ -24,7 +24,7 @@ const doc = {
 };
 const ws = docToWebScene(doc, { baseMap: source.baseMap, sourceLayers: source.operationalLayers, portalLayers: [], appVersion: "5.0.0-test", sketchTitle: "Sketch", sketchVisible: true, camera, scene: source });
 
-ok(WEBMAP_WRITER_VERSION === "3.0", "the saved-map writer is 3.0", WEBMAP_WRITER_VERSION);
+ok(WEBMAP_WRITER_VERSION === "3.1", "the saved-map writer is 3.1", WEBMAP_WRITER_VERSION);
 ok(looksLikeWebScene(ws), "a saved scene is recognised as a web scene");
 ok(!looksLikeWebScene(docToWebMap(doc, { baseMap: source.baseMap, sourceLayers: [], portalLayers: [] })), "a saved web map is not");
 ok(ws.version === WEBSCENE_SPEC_VERSION && ws.viewingMode === "global" && ws.ground.layers[0].id === "elev", "it has the spec version, the kind of scene and the source's ground");

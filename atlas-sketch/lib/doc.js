@@ -4,7 +4,7 @@
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "3.0";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true
+export const WEBMAP_WRITER_VERSION = "3.1";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill)
 export const WEBMAP_SPEC_VERSION = "2.31";
 export const WEBSCENE_SPEC_VERSION = "1.40";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
@@ -48,9 +48,19 @@ export function cleanSketchAttributes(a, geometry, symbol) {
     kind: kind === "text" && geometryKind(geometry) !== "point" ? geometryKind(geometry) : kind,
     title: str(a.title, 300), description: str(a.description, 5000),
     imageUrl: typeof a.imageUrl === "string" && DATA_IMAGE.test(a.imageUrl) && a.imageUrl.length < 3e6 ? a.imageUrl : "",
-    color: color || "#0079c1", size: clamp(a.size, 4, 64, 12), rotation: clamp(a.rotation, 0, 360, 0)
+    color: color || "#0079c1", size: clamp(a.size, 4, 64, 12), rotation: clamp(a.rotation, 0, 360, 0),
+    // Sketch styles 2.0: a point's symbol, a line's (or an area outline's) pattern, a line's arrows, how solid an area's fill is
+    shape: typeof a.shape === "string" && SHAPE_NAME.test(a.shape) ? a.shape : "",
+    pattern: LINE_PATTERNS[a.pattern] ? a.pattern : "solid",
+    arrow: ARROWS[a.arrow] !== undefined ? a.arrow : "none",
+    fill: clamp(a.fill, 0, 100, 25)
   };
 }
+// A point symbol is the plain circle ("") or one of Esri's vector point symbols by name ("web:school"): the 2D point
+// symbol web style that Map Viewer offers as its default vector symbols.
+export const SHAPE_NAME = /^web:[a-z0-9][a-z0-9-]{0,48}$/;
+export const LINE_PATTERNS = { solid: "esriSLSSolid", dash: "esriSLSDash", dot: "esriSLSDot", "dash-dot": "esriSLSDashDot", "long-dash": "esriSLSLongDash" };
+export const ARROWS = { none: null, end: "end", start: "begin", both: "begin-end" };
 
 // Replace picture symbols (which could load images from any web address) with plain ones.
 function scrubSymbols(o, depth) {
@@ -191,13 +201,25 @@ const SKETCH_FIELDS = [
   { name: "color", alias: "color", type: "esriFieldTypeString", length: 7 },
   { name: "size", alias: "size", type: "esriFieldTypeDouble" },
   { name: "rotation", alias: "rotation", type: "esriFieldTypeDouble" },
-  { name: "_style", alias: "_style", type: "esriFieldTypeString", length: 40 }
+  { name: "shape", alias: "shape", type: "esriFieldTypeString", length: 60 },
+  { name: "pattern", alias: "pattern", type: "esriFieldTypeString", length: 12 },
+  { name: "arrow", alias: "arrow", type: "esriFieldTypeString", length: 8 },
+  { name: "fill", alias: "fill", type: "esriFieldTypeDouble" },
+  { name: "_style", alias: "_style", type: "esriFieldTypeString", length: 120 }
 ];
 export const SKETCH_LAYER_PREFIX = "__sketch_";
 
-function sketchSymbol(kind, a) {
-  if (kind === "polyline") return { type: "esriSLS", style: "esriSLSSolid", color: hexToRgba(a.color, 255), width: Math.max(1.5, Math.round(a.size / 4)) };
-  if (kind === "polygon") return { type: "esriSFS", style: "esriSFSSolid", color: hexToRgba(a.color, 64), outline: { type: "esriSLS", style: "esriSLSSolid", color: hexToRgba(a.color, 255), width: 2 } };
+function sketchSymbol(kind, a, icon) {
+  const style = LINE_PATTERNS[a.pattern] || "esriSLSSolid";
+  if (kind === "polyline") {
+    const s = { type: "esriSLS", style, color: hexToRgba(a.color, 255), width: Math.max(1.5, Math.round(a.size / 4)) };
+    if (ARROWS[a.arrow]) s.marker = { style: "arrow", placement: ARROWS[a.arrow] };
+    return s;
+  }
+  if (kind === "polygon") return { type: "esriSFS", style: "esriSFSSolid", color: hexToRgba(a.color, Math.round(255 * (finite(a.fill) ? a.fill : 25) / 100)), outline: { type: "esriSLS", style, color: hexToRgba(a.color, 255), width: 2 } };
+  // icon: the app hands over the vector symbol (a CIMSymbolReference, as Map Viewer saves) for a named point symbol
+  const vector = a.shape && typeof icon === "function" ? icon(a) : null;
+  if (vector && vector.type === "CIMSymbolReference") return vector;
   return { type: "esriSMS", style: "esriSMSCircle", color: hexToRgba(a.color, 255), size: a.size, angle: a.rotation || 0,
     outline: { type: "esriSLS", style: "esriSLSSolid", color: [255, 255, 255, 255], width: 1.1 } };
 }
@@ -209,10 +231,14 @@ function sketchPopupInfo(withImage) {
   if (withImage) { info.mediaInfos = [image]; info.popupElements.push({ type: "media", mediaInfos: [image] }); }
   return info;
 }
-function styleKey(kind, a) { return kind === "polygon" ? a.color : kind === "polyline" ? a.color + "|" + a.size : a.color + "|" + a.size + "|" + (a.rotation || 0); }
+function styleKey(kind, a) {
+  if (kind === "polygon") return [a.color, a.fill == null ? 25 : a.fill, a.pattern || "solid"].join("|");
+  if (kind === "polyline") return [a.color, a.size, a.pattern || "solid", a.arrow || "none"].join("|");
+  return [a.color, a.size, a.rotation || 0, a.shape || ""].join("|");
+}
 
 /** Sketch graphics -> up to four feature-collection layers (points, lines, areas, text). */
-export function sketchToOperationalLayers(graphics, title, visible) {
+export function sketchToOperationalLayers(graphics, title, visible, icon) {
   const groups = { point: [], polyline: [], polygon: [], text: [] };
   for (const g of graphics) { const k = g.attributes.kind === "text" ? "text" : geometryKind(g.geometry); groups[k].push(g); }
   const names = { point: "points", polyline: "lines", polygon: "areas", text: "text" };
@@ -224,7 +250,8 @@ export function sketchToOperationalLayers(graphics, title, visible) {
     const feats = list.map((g, i) => {
       const a = g.attributes;
       return { geometry: g.geometry, attributes: { ObjectId: i + 1, uid: a.uid, kind: a.kind, title: a.title, description: a.description,
-        imageUrl: a.imageUrl || "", color: a.color, size: a.size, rotation: a.rotation || 0, _style: k === "text" ? a.color + "|" + a.size : styleKey(gkind, a) } };
+        imageUrl: a.imageUrl || "", color: a.color, size: a.size, rotation: a.rotation || 0,
+        shape: a.shape || "", pattern: a.pattern || "solid", arrow: a.arrow || "none", fill: a.fill == null ? 25 : a.fill, _style: k === "text" ? a.color + "|" + a.size : styleKey(gkind, a) } };
     });
     const layerDefinition = { name: (title || "Sketches") + " (" + names[k] + ")", type: "Feature Layer", geometryType: ESRI_GEOM[gkind],
       objectIdField: "ObjectId", fields: SKETCH_FIELDS, drawingInfo: {} };
@@ -241,7 +268,7 @@ export function sketchToOperationalLayers(graphics, title, visible) {
       const seen = new Map();
       for (const f of feats) if (!seen.has(f.attributes._style)) seen.set(f.attributes._style, f.attributes);
       layerDefinition.drawingInfo.renderer = { type: "uniqueValue", field1: "_style",
-        uniqueValueInfos: [...seen.entries()].map(([key, a]) => ({ value: key, label: "", symbol: sketchSymbol(gkind, a) })) };
+        uniqueValueInfos: [...seen.entries()].map(([key, a]) => ({ value: key, label: "", symbol: sketchSymbol(gkind, a, icon) })) };
     }
     out.push({
       id: SKETCH_LAYER_PREFIX + names[k], title: (title || "Sketches") + (k === "point" ? "" : " (" + names[k] + ")"),
@@ -363,7 +390,7 @@ export function cleanTimeWidgets(widgets) {
 }
 export function docToWebMap(doc, ctx) {
   const dataOps = (doc.layers || []).map((ld) => dataDefToOperationalLayer(ld, ld.visible, ld.opacity));
-  const sketchOps = sketchToOperationalLayers(doc.graphics || [], ctx.sketchTitle, ctx.sketchVisible);
+  const sketchOps = sketchToOperationalLayers(doc.graphics || [], ctx.sketchTitle, ctx.sketchVisible, ctx.sketchIcon);
   let ops = []
     .concat((ctx.sourceLayers || []).filter((op) => !isOwnLayerJson(op)))
     .concat(ctx.portalLayers || [])

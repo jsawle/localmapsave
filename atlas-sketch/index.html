@@ -172,9 +172,25 @@
 
     /* sketch */
     /* The SDK's Sketch toolbar (the one Map Viewer uses), on the map at the top, clear of the zoom buttons and the open panel */
-    .sketch-bar{ position:absolute; top:12px; left:64px; right:380px; z-index:21; display:flex; justify-content:center; pointer-events:none; }
+    /* The drawing tools run down the right of the map, beside the Sketch panel (as in Map Viewer). */
+    .sketch-bar{ position:absolute; top:15px; right:374px; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 12px); z-index:21; display:flex; flex-direction:column; align-items:flex-end; pointer-events:none; }
     .sketch-bar[hidden]{ display:none; }
-    .sketch-bar > arcgis-sketch{ pointer-events:auto; max-width:100%; overflow-x:auto; }
+    .sketch-bar > arcgis-sketch{ pointer-events:auto; max-height:100%; overflow-y:auto; box-shadow:0 2px 10px rgba(0,0,0,.2); border-radius:4px; }
+    .sk-kind{ margin:0 0 10px; font-size:15px; font-weight:600; color:var(--ink); }
+    .sym-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
+    .sym-head .label{ margin:0; }
+    .sym-set{ width:auto; min-width:140px; padding:5px 8px; }
+    .sym-grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; max-height:176px; overflow-y:auto; padding:3px; border:1px solid var(--line2); border-radius:4px; }
+    .sym-btn{ position:relative; overflow:hidden; aspect-ratio:1; min-width:0; display:flex; align-items:center; justify-content:center; padding:2px; background:#fff; border:2px solid transparent; border-radius:4px; cursor:pointer; }
+    /* the style's pictures are 64 px with the symbol in the middle third: shown larger and cropped to the symbol */
+    .sym-btn img{ position:absolute; left:50%; top:50%; width:88px; height:88px; max-width:none; transform:translate(-50%, -50%); pointer-events:none; }
+    .sym-btn .sym-dot{ width:16px; height:16px; border-radius:50%; background:#323232; border:2px solid #fff; box-shadow:0 0 0 1px #6a6a6a; }
+    .sym-btn:hover{ background:#f3f3f3; }
+    .sym-btn[aria-pressed="true"], .pat-btn[aria-pressed="true"]{ border-color:var(--ink); background:#eef4fb; }
+    .pat-row{ display:flex; gap:6px; flex-wrap:wrap; }
+    .pat-btn{ width:56px; height:34px; display:flex; align-items:center; justify-content:center; padding:0 5px; background:#fff; color:#323232; border:2px solid var(--line2); border-radius:4px; cursor:pointer; }
+    .pat-btn svg{ width:44px; height:16px; display:block; }
+    .pat-btn:hover{ background:#f3f3f3; }
     .swatches{ display:flex; gap:8px; flex-wrap:wrap; }
     .swatch{ width:30px; height:30px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--line2); cursor:pointer; padding:0; }
     .swatch[aria-pressed="true"]{ box-shadow:0 0 0 3px var(--ink); }
@@ -513,7 +529,8 @@
       .lyr.sub{ padding-left:14px; }
       .panel, .panel.wide, .panel.bmg-panel, .panel.lyr-panel{ left:8px; right:8px; width:auto; top:auto; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 14px); max-height:58%; }
       .open-card{ height:calc(100vh - 40px); max-height:none; }
-      .sketch-bar{ top:50px; left:56px; right:8px; justify-content:flex-start; }   /* phones: the panel sits at the bottom, so the toolbar can use the width, under the version button */
+      .sketch-bar{ top:50px; left:56px; right:8px; bottom:auto; flex-direction:row; align-items:flex-start; justify-content:flex-start; }
+      .sketch-bar > arcgis-sketch{ max-width:100%; overflow-x:auto; max-height:none; }   /* phones: the panel sits at the bottom, so the toolbar can use the width, under the version button */
       .modal.top{ padding-top:20px; }
     }
     @media (max-width:760px){
@@ -679,9 +696,10 @@
       <section class="panel" id="sketchPanel" hidden aria-labelledby="sketchH">
         <div class="panel-head"><h2 id="sketchH" tabindex="-1" data-i18n="sketch">Sketch</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
         <div class="panel-body">
-          <p class="hint" id="sketchHint" data-i18n="sketchToolsHint">Draw with the tools at the top of the map. Select a sketch to give it a pop-up, colour and size.</p>
           <button class="btn" type="button" id="sketchToolsJump" data-i18n="sketchToolsJump" style="margin-bottom:12px">Go to the drawing tools</button>
-          <div class="section">
+          <p class="hint" id="sketchHint" data-i18n="sketchToolsHint">Choose a drawing tool on the right of the map. Select a sketch to change it.</p>
+          <h3 class="sk-kind" id="skKind" hidden></h3>
+          <div class="section" id="secPopup" hidden>
             <p class="label" data-i18n="popup">Pop-up</p>
             <p class="hint" id="popupHint" role="status" hidden></p>
             <div class="stack">
@@ -694,9 +712,17 @@
               <textarea class="field" id="fDesc" data-i18n-ph="descOptional"></textarea>
             </div>
           </div>
-          <div class="section"><p class="label" data-i18n="symbol">Colour</p><div class="swatches" id="swatches" role="group"></div></div>
-          <div class="section"><label class="label" for="fSize" data-i18n="size">Size</label><div class="slider-row"><input type="range" id="fSize" min="6" max="48" value="12" /><span class="slider-val" id="sizeVal">12</span></div></div>
-          <div class="section" id="rotSection"><label class="label" for="fRot" data-i18n="rotation">Rotation</label><div class="slider-row"><input type="range" id="fRot" min="0" max="360" value="0" /><span class="slider-val" id="rotVal">0°</span></div></div>
+          <div class="section" id="secSymbol" hidden>
+            <div class="sym-head"><label class="label" for="symbolSet" data-i18n="pointSymbol">Symbol</label><select class="field sym-set" id="symbolSet"></select></div>
+            <p class="hint" id="symbolStatus" role="status"></p>
+            <div class="sym-grid" id="symbolGrid" role="group" aria-labelledby="symbolGridLabel"></div><span class="sr-only" id="symbolGridLabel" data-i18n="pointSymbol">Symbol</span>
+          </div>
+          <div class="section" id="secColour" hidden><p class="label" data-i18n="symbol">Colour</p><div class="swatches" id="swatches" role="group"></div></div>
+          <div class="section" id="secSize" hidden><label class="label" for="fSize" id="sizeLabel">Size</label><div class="slider-row"><input type="range" id="fSize" min="6" max="48" value="12" /><span class="slider-val" id="sizeVal">12</span></div></div>
+          <div class="section" id="secPattern" hidden><p class="label" id="patternLabel">Pattern</p><div class="pat-row" id="patternRow" role="group" aria-labelledby="patternLabel"></div></div>
+          <div class="section" id="secArrow" hidden><p class="label" id="arrowLabel" data-i18n="lineArrow">Arrow</p><div class="pat-row" id="arrowRow" role="group" aria-labelledby="arrowLabel"></div></div>
+          <div class="section" id="secFill" hidden><label class="label" for="fFill" data-i18n="fillSolid">Fill</label><div class="slider-row"><input type="range" id="fFill" min="0" max="100" step="5" value="25" /><span class="slider-val" id="fillVal">25%</span></div></div>
+          <div class="section" id="rotSection" hidden><label class="label" for="fRot" data-i18n="rotation">Rotation</label><div class="slider-row"><input type="range" id="fRot" min="0" max="360" value="0" /><span class="slider-val" id="rotVal">0°</span></div></div>
         </div>
       </section>
 
@@ -884,6 +910,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.4"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.5"></script>
 </body>
 </html>
