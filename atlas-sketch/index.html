@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Atlas</title>
   <meta name="description" content="A configurable (white-label) version of the MapMaker classroom map app: curated maps and layers, sketch, measure, bookmarks, 2D and 3D, your own spreadsheet data, local save without an account, and ArcGIS Online sign-in." />
-  <link rel="stylesheet" href="https://js.arcgis.com/5.1/esri/themes/light/main.css" />
-  <script type="module" src="https://js.arcgis.com/5.1/"></script>
+  <link rel="stylesheet" href="https://js.arcgis.com/5.2/esri/themes/light/main.css" />
+  <script type="module" src="https://js.arcgis.com/5.2/"></script>
   <style>
     :root{
       --font:"Avenir Next W00","Avenir Next","Helvetica Neue",Arial,sans-serif;
@@ -307,6 +307,11 @@
     .drop-inner{ background:#fff; border-radius:8px; padding:14px 22px; font-size:15px; font-weight:600; box-shadow:0 4px 18px rgba(0,0,0,.18); }
     .toast{ position:absolute; left:50%; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 18px); transform:translateX(-50%); background:#323232; color:#fff; font-size:13.5px; padding:9px 16px; border-radius:18px; z-index:40; box-shadow:0 2px 10px rgba(0,0,0,.28); max-width:calc(100% - 32px); text-align:center; }
     .toast:empty{ display:none; }
+    /* Time control for time-aware maps (the SDK's Time Bar), above the toolbar */
+    .time-host{ position:absolute; left:50%; transform:translateX(-50%); bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 14px); width:min(760px, calc(100% - 24px)); z-index:19; background:#fff; border-radius:6px; box-shadow:0 1px 8px rgba(0,0,0,.25); }
+    .time-host arcgis-time-bar{ display:block; width:100%; }
+    #app.has-time .toast{ bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 110px); }
+    #app.docked .time-host{ display:none; }
     /* Filter panel (lab): Map Viewer's layout, in Calcite components */
     /* tall enough for one condition without scrolling: it may reach down over the toolbar (it sits above it) */
     .flt-panel{ width:372px; max-height:calc(100% - var(--attr-h, 16px) - 30px); }
@@ -423,6 +428,11 @@
     .cat-card-text{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:8px; }
     .cat-card-title{ margin:0; font-size:15px; font-weight:600; color:var(--ink); }
     .cat-card-snippet{ margin:0; font-size:13px; line-height:1.5; color:var(--ink2); }
+    .cat-acts{ align-self:flex-end; margin-top:auto; display:flex; align-items:center; gap:10px; }
+    .cat-acts .cat-act{ margin-top:0; }
+    .cat-share{ display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border:1px solid transparent; background:none; color:var(--brand-strong); font:inherit; font-size:14px; font-weight:600; cursor:pointer; border-radius:3px; }
+    .cat-share:hover{ text-decoration:underline; }
+    .panel-head .head-act{ margin-left:auto; margin-right:4px; }
     .cat-act{ align-self:flex-end; margin-top:auto; display:inline-flex; align-items:center; gap:8px; padding:7px 14px; border:1px solid var(--brand); background:#fff; color:var(--brand-strong); font-size:14px; font-weight:600; cursor:pointer; }
     .cat-act svg{ width:16px; height:16px; }
     .cat-act:hover{ background:var(--brand-soft); }
@@ -566,6 +576,7 @@
         <button class="tool" type="button" id="tool-add" aria-haspopup="dialog" data-feature="addLayer" data-i18n-title="addLayer"><span class="ti" data-icon="plus-circle" aria-hidden="true"></span><span class="tl" data-i18n="addLayer">Add layer</span></button>
         <button class="tool" type="button" id="tool-legend" data-panel="legend" aria-expanded="false" aria-controls="legendPanel" data-feature="legend" data-i18n-title="legend"><span class="ti" data-icon="legend" aria-hidden="true"></span><span class="tl" data-i18n="legend">Legend</span></button>
         <button class="tool" type="button" id="tool-measure" aria-haspopup="menu" aria-expanded="false" aria-controls="measureMenu" data-feature="measure" data-i18n-title="measure"><span class="ti" data-icon="measure" aria-hidden="true"></span><span class="tl" data-i18n="measure">Measure</span></button>
+        <button class="tool" type="button" id="tool-profile" data-panel="profile" aria-expanded="false" aria-controls="profilePanel" data-feature="elevationProfile" data-i18n-title="elevationProfile"><span class="ti" data-icon="altitude" aria-hidden="true"></span><span class="tl" data-i18n="elevation">Elevation</span></button>
         <button class="tool" type="button" id="tool-sketch" data-panel="sketch" aria-expanded="false" aria-controls="sketchPanel" data-feature="sketch" data-i18n-title="sketch"><span class="ti" data-icon="pencil-mark" aria-hidden="true"></span><span class="tl" data-i18n="sketch">Sketch</span></button>
         <div class="seg" role="group" id="viewSeg" data-feature="threeD" data-i18n-aria="viewMode">
           <button type="button" id="tg2d" aria-pressed="true"><span class="ti sm" data-icon="map" aria-hidden="true"></span><span data-i18n="view2d">2D</span></button>
@@ -612,7 +623,7 @@
       </section>
 
       <section class="panel lyr-panel" id="layersPanel" hidden aria-labelledby="layersH">
-        <div class="panel-head"><h2 id="layersH" tabindex="-1" data-i18n="mapLayers">Map layers</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
+        <div class="panel-head"><h2 id="layersH" tabindex="-1" data-i18n="mapLayers">Map layers</h2><button class="lt head-act" type="button" id="layersRemoveAll" data-i18n-title="removeAllLayers" data-i18n-aria="removeAllLayers" hidden></button><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
         <div class="panel-body"><p class="hint" data-i18n="layersIntro">Turn layers on and off. Bookmarks remember these settings.</p><ul class="list" id="layersList"></ul><p class="sr-only" id="layersMoveHint" data-i18n="moveLayerHint">Drag the handle, or press the up and down arrow keys on it, to change the drawing order.</p><p class="sr-only" id="layersLive" role="status" aria-live="polite"></p></div>
       </section>
 
@@ -726,6 +737,7 @@
       </section>
 
       <div class="drop-overlay" id="dropOverlay" hidden><div class="drop-inner" data-i18n="dropHere">Drop your file to add it to the map</div></div>
+      <div class="time-host" id="timeHost" hidden></div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
       <div class="load-note" id="loadNote" role="alert" hidden><p id="loadNoteText"></p><button type="button" class="btn primary" id="loadNoteBtn" data-i18n="reloadPage" hidden>Reload the page</button></div>
       <div class="tile-tip" id="tileTip" role="tooltip" hidden></div>
@@ -868,6 +880,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=1.15.0-sketch.13"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.1"></script>
 </body>
 </html>

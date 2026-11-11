@@ -1,6 +1,6 @@
-# Atlas: Sketch and Filter lab
+# Atlas 5.0 (beta)
 
-A lab copy of the white-label Atlas app (`../atlas/`) for demos. It's the same app, version **1.15.0-sketch.13**, but Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.1**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -12,7 +12,25 @@ Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, an
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
 
-## Filter (lab only, from 1.15.0-sketch.12)
+## Parity with MapMaker 4.0 (5.0.0-beta.1)
+
+A tool-by-tool inventory of the live MapMaker (11 November 2026) found seven things 4.0 has that this app didn't. Four are added here:
+
+| 4.0 feature | In 5.0 |
+|---|---|
+| **Elevation** as its own toolbar tool | Added, after Measure. Measure now opens its panel directly. A version that prefers the old menu sets `"elevationTool": "menu"` |
+| **Remove all layers** in Map layers | Added (the bin in the panel's heading). It asks first, because the list can hold a spreadsheet that isn't saved anywhere else. Sketches stay. Switch off with `features.removeAllLayers: false` |
+| **Share** on each map in Open map | Added. It copies a link that opens that map in this app with the same settings (`?config=…&webmap=…`). Switch off with `features.share: false` |
+| **Time tool** for time-aware maps | Added: the SDK's Time Bar component (new in 5.2), shown above the toolbar on maps saved with time settings, set up from those settings. Saved maps keep the settings and the slider's place (`widgets.timeSlider`, Web Map Specification). Switch off with `features.time: false` |
+| **Charts** beside a layer's table | Not built. None of the 183 items in MapMaker's content group has a chart configured, so there is nothing to show or test against yet |
+| **Built on map and scene components** | Not started. This is the same work as preparing for SDK 6.0, which removes widgets and the view classes this app uses |
+| **Layer search, buffer tool, parquet layers** (November 2026 Atlas update) | Not built |
+
+Where 5.0 is ahead of 4.0: local save, Save as and locked copies; the list of saved map files; adding a spreadsheet; filtering; creating bookmarks; print; labels on/off; and Sketch in 3D (4.0 takes Sketch off the toolbar in 3D).
+
+Tests: `python3 atlas-sketch/tests/live-parity.py` runs these tools on the real SDK against MapMaker's own maps (29 checks, with axe-core scans).
+
+## Filter (from 1.15.0-sketch.12)
 
 1.15.0-sketch.13 (Filter 1.1): a condition shows on the map as it's typed or the slider moves, for any field (before, only fields the layer draws with did; others changed the count but not the map until Apply). The panel is tall enough for one condition without scrolling and may reach down over the toolbar. The count stays in view above Apply / Cancel.
 
@@ -38,7 +56,7 @@ Each layer in **Map layers** that holds features has a **Filter** button beside 
 - **"Apply", not Map Viewer's "Save":** in this app Save means saving the map, and a filter isn't saved until the map is.
 - **Switching 2D/3D** while the panel is open closes it without applying.
 - **The histogram** needs the field to have a range of values; with one value, or if the components don't load, the number box still works.
-- **Tests:** `node atlas-sketch/tests/filter.test.mjs` (the SQL logic, 12 tests) and `python3 atlas-sketch/tests/live-filter.py` (the panel on the real SDK against MapMaker's Major Earthquakes map: 37 checks, with an axe-core scan of the panel).
+- **Tests:** `node atlas-sketch/tests/filter.test.mjs` (the SQL logic and saved time settings, 13 tests) and `python3 atlas-sketch/tests/live-filter.py` (the panel on the real SDK against MapMaker's Major Earthquakes map: 37 checks, with an axe-core scan of the panel).
 
 The working app stays at `https://jsawle.github.io/localmapsave/atlas/` (1.14.8), so the two can be shown side by side.
 
