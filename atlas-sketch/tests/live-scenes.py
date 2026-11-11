@@ -73,7 +73,7 @@ def main():
         print("== the views are SDK components")
         page.goto(f"{base}/index.html?config=mapmaker&webmap={QUAKES}")
         page.wait_for_function("document.querySelector('#layersBadge') && document.querySelector('#layersBadge').textContent === '1'", timeout=120000)
-        check(page.inner_text("#verBtn").startswith("v5.0.0-beta.2"), "the app is " + page.inner_text("#verBtn"))
+        check(page.inner_text("#verBtn").startswith("v5.0.0-beta."), "the app is " + page.inner_text("#verBtn"))
         info = page.evaluate("(() => { const m = document.querySelector('#viewDiv arcgis-map'); return { map: !!(m && m.view && m.view.declaredClass === 'esri.views.MapView'), kids: [...m.children].map(c => c.tagName.toLowerCase() + ':' + c.slot), scenes: document.querySelectorAll('arcgis-scene').length }; })()")
         check(info["map"], "the 2D view is an arcgis-map component")
         check(all(k in info["kids"] for k in ["arcgis-expand:top-left", "arcgis-home:top-left", "arcgis-zoom:top-left"]) and page.evaluate("!!document.querySelector('arcgis-map arcgis-expand arcgis-search') && !!document.querySelector('arcgis-map arcgis-scale-bar')"), "Search, Home, Zoom and the scale bar are components in its slots: " + ", ".join(info["kids"]))

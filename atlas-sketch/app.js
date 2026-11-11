@@ -2,20 +2,20 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.2";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.3";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.2";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.3";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.2";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.3";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.2";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.2";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.2";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.3";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.3";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.3";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.2";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.3";
 
-const APP_VERSION = "5.0.0-beta.2";
+const APP_VERSION = "5.0.0-beta.3";
 const COMPASS_VERSION = "1.1";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -44,6 +44,7 @@ const DEFAULT_CONFIG = {
   defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   startView: { center: [0, 20], zoom: 2 },
   threeDTilt: 60,          // degrees the camera tilts when switching to 3D, so the change is obvious (0 = stay looking straight down)
+  threeDQuality: "auto",   // how much work the 3D view does: "auto" (low on a weak device, else medium), "low", "medium" or "high"
   units: "metric",
   scalebar: "dual",
   disclaimer: "",
@@ -277,7 +278,7 @@ const defaultBasemap = () => new Basemap({ portalItem: { id: cfg.defaultBasemap 
 const localMap = new EsriMap({ basemap: defaultBasemap(), ground: "world-elevation", layers: [graphicsLayer] });
 const startCenter = Array.isArray(cfg.startView.center) ? cfg.startView.center : [0, 20];
 // The views are made by the SDK's map and scene components (arcgis-map, arcgis-scene), the supported way from SDK 5 on;
-// the rest of the app works with the MapView / SceneView each one holds (5.0.0-beta.2).
+// the rest of the app works with the MapView / SceneView each one holds (5.0.0-beta.3).
 async function componentView(tag, hostId, props) {
   const el = document.createElement(tag); el.className = "view-el";
   Object.assign(el, props);
@@ -363,8 +364,10 @@ function goToSafe(target, opts) {
     if (e && e.name === "AbortError") return;
     if (++tries < 4) return new Promise((res) => setTimeout(res, 350)).then(attempt);
   });
-  return reactiveUtils.whenOnce(() => view.ready).then(attempt);   // not view.when(): the SDK warns when a view is between maps
+  // viewSettled: a move asked for while 3D is still tilting into place waits for that to end, so the two can't mix
+  return viewSettled.then(() => reactiveUtils.whenOnce(() => view.ready)).then(attempt);   // not view.when(): the SDK warns when a view is between maps
 }
+let viewSettled = Promise.resolve();
 
 // ============================================================ State
 let dirty = false;
@@ -827,7 +830,7 @@ async function loadGalleryItems() {
 }
 const galleryList = () => basemapItems(gallery.items || [], mode);
 function currentBasemapInfo() {
-  const b = mapView.map && mapView.map.basemap;
+  const m = shownMap(), b = m && m.basemap;
   return b ? { itemId: (b.portalItem && b.portalItem.id) || null, title: b.title || "" } : null;
 }
 function syncGallerySelection() {
@@ -891,7 +894,7 @@ $("basemapsGrid").addEventListener("keydown", (e) => {
   e.preventDefault(); cards[n].focus();
 });
 // The selected card follows the map's basemap, wherever it changes (another map opened, a file, a new map).
-reactiveUtils.watch(() => { const b = mapView.map && mapView.map.basemap; return b ? ((b.portalItem && b.portalItem.id) || "") + "|" + (b.title || "") : ""; }, syncGallerySelection);
+reactiveUtils.watch(() => { const m = shownMap(), b = m && m.basemap; return b ? ((b.portalItem && b.portalItem.id) || "") + "|" + (b.title || "") : ""; }, syncGallerySelection);
 const units = cfg.units === "imperial" ? "imperial" : "metric";
 function ensureMeasure() { if (!measurement) measurement = new Measurement({ view, container: "measureBody", linearUnit: units, areaUnit: units }); else measurement.view = view; }
 function measurePressed(id) { ["mDist", "mArea", "mCoord"].forEach((b) => $(b).setAttribute("aria-pressed", String(b === id))); }
@@ -1001,8 +1004,34 @@ window.addEventListener("resize", () => { if (!$("measureMenu").hidden) placeToo
 
 // ============================================================ 2D / 3D
 let switching = false;
+// How much work the 3D view does (5.0.0-beta.3). "low" asks the SDK for its low quality profile (smaller textures, less
+// memory, simpler sky) and leaves out shadows and stars. With threeDQuality "auto" (the default) a device gets "low" when
+// it has little memory or few processor cores, or draws 3D without a graphics chip; otherwise "medium". A config or a
+// link (?quality=low|medium|high) can fix it.
+function pick3dQuality() {
+  const asked = String(params.get("quality") || cfg.threeDQuality || "auto").toLowerCase();
+  if (["low", "medium", "high"].includes(asked)) return { quality: asked, why: "set" };
+  let software = false;
+  try {
+    const gl = document.createElement("canvas").getContext("webgl2");
+    const ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
+    const r = gl ? String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) : "";
+    software = !gl || /swiftshader|llvmpipe|software|basic render/i.test(r);
+    const lose = gl && gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext();
+  } catch (e) { software = true; }
+  const mem = navigator.deviceMemory, cores = navigator.hardwareConcurrency;
+  if (software) return { quality: "low", why: "software" };
+  if ((typeof mem === "number" && mem <= 4) || (typeof cores === "number" && cores <= 4)) return { quality: "low", why: "device" };
+  return { quality: "medium", why: "device" };
+}
+let quality3d = null;
+function tune3d(v) {
+  if (quality3d.quality !== "low") return;
+  const calm = () => { try { const env = v.environment; if (env) { env.starsEnabled = false; env.atmosphereEnabled = true; if (env.lighting) { env.lighting.directShadowsEnabled = false; env.lighting.ambientOcclusionEnabled = false; } if (env.atmosphere) env.atmosphere.quality = "low"; } } catch (e) { /* keep the SDK's own */ } };
+  calm(); reactiveUtils.watch(() => v.map, () => v.when().then(calm).catch(() => {}));   // a scene brings its own lighting
+}
 const TILT_3D = Math.max(0, Math.min(80, Number(cfg.threeDTilt) || 0));
-// Which views a map allows (5.0.0-beta.2):
+// Which views a map allows (5.0.0-beta.3):
 //  - a web scene is 3D only (sceneOnly): it can hold layers and a camera that have no 2D form
 //  - a web map tagged "atlas-2d-only" on its ArcGIS Online item is 2D only (twoDOnly): its author switched 3D off
 const TAG_2D_ONLY = "atlas-2d-only";
@@ -1031,14 +1060,18 @@ async function setMode(m, opts) {
       // A scene is either a globe or a flat "local" scene, fixed when its view is made: a scene of the other kind gets a new view.
       const wantMode = isScene(curMap) && curMap.initialViewProperties && curMap.initialViewProperties.viewingMode;
       if (sceneView && wantMode && sceneView.viewingMode !== wantMode) { const oldEl = viewEls.get(sceneView); viewEls.delete(sceneView); try { oldEl.destroy(); } catch (e) { /* gone */ } oldEl.remove(); sceneView = null; }
-      if (!sceneView) { sceneView = await componentView("arcgis-scene", "sceneDiv", { map: curMap }); addViewUI(sceneView, true); viewHandlers.forEach((h) => sceneView.on(h[0], h[1])); }
+      if (!quality3d) { quality3d = pick3dQuality(); console.info("3D quality", quality3d.quality, "(" + quality3d.why + ")"); document.documentElement.dataset.quality3d = quality3d.quality; }
+      if (!sceneView) { sceneView = await componentView("arcgis-scene", "sceneDiv", { map: curMap, qualityProfile: quality3d.quality }); tune3d(sceneView); addViewUI(sceneView, true);
+        // the layer count and the basemap gallery now follow the 3D view's map too (see shownMap)
+        reactiveUtils.watch(listedLayerCount, updateToolBadges, { initial: true });
+        reactiveUtils.watch(() => { const m = shownMap(), b = m && m.basemap; return b ? ((b.portalItem && b.portalItem.id) || "") + "|" + (b.title || "") : ""; }, syncGallerySelection); viewHandlers.forEach((h) => sceneView.on(h[0], h[1])); }
       else if (sceneView.map !== curMap) setViewMap(sceneView, curMap);
       await sceneView.when();
       if (vp) sceneView.viewpoint = vp;
       $("viewDiv").hidden = true; view = sceneView;
       // Same place, then tilt the camera towards the horizon so it's obvious the view is now 3D.
       // (At a whole-world scale the SDK allows little tilt, but the globe itself shows the change.)
-      if (TILT_3D && !opts.keepCamera) sceneView.goTo({ tilt: TILT_3D }, { animate: !reduceMotion, duration: 1400 }).catch(() => {});
+      if (TILT_3D && !opts.keepCamera) viewSettled = sceneView.goTo({ tilt: TILT_3D }, { animate: !reduceMotion, duration: 1400 }).catch(() => {});
     } else {
       $("viewDiv").hidden = false;
       if (mapView.map !== curMap) setViewMap(mapView, curMap);
@@ -1081,6 +1114,7 @@ function setActiveMap(m) {
   setViewMap(mapView, sceneOnly ? localMap : m);
   if (sceneView) setViewMap(sceneView, m);
   syncViewLocks();
+  updateToolBadges();
   syncTimeBar();
 }
 // ---- Time (time-aware maps)
@@ -1120,8 +1154,12 @@ function timeWidgetsJson() {
 // Toolbar badges, as MapMaker shows them: the number of layers on Map layers, and a dot on Bookmarks when the map has
 // bookmarks. The count is the map's top-level layers as Map layers lists them (a group counts once, as in MapMaker:
 // 6 for "1777-1778 Revolutionary Battles", which has 4 layers and 2 groups); the sketch layer and a CSV preview don't count.
+// The map on show, read from the views themselves so that watchers follow it: the 3D view's when it holds a web scene
+// (which the 2D view never shows), otherwise the 2D view's. (Before beta.3 the layer count and the basemap gallery
+// looked at the 2D view only, so in a scene the count stayed at 0.)
+function shownMap() { return sceneView && isScene(sceneView.map) ? sceneView.map : mapView && mapView.map; }
 function listedLayerCount() {
-  const m = mapView && mapView.map;
+  const m = shownMap();
   let n = 0;
   if (m) m.layers.forEach((l) => { if (l.listMode !== "hide" && l !== previewLayer) n++; });
   return n;
@@ -1402,7 +1440,10 @@ function buildDataLayer(ld) {
     return new Graphic({ geometry: gj, attributes: attrs });
   });
   const props = { source: feats, objectIdField: oidField, fields, geometryType: gtype, spatialReference: ld.spatialReference || { wkid: 102100 },
-    title: ld.title || "Data", popupEnabled: true };
+    title: ld.title || "Data", popupEnabled: true,
+    // In 3D the features lie on the ground, drawn on the terrain with the basemap: the view has no height to work out
+    // for each one, which keeps a spreadsheet layer cheap on a slow device (CSV 3.5).
+    elevationInfo: { mode: "on-the-ground" } };
   if (ld.id) props.id = DATA_LAYER_PREFIX + ld.id;   // same id as its saved operational layer, so bookmarks find it again
   if (ld.renderer) { const rj = ld.renderer; props.renderer = rj.type && rj.type.indexOf("-") >= 0 ? rj : rendererJsonUtils.fromJSON(rj); }
   if (ld.labelingInfo && ld.labelingInfo.length) props.labelingInfo = ld.labelingInfo.map((l) => (l && l.symbol && l.symbol.type === "esriTS" ? LabelClass.fromJSON(l) : l));
@@ -2300,7 +2341,7 @@ function createBrowser(o) {
 
 // ---------- Open map
 const openCollectionMap = (it) => (it.type === "Web Scene" ? openWebSceneItem(it.id, { title: it.title }) : openWebMapItem(it.id, { title: it.title }));
-// The collection's web maps and, where 3D is on, its web scenes (5.0.0-beta.2); a scene's card says 3D.
+// The collection's web maps and, where 3D is on, its web scenes (5.0.0-beta.3); a scene's card says 3D.
 const mapBrowser = createBrowser({ p: "om", query: F.threeD === false ? 'type:"Web Map"' : '(type:"Web Map" OR type:"Web Scene")', accept: () => true, kind: "maps", thumbOpens: true, descLabel: () => S.mapDescription,
   decorate(b, item) { b.textContent = S.openThisMap; b.setAttribute("aria-label", S.openThisMap + ": " + (item.title || "")); },
   share: F.share === false ? null : shareMapLink,
@@ -3353,10 +3394,11 @@ function renderVersions() {
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
     ["3D scenes", "1.0", "Web scenes from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],
+    ["3D quality", "1.0", "How much work the 3D view does. Low (smaller textures, less memory, no shadows or stars) is chosen for a device with 4 GB of memory or less, 4 processor cores or fewer, or no graphics chip; otherwise medium. A config (threeDQuality) or a link (?quality=low, medium or high) can fix it."],
     ["Views", "2.0", "The 2D and 3D views are the SDK's map and scene components, with Search, Home, Zoom, the navigation toggle and the scale bar as components in their slots."],
     ["Time", "1.0", "The SDK's Time Bar on maps saved with time settings: play, step and a slider, set up from the map's own settings."],
     ["Older .mmap files (open only)", String(DOC_VERSION), "MapMakerLocalDocument versions 2 to 4, from earlier versions of this app, the local-save concept and Map Studio. (.mmap files saved as web maps by versions 1.2 to 1.6 open like .amap files.)"],
-    ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview."],
+    ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview. 3.5: in 3D and in scenes the features lie on the ground."],
     ["Filter (lab)", FILTER_VERSION, "A layer's Filter panel, laid out like Map Viewer's: conditions on number and text fields, a histogram with a slider, a count of what's shown. Built from Calcite components and the SDK's Histogram and Slider components; saved as the layer's definitionExpression."],
     ["Sketch", SKETCH_VERSION, "Points, lines, areas, circles and text, with pop-ups, images, colour, size and rotation; move, reshape and delete."],
     [S.configLabel, String(cfg.configVersion || 1), cfgName + ".json (schema " + CONFIG_SCHEMA + ")"],

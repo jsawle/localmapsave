@@ -2,7 +2,7 @@
 // Pure functions only (no ArcGIS SDK), so they can be unit-tested in Node.
 // Nothing here sends the file anywhere: parsing happens in the browser.
 
-export const CSV_VERSION = "3.4";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
+export const CSV_VERSION = "3.5";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
                                     // multi-language lat/long names, manual column choice
                                     // 3.1: a layer's style can be changed after it's added (stateFromLayerDef)
                                     // 3.2: coordinates with N/S/E/W and degrees-minutes-seconds; whole-number codes
