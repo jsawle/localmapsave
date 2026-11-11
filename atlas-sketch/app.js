@@ -1,25 +1,25 @@
 // Atlas: a white-label build of the MapMaker classroom map app.
-// ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
+// ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.15.0-sketch.13";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.1";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=1.15.0-sketch.13";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=5.0.0-beta.1";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.15.0-sketch.13";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.1";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.15.0-sketch.13";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.15.0-sketch.13";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.15.0-sketch.13";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.1";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.1";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.1";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=1.15.0-sketch.13";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.1";
 
-const APP_VERSION = "1.15.0-sketch.13";
+const APP_VERSION = "5.0.0-beta.1";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
 const CONFIG_SCHEMA = 1;
-const SDK_VERSION = "5.1";
+const SDK_VERSION = "5.2";
 const AUTH_STASH = "atlas.authReturn";
 
 const $ = (id) => document.getElementById(id);
@@ -455,6 +455,13 @@ const PANELS = { data: "dataPanel", layers: "layersPanel", legend: "legendPanel"
   measure: "measurePanel", profile: "profilePanel", sketch: "sketchPanel", bookmarks: "bookmarksPanel", save: "savePanel", about: "aboutPanel", filter: "filterPanel" };
 const TRIGGERS = { data: "tool-add", layers: "tool-layers", legend: "tool-legend", basemaps: "tool-basemaps",
   measure: "tool-measure", profile: "tool-measure", sketch: "tool-sketch", bookmarks: "tool-bookmarks", save: "tool-save", about: "verBtn", filter: "tool-layers" };
+// Elevation profile is a toolbar tool of its own, beside Measure, as in MapMaker today. A version that would rather
+// keep it inside Measure's menu sets "elevationTool": "menu" in its settings.
+const ELEV_IN_TOOLBAR = cfg.elevationTool !== "menu" && F.elevationProfile !== false;
+if (ELEV_IN_TOOLBAR) {
+  TRIGGERS.profile = "tool-profile"; $("menuProfile").hidden = true;
+  const mb = $("tool-measure"); mb.removeAttribute("aria-haspopup"); mb.setAttribute("aria-controls", "measurePanel");   // Measure opens its panel directly
+} else $("tool-profile").hidden = true;
 let openPanelName = null;
 function setExpanded(name) {
   // A tool that opens a menu (Measure) shows its open panel by colour; aria-expanded is kept for the menu itself.
@@ -1010,6 +1017,7 @@ async function setMode(m, opts) {
   mode = m; switching = false;
   $("tg2d").setAttribute("aria-pressed", String(m === "2d")); $("tg3d").setAttribute("aria-pressed", String(m === "3d"));
   sketchReady.then(() => { sketch.view = view; });
+  if (timeBar) { const te = timeBar.timeExtent; timeBar.view = view; if (te) view.timeExtent = te; }   // the time control follows into 2D / 3D
   if (gallery.items) renderGallery();   // 3D lists the group's 3D basemaps too
   if (measurement) measurement.view = view;
   if (elevationProfile) { stopProfile(); elevationProfile.view = view; if (openPanelName === "profile") startProfileSketch(); }
@@ -1033,6 +1041,41 @@ function setActiveMap(m) {
   if (!m.layers.includes(graphicsLayer)) m.add(graphicsLayer);
   mapView.map = m;
   if (sceneView) sceneView.map = m;
+  syncTimeBar();
+}
+// ---- Time (time-aware maps)
+// A map saved with time settings (web map: widgets.timeSlider) gets a time control above the toolbar, as in MapMaker:
+// play, step, and a slider across the map's time span. It is the SDK's Time Bar component (5.2; it replaces the Time
+// Slider), which reads the map's own settings and sets the view's time. Other maps don't show it.
+let timeBar = null;
+const timeSettings = (m) => (m && m.widgets && m.widgets.timeSlider) || null;
+function syncTimeBar() {
+  const host = $("timeHost"); if (!host) return;
+  const on = F.time !== false && !!timeSettings(view && view.map);
+  if (timeBar) { try { timeBar.stop(); } catch (e) { /* not playing */ } timeBar.remove(); timeBar = null; }
+  for (const v of [mapView, sceneView]) { if (v && !on) v.timeExtent = null; }   // the last map's time filter doesn't carry over
+  host.hidden = !on; $("app").classList.toggle("has-time", on);
+  if (!on) return;
+  timeBar = document.createElement("arcgis-time-bar");
+  for (const a of ["show-play", "show-previous", "show-next", "show-time-extent", "show-settings"]) timeBar.setAttribute(a, "");
+  timeBar.setAttribute("label", S.timeTool);
+  // the slider takes the place of the bar's date label (its "time-extent" slot) and shows the dates itself
+  const slider = document.createElement("arcgis-time-bar-slider"); slider.slot = "time-extent";
+  for (const a of ["show-ticks", "show-min", "show-max"]) slider.setAttribute(a, "");
+  timeBar.appendChild(slider);
+  host.appendChild(timeBar);
+  timeBar.view = view;
+}
+// The time settings to save: the map's own, with where the slider is now.
+function timeWidgetsJson() {
+  const ts = timeSettings(view && view.map);
+  if (!ts) return null;
+  let props = {};
+  try { props = { ...((typeof ts.toJSON === "function" ? ts.toJSON() : ts).properties || {}) }; } catch (e) { props = {}; }
+  if (currentSource && currentSource.data && currentSource.data.widgets) props = { ...currentSource.data.widgets.timeSlider.properties, ...props };
+  const te = timeBar && timeBar.timeExtent;
+  if (te && (te.start || te.end)) props.currentTimeExtent = [te.start ? te.start.getTime() : null, te.end ? te.end.getTime() : null];
+  return { timeSlider: { properties: props } };
 }
 // Toolbar badges, as MapMaker shows them: the number of layers on Map layers, and a dot on Bookmarks when the map has
 // bookmarks. The count is the map's top-level layers as Map layers lists them (a group counts once, as in MapMaker:
@@ -1483,6 +1526,25 @@ function layerRow(l, owner, depth, pos, count) {
   }
   return li;
 }
+// Remove all layers (Map layers, as in MapMaker): every layer in the list goes; sketches stay. It asks first, because
+// the list can include a spreadsheet the person added, which isn't anywhere else until the map is saved.
+function removeAllLayers() {
+  const list = siblingsOf("map");
+  if (!list.length || !window.confirm(t("removeAllConfirm", { n: list.length }))) return;
+  for (const l of list) {
+    endLayerTools(l);
+    if (dataLayers.includes(l)) dataLayers.splice(dataLayers.indexOf(l), 1);
+    else if (l.__item && portalLayers.get(l.__item.itemId) === l) portalLayers.delete(l.__item.itemId);
+    removeFromMaps(l);
+  }
+  markDirty();
+  toast(t("removedAllLayers", { n: list.length }));
+  if (catalogLoaded) refreshCatalogButtons();
+  renderLayers();
+  const h = $("layersH"); if (h) h.focus();
+}
+$("layersRemoveAll").innerHTML = calIcon("trash");
+$("layersRemoveAll").addEventListener("click", removeAllLayers);
 function removeLayer(l, owner, pos) {
   const title = l.title || "";
   endLayerTools(l);
@@ -1526,6 +1588,7 @@ function startDrag(e, l, owner, li) {
 }
 function updateScaleStates() { rowRefs.forEach((f) => f()); }
 function renderLayers(opts) {
+  { const ra = $("layersRemoveAll"); if (ra) ra.hidden = F.removeAllLayers === false || !siblingsOf("map").length; }
   opts = opts || {};
   const list = $("layersList");
   const ae = document.activeElement;
@@ -1985,7 +2048,13 @@ function createBrowser(o) {
     const act = document.createElement("button"); act.type = "button"; act.className = "cat-act"; act._item = item;
     o.decorate(act, item);
     act.addEventListener("click", () => o.run(item, act));
-    txt.append(h, sn, act);
+    if (o.share) {   // Share (maps): copies a link that opens this map in this app
+      const row = document.createElement("div"); row.className = "cat-acts";
+      const sh = document.createElement("button"); sh.type = "button"; sh.className = "cat-share"; sh.innerHTML = calIcon("share");
+      const sl = document.createElement("span"); sl.textContent = S.share; sh.appendChild(sl); sh.setAttribute("aria-label", S.share + ": " + (item.title || ""));
+      sh.addEventListener("click", () => o.share(item, sh));
+      row.append(sh, act); txt.append(h, sn, row);
+    } else txt.append(h, sn, act);
     const th = document.createElement("div"); th.className = "cat-thumb" + (o.thumbOpens ? " open" : ""); th.setAttribute("aria-hidden", "true");
     const tu = thumbUrl(item); if (tu) th.style.backgroundImage = "url('" + tu.replace(/'/g, "%27") + "')";
     if (o.thumbOpens) th.addEventListener("click", () => o.run(item, act));
@@ -2101,7 +2170,20 @@ function createBrowser(o) {
 const openCollectionMap = (it) => openWebMapItem(it.id, { title: it.title });
 const mapBrowser = createBrowser({ p: "om", query: 'type:"Web Map"', accept: () => true, kind: "maps", thumbOpens: true, descLabel: () => S.mapDescription,
   decorate(b, item) { b.textContent = S.openThisMap; b.setAttribute("aria-label", S.openThisMap + ": " + (item.title || "")); },
+  share: F.share === false ? null : shareMapLink,
   run(item) { openCollectionMap(item); } });
+// The link Share copies: this app (and these settings) opening that map. Nothing about the person is in it.
+function mapLink(itemId) {
+  const u = new URL(location.origin + location.pathname);
+  if (cfgName !== "default") u.searchParams.set("config", cfgName);
+  u.searchParams.set("webmap", itemId);
+  return u.href;
+}
+async function shareMapLink(item) {
+  const link = mapLink(item.id);
+  try { await navigator.clipboard.writeText(link); toast(t("linkCopied", { title: item.title || "" }), 5000); }
+  catch (e) { window.prompt(S.linkCopyManually, link); }   // no clipboard access (an old browser, or permission refused): show the link to copy
+}
 function forgetBrowse() { mapBrowser.forget(); addBrowser.forget(); groupLoaded = false; }
 const agolState = { start: 1, loading: false };
 function mapCard(item, onOpen) {     // My ArcGIS Online maps
@@ -2656,7 +2738,7 @@ async function buildWebMapJson(toFile) {
   unsavedLayers = added.filter((x) => !x).length;
   return docToWebMap(doc, { baseMap: await currentBaseMapJson(toFile), sourceLayers: sourceLayersJson(toFile), portalLayers: added.filter(Boolean),
     extent: ext ? ext.toJSON() : null, scale: mode === "2d" ? mapView.scale : null, rotation: mode === "2d" ? mapView.rotation || 0 : 0,
-    appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false,
+    appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false, widgets: timeWidgetsJson(),
     order: activeMap().layers.toArray().filter((l) => l !== graphicsLayer && l !== previewLayer).map((l) => l.id) });
 }
 async function docText(locked) { const wm = await buildWebMapJson(true); if (locked) wm[LOCK_PROP] = true; return JSON.stringify(wm); }
@@ -3129,7 +3211,8 @@ function renderVersions() {
     ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
     ["Elevation profile", PROFILE_VERSION, "Esri's Elevation Profile widget, opened from Measure and ready to draw: the height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
-    ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers, basemap, view and bookmarks. The same JSON is stored in ArcGIS Online."],
+    ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and (2.3) a time-aware map's time settings. The same JSON is stored in ArcGIS Online."],
+    ["Time", "1.0", "The SDK's Time Bar on maps saved with time settings: play, step and a slider, set up from the map's own settings."],
     ["Older .mmap files (open only)", String(DOC_VERSION), "MapMakerLocalDocument versions 2 to 4, from earlier versions of this app, the local-save concept and Map Studio. (.mmap files saved as web maps by versions 1.2 to 1.6 open like .amap files.)"],
     ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview."],
     ["Filter (lab)", FILTER_VERSION, "A layer's Filter panel, laid out like Map Viewer's: conditions on number and text fields, a histogram with a slider, a count of what's shown. Built from Calcite components and the SDK's Histogram and Slider components; saved as the layer's definitionExpression."],

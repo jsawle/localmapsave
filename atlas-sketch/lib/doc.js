@@ -4,7 +4,7 @@
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "2.2";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true)
+export const WEBMAP_WRITER_VERSION = "2.3";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true)
 export const WEBMAP_SPEC_VERSION = "2.31";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
 export const DATA_LAYER_PREFIX = "__data_";        // spreadsheet (CSV) layers
@@ -343,6 +343,23 @@ export function specToBookmarks(list) {
  *        extent, rotation, scale, appVersion, sketchTitle, sketchVisible }
  * Each bookmark's layers on/off are kept as a presentation slide with the same index (the spec's bookmark has no layer list).
  */
+// ---- time slider settings (Web Map Specification: widgets.timeSlider.properties)
+// A time-aware map keeps how its time control is set up here. Only what the specification defines is kept, as numbers.
+const TIME_UNITS = new Set(["esriTimeUnitsMilliseconds", "esriTimeUnitsSeconds", "esriTimeUnitsMinutes", "esriTimeUnitsHours", "esriTimeUnitsDays", "esriTimeUnitsWeeks",
+  "esriTimeUnitsMonths", "esriTimeUnitsYears", "esriTimeUnitsDecades", "esriTimeUnitsCenturies"]);
+export function cleanTimeWidgets(widgets) {
+  const p = widgets && widgets.timeSlider && widgets.timeSlider.properties;
+  if (!p || typeof p !== "object") return null;
+  const out = {};
+  for (const k of ["startTime", "endTime", "thumbMovingRate", "numberOfStops"]) if (finite(p[k])) out[k] = p[k];
+  if (p.thumbCount === 1 || p.thumbCount === 2) out.thumbCount = p.thumbCount;
+  if (typeof p.loop === "boolean") out.loop = p.loop;
+  if (Array.isArray(p.currentTimeExtent) && p.currentTimeExtent.length === 2 && p.currentTimeExtent.every((v) => v === null || finite(v))) out.currentTimeExtent = p.currentTimeExtent.slice();
+  if (Array.isArray(p.stops)) { const st = p.stops.filter(finite).slice(0, 1000); if (st.length) out.stops = st; }
+  const ti = p.timeStopInterval;
+  if (ti && finite(ti.interval) && ti.interval > 0 && TIME_UNITS.has(ti.units)) out.timeStopInterval = { interval: ti.interval, units: ti.units };
+  return Object.keys(out).length ? { timeSlider: { properties: out } } : null;
+}
 export function docToWebMap(doc, ctx) {
   const dataOps = (doc.layers || []).map((ld) => dataDefToOperationalLayer(ld, ld.visible, ld.opacity));
   const sketchOps = sketchToOperationalLayers(doc.graphics || [], ctx.sketchTitle, ctx.sketchVisible);
@@ -362,6 +379,8 @@ export function docToWebMap(doc, ctx) {
     spatialReference: SR, version: WEBMAP_SPEC_VERSION,
     authoringApp: AUTHORING_APP, authoringAppVersion: String(ctx.appVersion || WEBMAP_WRITER_VERSION)
   };
+  const tw = cleanTimeWidgets(ctx.widgets);
+  if (tw) wm.widgets = tw;   // a time-aware map stays time-aware
   if (ctx.extent) {
     const viewpoint = { targetGeometry: ctx.extent };
     if (finite(ctx.scale) && ctx.scale > 0) viewpoint.scale = ctx.scale;
@@ -516,6 +535,8 @@ export function readWebMap(raw, opts) {
     spatialReference: raw.spatialReference && finite(raw.spatialReference.wkid) ? { wkid: raw.spatialReference.wkid, latestWkid: raw.spatialReference.latestWkid } : SR,
     authoringApp: str(raw.authoringApp, 100) || "unknown", authoringAppVersion: str(raw.authoringAppVersion, 40) || "" };
   if (baseMap) webmap.baseMap = baseMap;
+  const timeWidgets = cleanTimeWidgets(raw.widgets);
+  if (timeWidgets) webmap.widgets = timeWidgets;
   const vp = raw.initialState && raw.initialState.viewpoint;
   const tg = cleanTargetGeometry(vp && vp.targetGeometry);
   if (tg) {

@@ -1,4 +1,4 @@
-// Unit tests for the filter conditions <-> SQL module. Run: node atlas-sketch/tests/filter.test.mjs
+// Unit tests for the filter conditions <-> SQL module, and the time settings a saved map keeps. Run: node atlas-sketch/tests/filter.test.mjs
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as F from "../lib/filter.js";
@@ -97,6 +97,19 @@ test("a spreadsheet layer's filter is saved in its layerDefinition and read back
   const plain = doc.dataDefToOperationalLayer({ ...def, definitionExpression: undefined }, true, 1);
   assert.ok(!("definitionExpression" in plain.featureCollection.layers[0].layerDefinition), "no filter: the property is left out");
   assert.equal(doc.operationalLayerToDataDef(plain).definitionExpression, undefined);
+});
+test("time settings: only what the Web Map Specification defines is kept, and a saved map keeps them", () => {
+  const w = { timeSlider: { properties: { startTime: -6144235258000, endTime: -5892119998000, numberOfStops: 10, thumbCount: 2, thumbMovingRate: 2000, loop: true,
+    currentTimeExtent: [null, -6100000000000], timeStopInterval: { interval: 5, units: "esriTimeUnitsYears" }, stops: [1, 2, "x"], evil: "<script>", onclick: "x" } }, other: { a: 1 } };
+  const c = doc.cleanTimeWidgets(w);
+  assert.deepEqual(Object.keys(c), ["timeSlider"]);
+  assert.deepEqual(c.timeSlider.properties, { startTime: -6144235258000, endTime: -5892119998000, thumbMovingRate: 2000, numberOfStops: 10, thumbCount: 2, loop: true,
+    currentTimeExtent: [null, -6100000000000], stops: [1, 2], timeStopInterval: { interval: 5, units: "esriTimeUnitsYears" } });
+  for (const bad of [null, {}, { timeSlider: {} }, { timeSlider: { properties: { thumbCount: 7, startTime: "1", timeStopInterval: { interval: 1, units: "fortnights" } } } }]) assert.equal(doc.cleanTimeWidgets(bad), null);
+  const wm = doc.docToWebMap({ graphics: [], layers: [], bookmarks: [] }, { widgets: w, appVersion: "t" });
+  assert.deepEqual(wm.widgets, c);
+  assert.equal(doc.readWebMap(wm).webmap.widgets.timeSlider.properties.numberOfStops, 10, "and they come back when the file is opened");
+  assert.ok(!("widgets" in doc.docToWebMap({ graphics: [], layers: [], bookmarks: [] }, { appVersion: "t" })), "a map without time settings has no widgets");
 });
 test("release: every module address carries the app version, and the filter has its own version", () => {
   const app = readFileSync(new URL("../app.js", import.meta.url), "utf8"), html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
