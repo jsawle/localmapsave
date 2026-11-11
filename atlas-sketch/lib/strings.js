@@ -193,6 +193,10 @@ export const DEFAULT_STRINGS = {
   dropWhat: "Drop a .csv file to add data, or an .amap file to open a saved map.",
   pieIn3d: "Pie-chart layers only draw in 2D. Switch back to 2D to see them.",
   no3d: "The 3D view couldn't start on this device.",
+  only3d: "This is a 3D scene, so it can't be shown in 2D.",
+  only2d: "This map is set to 2D only.",
+  sceneCard: "3D scene",
+  sceneNoArcgisSave: "A 3D scene can't be saved to ArcGIS Online from here yet. Sign out to save it to this device.",
 
   // Compass
   compassN: "N", compassE: "E", compassS: "S", compassW: "W",
