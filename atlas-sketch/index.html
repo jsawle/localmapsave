@@ -176,17 +176,40 @@
     .sketch-bar{ position:absolute; top:15px; right:374px; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 12px); z-index:21; display:flex; flex-direction:column; align-items:flex-end; pointer-events:none; }
     .sketch-bar[hidden]{ display:none; }
     .sketch-bar > arcgis-sketch{ pointer-events:auto; max-height:100%; overflow-y:auto; box-shadow:0 2px 10px rgba(0,0,0,.2); border-radius:4px; }
-    .sk-kind{ margin:0 0 10px; font-size:15px; font-weight:600; color:var(--ink); }
-    .sym-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
-    .sym-head .label{ margin:0; }
-    .sym-set{ width:auto; min-width:140px; padding:5px 8px; }
-    .sym-grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; max-height:176px; overflow-y:auto; padding:3px; border:1px solid var(--line2); border-radius:4px; }
-    .sym-btn{ position:relative; overflow:hidden; aspect-ratio:1; min-width:0; display:flex; align-items:center; justify-content:center; padding:2px; background:#fff; border:2px solid transparent; border-radius:4px; cursor:pointer; }
-    /* the style's pictures are 64 px with the symbol in the middle third: shown larger and cropped to the symbol */
-    .sym-btn img{ position:absolute; left:50%; top:50%; width:88px; height:88px; max-width:none; transform:translate(-50%, -50%); pointer-events:none; }
-    .sym-btn .sym-dot{ width:16px; height:16px; border-radius:50%; background:#323232; border:2px solid #fff; box-shadow:0 0 0 1px #6a6a6a; }
+    .sk-hint{ margin:0 0 10px; padding:9px 11px; border:1px solid #007ac2; border-radius:4px; background:#f3f9fd; color:#1b3a57; font-size:14px; }
+    .sk-hint:empty{ display:none; }
+    .sk-jump{ position:absolute; left:-9999px; }   /* keyboard: one Tab from the panel's heading to the drawing tools; shown when it has focus */
+    .sk-jump:focus{ position:static; margin-bottom:10px; }
+    .sk-kind{ margin:0 0 10px; font-size:16px; font-weight:600; color:var(--ink); }
+    .sk-row{ display:flex; align-items:center; gap:10px; width:100%; min-height:44px; margin-top:8px; padding:6px 10px; background:#fff; color:var(--ink); border:1px solid var(--line2); border-radius:4px; font-size:15px; text-align:left; cursor:pointer; }
+    .sk-row:hover{ background:#f3f3f3; }
+    .sk-row .chev{ margin-left:auto; font-size:22px; line-height:1; color:#4a4a4a; }
+    .sk-row-note{ font-size:12px; color:#4a4a4a; }
+    .sk-acts{ display:flex; gap:8px; margin-top:8px; }
+    .sk-acts .btn{ flex:1 1 50%; }
+    #sketchPanel .panel-body{ display:flex; flex-direction:column; min-height:0; }
+    #sketchPanel.tall{ height:calc(100% - var(--tb-h) - var(--attr-h, 16px) - 51px); }
+    .sk-sub{ display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+    .sk-sub[hidden]{ display:none; }
+    .sk-sub-head{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+    .sk-sub-head h3{ margin:0; font-size:16px; }
+    .sk-back{ padding:2px 10px; font-size:20px; line-height:1.2; }
+    .sk-done{ width:100%; margin-top:10px; }
+    .sym-filters{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .sym-filters .label{ margin-bottom:4px; }
+    .sym-filters .field{ width:100%; padding:6px 8px; }
+    .sym-pic{ position:relative; overflow:hidden; display:block; flex:none; }
+    /* the styles' pictures are 64 px with the symbol in the middle: shown larger and cropped to the symbol */
+    .sym-pic img{ position:absolute; left:50%; top:50%; max-width:none; transform:translate(-50%, -50%); pointer-events:none; }
+    .sym-pic .sym-dot{ position:absolute; left:50%; top:50%; width:16px; height:16px; margin:-10px 0 0 -10px; border-radius:50%; background:#323232; border:2px solid #fff; box-shadow:0 0 0 1px #6a6a6a; }
+    .sym-grid{ flex:1 1 auto; min-height:120px; display:grid; grid-template-columns:repeat(6, 1fr); grid-auto-rows:max-content; gap:4px; overflow-y:auto; padding:4px; margin-top:6px; border:1px solid var(--line2); border-radius:4px; }
+    .sym-btn{ aspect-ratio:1; min-width:0; display:flex; align-items:center; justify-content:center; padding:2px; background:#fff; border:2px solid transparent; border-radius:4px; cursor:pointer; }
     .sym-btn:hover{ background:#f3f3f3; }
     .sym-btn[aria-pressed="true"], .pat-btn[aria-pressed="true"]{ border-color:var(--ink); background:#eef4fb; }
+    .sym-recent{ display:flex; gap:6px; margin-bottom:10px; }
+    .sym-recent .sym-btn{ width:44px; height:44px; aspect-ratio:auto; border-color:var(--line2); }
+    .sym-cur{ margin-top:0; }
+    .sym-cur-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .pat-row{ display:flex; gap:6px; flex-wrap:wrap; }
     .pat-btn{ width:56px; height:34px; display:flex; align-items:center; justify-content:center; padding:0 5px; background:#fff; color:#323232; border:2px solid var(--line2); border-radius:4px; cursor:pointer; }
     .pat-btn svg{ width:44px; height:16px; display:block; }
@@ -696,33 +719,48 @@
       <section class="panel" id="sketchPanel" hidden aria-labelledby="sketchH">
         <div class="panel-head"><h2 id="sketchH" tabindex="-1" data-i18n="sketch">Sketch</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
         <div class="panel-body">
-          <button class="btn" type="button" id="sketchToolsJump" data-i18n="sketchToolsJump" style="margin-bottom:12px">Go to the drawing tools</button>
-          <p class="hint" id="sketchHint" data-i18n="sketchToolsHint">Choose a drawing tool on the right of the map. Select a sketch to change it.</p>
-          <h3 class="sk-kind" id="skKind" hidden></h3>
-          <div class="section" id="secPopup" hidden>
-            <p class="label" data-i18n="popup">Pop-up</p>
-            <p class="hint" id="popupHint" role="status" hidden></p>
+          <div id="skMain">
+            <p class="sk-hint" id="sketchHint" role="status"></p>
+            <button class="btn sk-jump" type="button" id="sketchToolsJump" data-i18n="sketchToolsJump">Go to the drawing tools</button>
+            <h3 class="sk-kind" id="skKind" hidden></h3>
+            <div class="section" id="secFeature" hidden>
+              <div id="nameRow"><label class="label" for="fTitle" id="nameLabel">Name</label><input class="field" id="fTitle" type="text" /></div>
+              <button class="sk-row" type="button" id="skPopupOpen"><span data-i18n="popup">Pop-up</span><span class="sk-row-note" id="skPopupState"></span><span class="chev" aria-hidden="true">&rsaquo;</span></button>
+              <div class="sk-acts"><button class="btn" type="button" id="skDuplicate" data-i18n="sketchDuplicate">Duplicate</button><button class="btn danger" type="button" id="skDelete" data-i18n="sketchDelete">Delete</button></div>
+            </div>
+            <div class="section" id="secSymbol" hidden>
+              <div id="recentWrap" hidden><p class="label" id="recentLabel" data-i18n="recentSymbols">Recent symbols</p><div class="sym-recent" id="recentRow" role="group" aria-labelledby="recentLabel"></div></div>
+              <p class="label" data-i18n="currentSymbol">Current symbol</p>
+              <button class="sk-row sym-cur" type="button" id="skSymbolOpen"></button>
+            </div>
+            <div class="section" id="secColour" hidden><p class="label" data-i18n="symbol">Colour</p><div class="swatches" id="swatches" role="group"></div></div>
+            <div class="section" id="secSize" hidden><label class="label" for="fSize" id="sizeLabel">Size</label><div class="slider-row"><input type="range" id="fSize" min="6" max="48" value="12" /><span class="slider-val" id="sizeVal">12</span></div></div>
+            <div class="section" id="secPattern" hidden><p class="label" id="patternLabel">Pattern</p><div class="pat-row" id="patternRow" role="group" aria-labelledby="patternLabel"></div></div>
+            <div class="section" id="secArrow" hidden><p class="label" id="arrowLabel" data-i18n="lineArrow">Arrow</p><div class="pat-row" id="arrowRow" role="group" aria-labelledby="arrowLabel"></div></div>
+            <div class="section" id="secFill" hidden><label class="label" for="fFill" data-i18n="fillSolid">Fill</label><div class="slider-row"><input type="range" id="fFill" min="0" max="100" step="5" value="25" /><span class="slider-val" id="fillVal">25%</span></div></div>
+            <div class="section" id="rotSection" hidden><label class="label" for="fRot" data-i18n="rotation">Rotation</label><div class="slider-row"><input type="range" id="fRot" min="0" max="360" value="0" /><span class="slider-val" id="rotVal">0°</span></div></div>
+          </div>
+          <div id="skSymbols" class="sk-sub" hidden>
+            <div class="sk-sub-head"><button class="btn sk-back" type="button" id="skSymbolsBack" data-i18n-aria="back">&#8249;</button><h3 id="skSymbolsH" tabindex="-1" data-i18n="changeSymbol">Change symbol</h3></div>
+            <div class="sym-filters">
+              <div><label class="label" for="symbolSet" data-i18n="symbolCategory">Category</label><select class="field" id="symbolSet"></select></div>
+              <div><label class="label" for="symbolSearch" data-i18n="symbolSearch">Search</label><input class="field" id="symbolSearch" type="search" autocomplete="off" /></div>
+            </div>
+            <p class="hint" id="symbolStatus" role="status"></p>
+            <div class="sym-grid" id="symbolGrid" role="group" aria-labelledby="skSymbolsH"></div>
+            <button class="btn primary sk-done" type="button" id="skSymbolsDone" data-i18n="done">Done</button>
+          </div>
+          <div id="skPopup" class="sk-sub" hidden>
+            <div class="sk-sub-head"><button class="btn sk-back" type="button" id="skPopupBack" data-i18n-aria="back">&#8249;</button><h3 id="skPopupH" tabindex="-1" data-i18n="popup">Pop-up</h3></div>
             <div class="stack">
+              <label class="label" for="fDesc" data-i18n="descOptional">Description (optional)</label>
+              <textarea class="field" id="fDesc" rows="5"></textarea>
               <input id="fImageFile" type="file" accept="image/*" hidden />
               <button class="img-pick" type="button" id="imgPick" data-i18n="addImage">Add image (optional)</button>
               <div class="img-preview" id="imgPreview" hidden><img id="imgThumb" alt="" /><button class="img-remove" type="button" id="imgRemove" data-i18n-aria="removeImage">&times;</button></div>
-              <label class="sr-only" for="fTitle" data-i18n="titleOptional">Title (optional)</label>
-              <input class="field" id="fTitle" type="text" data-i18n-ph="titleOptional" />
-              <label class="sr-only" for="fDesc" data-i18n="descOptional">Description (optional)</label>
-              <textarea class="field" id="fDesc" data-i18n-ph="descOptional"></textarea>
             </div>
+            <button class="btn primary sk-done" type="button" id="skPopupDone" data-i18n="done">Done</button>
           </div>
-          <div class="section" id="secSymbol" hidden>
-            <div class="sym-head"><label class="label" for="symbolSet" data-i18n="pointSymbol">Symbol</label><select class="field sym-set" id="symbolSet"></select></div>
-            <p class="hint" id="symbolStatus" role="status"></p>
-            <div class="sym-grid" id="symbolGrid" role="group" aria-labelledby="symbolGridLabel"></div><span class="sr-only" id="symbolGridLabel" data-i18n="pointSymbol">Symbol</span>
-          </div>
-          <div class="section" id="secColour" hidden><p class="label" data-i18n="symbol">Colour</p><div class="swatches" id="swatches" role="group"></div></div>
-          <div class="section" id="secSize" hidden><label class="label" for="fSize" id="sizeLabel">Size</label><div class="slider-row"><input type="range" id="fSize" min="6" max="48" value="12" /><span class="slider-val" id="sizeVal">12</span></div></div>
-          <div class="section" id="secPattern" hidden><p class="label" id="patternLabel">Pattern</p><div class="pat-row" id="patternRow" role="group" aria-labelledby="patternLabel"></div></div>
-          <div class="section" id="secArrow" hidden><p class="label" id="arrowLabel" data-i18n="lineArrow">Arrow</p><div class="pat-row" id="arrowRow" role="group" aria-labelledby="arrowLabel"></div></div>
-          <div class="section" id="secFill" hidden><label class="label" for="fFill" data-i18n="fillSolid">Fill</label><div class="slider-row"><input type="range" id="fFill" min="0" max="100" step="5" value="25" /><span class="slider-val" id="fillVal">25%</span></div></div>
-          <div class="section" id="rotSection" hidden><label class="label" for="fRot" data-i18n="rotation">Rotation</label><div class="slider-row"><input type="range" id="fRot" min="0" max="360" value="0" /><span class="slider-val" id="rotVal">0°</span></div></div>
         </div>
       </section>
 
@@ -910,6 +948,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.5"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.6"></script>
 </body>
 </html>

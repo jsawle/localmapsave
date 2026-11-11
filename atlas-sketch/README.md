@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.5**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.6**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -11,6 +11,37 @@
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Sketch panel and symbols, second pass (5.0.0-beta.6)
+
+**Where Map Viewer's symbols come from.** ArcGIS Online names four groups of styles in its settings (`…/sharing/rest/portals/self`). Map Viewer's Sketch uses `2DSketchStylesGroupQuery`: the group "Esri Sketch Styles" (`045b1ef5300f4ba98f5cfb2a55754921`, owner esri_en), 23 web styles. Sixteen hold point symbols. This app offers 13 of them plus the Places set from beta.5:
+
+| Category | Symbols | Takes the chosen colour | Named |
+|---|---|---|---|
+| Pins | 16 | yes | yes |
+| Numbers | 40 (numbered pins and circles) | yes | yes |
+| Shapes | 78, plus the plain circle | yes | yes |
+| Arrows | 50 | yes | yes |
+| Places | 61 (School, Park, Hospital…) | yes | yes |
+| Animals | 48 (Fox, Bear, Turtle…) | no | yes |
+| Buildings | 58 | yes | yes |
+| Vehicles | 54 | no | yes |
+| Trees | 81 | no | numbered only |
+| Landforms | 161 | no | numbered only |
+| Natural landscape 1, 2 | 125, 211 | no | numbered only |
+| Human landscape 1, 2 | 120, 88 | no | numbered only |
+
+Left out: Calcite Symbols (609 interface icons), Animated and Firefly. `sketchSymbolSets` in a config lists the categories to offer; `sketchSymbolsLeftOut` names single symbols to leave out (default Bar, Casino, Vineyard). The sets Esri only numbers ("Symbol 12") are announced to a screen reader as "Trees, Symbol 12": there is no better name to give.
+
+**The panel**, laid out like Map Viewer's Sketch pane:
+
+- A line at the top says what the tool in hand does ("Click the map to add a point.").
+- Point: Recent symbols (the last five, kept on the device), Current symbol, Colour (when the symbol takes one), Size. Current symbol opens **Change symbol**: Category, Search, the symbols using the panel's full height, Done.
+- A selected sketch: Name, Pop-up (a view of its own: description and image), Duplicate, Delete.
+- One toolbar on the map. The Sketch component's own Duplicate and Delete made a second bar when a sketch was selected; they are turned off and the panel's buttons call the same component methods.
+- "Go to the drawing tools" is still the first thing Tab reaches in the panel, and is shown only when it has focus.
+
+A sketch's symbol is saved as `web:<style item id>/<symbol name>`; beta.5's `web:school` still opens. Tests: `python3 atlas-sketch/tests/live-sketch-styles.py` (45 checks).
 
 ## Sketch styles (5.0.0-beta.5)
 

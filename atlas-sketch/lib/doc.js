@@ -58,7 +58,8 @@ export function cleanSketchAttributes(a, geometry, symbol) {
 }
 // A point symbol is the plain circle ("") or one of Esri's vector point symbols by name ("web:school"): the 2D point
 // symbol web style that Map Viewer offers as its default vector symbols.
-export const SHAPE_NAME = /^web:[a-z0-9][a-z0-9-]{0,48}$/;
+// Sketch styles 2.1: a symbol from any of the sketch styles Map Viewer offers is "web:<the style's item id>/<the symbol's name>".
+export const SHAPE_NAME = /^web:(?:[0-9a-f]{32}\/)?[A-Za-z0-9][A-Za-z0-9 _.()%+,&'-]{0,79}$/;
 export const LINE_PATTERNS = { solid: "esriSLSSolid", dash: "esriSLSDash", dot: "esriSLSDot", "dash-dot": "esriSLSDashDot", "long-dash": "esriSLSLongDash" };
 export const ARROWS = { none: null, end: "end", start: "begin", both: "begin-end" };
 
@@ -201,11 +202,11 @@ const SKETCH_FIELDS = [
   { name: "color", alias: "color", type: "esriFieldTypeString", length: 7 },
   { name: "size", alias: "size", type: "esriFieldTypeDouble" },
   { name: "rotation", alias: "rotation", type: "esriFieldTypeDouble" },
-  { name: "shape", alias: "shape", type: "esriFieldTypeString", length: 60 },
+  { name: "shape", alias: "shape", type: "esriFieldTypeString", length: 120 },
   { name: "pattern", alias: "pattern", type: "esriFieldTypeString", length: 12 },
   { name: "arrow", alias: "arrow", type: "esriFieldTypeString", length: 8 },
   { name: "fill", alias: "fill", type: "esriFieldTypeDouble" },
-  { name: "_style", alias: "_style", type: "esriFieldTypeString", length: 120 }
+  { name: "_style", alias: "_style", type: "esriFieldTypeString", length: 200 }
 ];
 export const SKETCH_LAYER_PREFIX = "__sketch_";
 
