@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.2**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.3**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -11,6 +11,20 @@
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Filtering and spreadsheet data in 3D (5.0.0-beta.3)
+
+| What | How it works |
+|---|---|
+| Filter in 3D | The Filter panel works in the 3D view of a web map and in a web scene, the same way as in 2D: the view follows a typed value without Apply, Cancel puts it back, Apply keeps it in both views and in the saved file. It needed no new code, only testing. It covers the layer types Filter already covers (feature, CSV, GeoJSON, WFS, OGC feature); a scene's 3D building, mesh and point cloud layers have no Filter button. |
+| Spreadsheet data in 3D | A CSV can be added while in 3D or in a scene. Its features lie on the ground (`elevationInfo: on-the-ground`), drawn on the terrain with the basemap, so the view has no height to work out per feature. Symbols therefore lie flat when the view is tilted. The 1,000-row limit is unchanged. In a scene the layer is saved in the scene file and comes back, with its filter. CSV 3.5. |
+| 3D quality | `threeDQuality` in a config, or `?quality=low|medium|high` in a link. The default, `auto`, picks the SDK's low quality profile (smaller textures, less memory, no shadows or stars) on a device with 4 GB of memory or less, 4 processor cores or fewer, or no graphics chip, and medium otherwise. |
+
+Fixed on the way: in a scene the layer count on the Map layers tool stayed at 0, and the basemap gallery followed the 2D view (both looked at the 2D view's map only); a move of the view asked for while 3D was still tilting into place could be mixed up with it, and now waits for it.
+
+Not known: how 3D performs on real school devices. The test browser draws 3D in software at one or two frames a second, which says nothing about a Chromebook with a graphics chip. The live test lifts the test scene's camera to look straight down from 30 km for that reason. One of the test's runs in three reported a script error with no message or stack that later runs didn't repeat; its cause isn't found.
+
+Tests: `python3 atlas-sketch/tests/live-3d-data.py` (21 checks).
 
 ## 3D scenes and the 2D-only tag (5.0.0-beta.2)
 
