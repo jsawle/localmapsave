@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.1**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.2**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -12,7 +12,28 @@ Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, an
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
 
-## Parity with MapMaker 4.0 (5.0.0-beta.1)
+## 3D scenes and the 2D-only tag (5.0.0-beta.2)
+
+| What | How it works |
+|---|---|
+| Open a web scene | From a link, `?webscene=<item id>`, or from Open map, where the collection's web scenes are listed beside its web maps and marked **3D**. With `webmap` and `webscene` in one link, the scene opens. |
+| A scene is 3D only | It opens in 3D and the 2D button is unavailable, with the reason. Its slides are the bookmarks, each with its camera. |
+| A web map can be 2D only | Add the tag `atlas-2d-only` to the web map's ArcGIS Online item. The 3D button is then unavailable, with the reason. A copy saved to a device keeps this (`"atlas2dOnly": true` in the file). |
+| Save a scene | The `.amap` file holds a web scene (Web Scene Specification 1.40): the scene's layers, ground and lighting, the camera, bookmarks as slides, sketches and spreadsheet layers. A scene has `viewingMode` and `ground`, which is how the app tells it from a web map. Saved-map format 3.0. |
+| Share | Share on a scene's card copies a `webscene=` link. |
+| Views | The 2D and 3D views are the SDK's `arcgis-map` and `arcgis-scene` components. Search, Home, Zoom, the 3D navigation toggle and the scale bar are components in their slots (they were widgets, which SDK 6 removes). |
+
+Not done yet, or not tested:
+
+- A scene can't be saved to ArcGIS Online from the app (signed in); it says so. Saving to a device works.
+- Sketching in a scene, and a spreadsheet layer in a scene, are saved by the same code as in a web map, and the unit tests cover the file. Drawing in 3D has not been tested in a browser.
+- Local scenes (flat, not a globe) are handled in code but no local scene has been opened in a test.
+- A scene or map with a layer that isn't shared publicly makes the SDK ask the reader to sign in. Three of Esri's older sample scenes do this. Content for classes needs every layer public.
+- Still widgets, to be moved to components: Measurement, Elevation Profile, Coordinate Conversion, Legend, Swipe, Feature Table.
+
+Tests: `node atlas-sketch/tests/scenes.test.mjs` (24 checks on the file format) and `python3 atlas-sketch/tests/live-scenes.py` (35 checks in Chromium against the real SDK and ArcGIS Online). The MapMaker collection has no web scene and no tagged map yet, so the live test adds the tag, and puts a scene in the list, by changing the services' answers on their way to the app. It also leaves a city scene's 3D buildings out, because the test browser draws 3D in software.
+
+## Parity with MapMaker 4.0 (since 5.0.0-beta.1)
 
 A tool-by-tool inventory of the live MapMaker (11 November 2026) found seven things 4.0 has that this app didn't. Four are added here:
 

@@ -4,8 +4,9 @@
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "2.3";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true)
+export const WEBMAP_WRITER_VERSION = "3.0";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true
 export const WEBMAP_SPEC_VERSION = "2.31";
+export const WEBSCENE_SPEC_VERSION = "1.40";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
 export const DATA_LAYER_PREFIX = "__data_";        // spreadsheet (CSV) layers
 export const SKETCH_GRAPHICS_ID = "__sketch";      // the sketch layer while editing (saved as __sketch_points, …)
@@ -469,16 +470,20 @@ function cleanJson(v, key, depth, budget, flags) {
   return out;
 }
 // One operational layer from a file: known layer type, and every web address it loads from is https.
-function cleanForeignLayer(op, budget, depth) {
+// Layer types only a web scene has (Web Scene Specification), and the elevation layers of its ground.
+const SCENE_LAYER_TYPES = new Set(["ArcGISSceneServiceLayer", "BuildingSceneLayer", "IntegratedMeshLayer", "IntegratedMesh3DTilesLayer", "PointCloudLayer", "VoxelLayer",
+  "RasterDataLayer", "LineOfSightLayer", "ViewshedLayer", "DimensionLayer", "GaussianSplatLayer"]);
+const GROUND_LAYER_TYPES = new Set(["ArcGISTiledElevationServiceLayer", "RasterDataElevationLayer"]);
+function cleanForeignLayer(op, budget, depth, scene) {
   if (!op || typeof op !== "object" || depth > 6) return null;
   if (op.layers && op.layerType === "GroupLayer") {
-    const layers = (Array.isArray(op.layers) ? op.layers : []).map((l) => cleanForeignLayer(l, budget, depth + 1)).filter(Boolean);
+    const layers = (Array.isArray(op.layers) ? op.layers : []).map((l) => cleanForeignLayer(l, budget, depth + 1, scene)).filter(Boolean);
     if (!layers.length) return null;
     const { layers: _drop, ...rest } = op;
     const flags = {}; const g = cleanJson(rest, null, 0, budget, flags);
     return flags.badService ? null : { ...g, layers };
   }
-  if (!LAYER_TYPES.has(op.layerType)) return null;
+  if (!LAYER_TYPES.has(op.layerType) && !(scene === true && SCENE_LAYER_TYPES.has(op.layerType)) && !(scene === "ground" && GROUND_LAYER_TYPES.has(op.layerType))) return null;
   if (op.itemId !== undefined && !HEX32.test(op.itemId || "")) return null;
   const flags = {};
   const c = cleanJson(op, null, 0, budget, flags);
@@ -520,14 +525,14 @@ export function readWebMap(raw, opts) {
   const sketchVisible = !sketchOps.length || sketchOps.some((o) => o.visibility !== false);
   const foreign = [];
   for (const op of foreignIn) {
-    const c = trusted ? op : cleanForeignLayer(op, budget, 0);
+    const c = trusted ? op : cleanForeignLayer(op, budget, 0, !!(opts && opts.scene));
     if (c) foreign.push(c); else skipped++;
   }
   let baseMap = null;
   if (raw.baseMap && typeof raw.baseMap === "object") {
     if (trusted) baseMap = raw.baseMap;
     else {
-      const bl = (Array.isArray(raw.baseMap.baseMapLayers) ? raw.baseMap.baseMapLayers : []).map((l) => cleanForeignLayer(l, budget, 0)).filter(Boolean);
+      const bl = (Array.isArray(raw.baseMap.baseMapLayers) ? raw.baseMap.baseMapLayers : []).map((l) => cleanForeignLayer(l, budget, 0, !!(opts && opts.scene))).filter(Boolean);
       if (bl.length) baseMap = { baseMapLayers: bl, title: str(raw.baseMap.title, 200) || "Basemap" };
     }
   }
@@ -563,4 +568,106 @@ export function readWebMap(raw, opts) {
   const totalOut = layers.reduce((n, l) => n + l.features.length, 0);
   if (totalIn > totalOut) skipped += totalIn - totalOut;
   return { ok: true, webmap, graphics, layers, bookmarks, sketchVisible, skipped };
+}
+
+
+// ---------------------------------------------------------------- web scenes (3D): saved and opened as a web scene
+// A web scene opened in this app is saved as a web scene (Web Scene Specification), in the same .amap file. What tells
+// the two apart is in the file: a scene has "viewingMode" and "ground", which a web map has not.
+export const TWO_D_ONLY_PROP = "atlas2dOnly";   // a web map its author set to 2D only (its item's "atlas-2d-only" tag), kept in the saved file
+export function looksLikeWebScene(raw) {
+  return looksLikeWebMap(raw) && (raw.viewingMode === "global" || raw.viewingMode === "local") && !!raw.ground && typeof raw.ground === "object";
+}
+const DEFAULT_GROUND = { layers: [{ id: "globalElevation", layerType: "ArcGISTiledElevationServiceLayer", title: "Terrain3D",
+  url: "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer" }] };
+function cameraLonLat(c) {
+  const wkid = c.position.spatialReference && c.position.spatialReference.wkid;
+  if (wkid === 4326) return [c.position.x, c.position.y];
+  if (wkid === 102100 || wkid === 3857 || wkid == null) return xyToLonLat(c.position.x, c.position.y);
+  return null;
+}
+/**
+ * Build a web scene from the current document. ctx is docToWebMap's, plus:
+ *  camera (the view's camera now, JSON), scene (the opened scene's JSON: its ground, kind of scene, lighting and height model are kept).
+ * Bookmarks are the scene's slides: each keeps its camera and, when it has them, its layers on/off.
+ */
+export function docToWebScene(doc, ctx) {
+  const wm = docToWebMap({ ...doc, bookmarks: [] }, { ...ctx, extent: null, widgets: null });
+  const src = (ctx.scene && typeof ctx.scene === "object") ? ctx.scene : {};
+  const ws = {
+    operationalLayers: wm.operationalLayers, baseMap: wm.baseMap,
+    ground: src.ground && typeof src.ground === "object" ? src.ground : DEFAULT_GROUND,
+    spatialReference: src.spatialReference && finite(src.spatialReference.wkid) ? src.spatialReference : SR,
+    version: WEBSCENE_SPEC_VERSION, viewingMode: src.viewingMode === "local" ? "local" : "global",
+    authoringApp: AUTHORING_APP, authoringAppVersion: String(ctx.appVersion || WEBMAP_WRITER_VERSION)
+  };
+  for (const k of ["heightModelInfo", "clippingArea"]) if (src[k] && typeof src[k] === "object") ws[k] = src[k];
+  const initialState = {};
+  const env = src.initialState && src.initialState.environment;
+  if (env && typeof env === "object") initialState.environment = env;
+  const cam = cleanCamera(ctx.camera);
+  if (cam) initialState.viewpoint = { camera: cam };
+  if (Object.keys(initialState).length) ws.initialState = initialState;
+  const ids = new Set(ws.operationalLayers.map((o) => o.id)), sketchIds = ws.operationalLayers.filter((o) => String(o.id).startsWith(SKETCH_LAYER_PREFIX)).map((o) => o.id);
+  const slides = [];
+  (doc.bookmarks || []).forEach((b, i) => {
+    let c = cleanCamera(b.camera);
+    if (!c && b.viewpoint && b.viewpoint.center) c = { position: { x: b.viewpoint.center[0], y: b.viewpoint.center[1], z: 20000, spatialReference: { wkid: 4326 } }, heading: 0, tilt: 0 };
+    if (!c) return;
+    const slide = { id: "slide-" + (i + 1), title: { text: str(b.title, 200) || "Bookmark" }, viewpoint: { camera: c } };
+    if (typeof b.thumb === "string" && DATA_IMAGE.test(b.thumb) && b.thumb.length < 400000) slide.thumbnail = { url: b.thumb };
+    if (b.layers && b.layers.length) {
+      const vis = [];
+      for (const r of b.layers) { if (!r.visible) continue; if (r.id === SKETCH_GRAPHICS_ID) vis.push(...sketchIds); else if (ids.has(r.id)) vis.push(r.id); }
+      slide.visibleLayers = [...new Set(vis)].map((id) => ({ id }));
+    }
+    slides.push(slide);
+  });
+  if (slides.length) ws.presentation = { slides };
+  return ws;
+}
+/**
+ * Read a web scene saved by this app (or any web scene JSON). Returns readWebMap's result with, instead of webmap:
+ *  - webscene: JSON for the ArcGIS SDK, every web address checked
+ *  - camera: where the scene was left
+ *  - bookmarks: from the slides, each with its camera (JSON)
+ */
+export function readWebScene(raw) {
+  if (!looksLikeWebScene(raw)) return { ok: false, code: "notMapFile" };
+  const r = readWebMap({ operationalLayers: raw.operationalLayers, baseMap: raw.baseMap, spatialReference: raw.spatialReference,
+    authoringApp: raw.authoringApp, authoringAppVersion: raw.authoringAppVersion }, { scene: true });
+  if (!r.ok) return r;
+  const budget = { left: 0 };
+  const gl = (Array.isArray(raw.ground.layers) ? raw.ground.layers : []).slice(0, 20).map((l) => cleanForeignLayer(l, budget, 0, "ground")).filter(Boolean);
+  const ground = { layers: gl.length ? gl : DEFAULT_GROUND.layers };
+  if (finite(raw.ground.transparency)) ground.transparency = clamp(raw.ground.transparency, 0, 100, 0);
+  if (raw.ground.navigationConstraint && ["stayAbove", "none"].includes(raw.ground.navigationConstraint.type)) ground.navigationConstraint = { type: raw.ground.navigationConstraint.type };
+  const webscene = { operationalLayers: r.webmap.operationalLayers, ground, spatialReference: r.webmap.spatialReference, version: WEBSCENE_SPEC_VERSION,
+    viewingMode: raw.viewingMode, authoringApp: r.webmap.authoringApp, authoringAppVersion: r.webmap.authoringAppVersion };
+  if (r.webmap.baseMap) webscene.baseMap = r.webmap.baseMap;
+  const flags = {};
+  for (const k of ["heightModelInfo", "clippingArea"]) if (raw[k] && typeof raw[k] === "object") { const c = cleanJson(raw[k], null, 0, budget, flags); if (c) webscene[k] = c; }
+  const initialState = {};
+  const env = raw.initialState && raw.initialState.environment;
+  if (env && typeof env === "object") { const c = cleanJson(env, null, 0, budget, flags); if (c) initialState.environment = c; }
+  const camera = cleanCamera(raw.initialState && raw.initialState.viewpoint && raw.initialState.viewpoint.camera);
+  if (camera) initialState.viewpoint = { camera };
+  if (Object.keys(initialState).length) webscene.initialState = initialState;
+  const opIds = webscene.operationalLayers.map((o) => o.id).concat(r.layers.map((l) => DATA_LAYER_PREFIX + l.id));
+  const sketchOps = (Array.isArray(raw.operationalLayers) ? raw.operationalLayers : []).filter((o) => isOwnLayerJson(o) && o.id.startsWith(SKETCH_LAYER_PREFIX));
+  const bookmarks = [];
+  for (const s of (raw.presentation && Array.isArray(raw.presentation.slides) ? raw.presentation.slides : []).slice(0, 100)) {
+    const c = cleanCamera(s && s.viewpoint && s.viewpoint.camera); if (!c) continue;
+    const ll = cameraLonLat(c); if (!ll) continue;
+    const bm = { title: str(s.title && s.title.text, 200) || "Bookmark", viewpoint: { center: [clamp(ll[0], -540, 540, 0), clamp(ll[1], -90, 90, 0)], zoom: 10 }, camera: c, layers: [],
+      thumb: s.thumbnail && typeof s.thumbnail.url === "string" && DATA_IMAGE.test(s.thumbnail.url) && s.thumbnail.url.length < 400000 ? s.thumbnail.url : null };
+    if (Array.isArray(s.visibleLayers)) {
+      const on = new Set(s.visibleLayers.filter((v) => v && typeof v.id === "string").map((v) => v.id));
+      bm.layers = opIds.map((id) => ({ id, title: "", visible: on.has(id) }));
+      if (sketchOps.length) bm.layers.push({ id: SKETCH_GRAPHICS_ID, title: "", visible: sketchOps.some((o) => on.has(o.id)) });
+    }
+    bookmarks.push(bm);
+  }
+  const { webmap: _drop, ...rest } = r;
+  return { ...rest, webscene, camera, bookmarks };
 }

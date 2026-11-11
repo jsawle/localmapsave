@@ -40,7 +40,7 @@ The two sample classes come with richer keys than an answer map gives: accepted 
 | `assignments/<name>/rubric.txt` | The sample rubric, as filled in for the AI step |
 | `ai-test/` | The AI test: reference marking, inputs, replies, comparison |
 | `index.html`, `app.js` | The app |
-| `tools/test.mjs` | 51 tests: the checks against the test classes, keys from the answer maps, the export, and that Atlas still writes map file format 2.3 (2.3 adds time settings at the root of the file, which the checks do not read) |
+| `tools/test.mjs` | 51 tests: the checks against the test classes, keys from the answer maps, the export, and that Atlas still writes map file format 3.0 (the checks read the layers only, which 2.3 and 3.0 did not change) |
 | `tools/base-*.amap`, `tools/trails-west.json` | The starting maps (saved from the lab app with the real MapMaker layers) and the Oregon and California Trail lines |
 
 ```
