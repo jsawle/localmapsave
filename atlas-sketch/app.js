@@ -2,20 +2,20 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.3";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.4";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.3";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.4";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.3";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.4";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.3";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.3";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.3";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.4";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.4";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.4";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.3";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.4";
 
-const APP_VERSION = "5.0.0-beta.3";
+const APP_VERSION = "5.0.0-beta.4";
 const COMPASS_VERSION = "1.1";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -248,21 +248,34 @@ async function loadSdk(paths) {
     throw e;
   }
 }
-const [EsriMap, WebMap, WebScene, Camera, GraphicsLayer, FeatureLayer, Graphic, Basemap,
-  Measurement, ElevationProfile, ElevationLayer, CoordinateConversion, Legend, Layer,
+const [EsriMap, WebMap, WebScene, Camera, GraphicsLayer, FeatureLayer, Graphic, Basemap, Layer,
   Field, LabelClass, rendererJsonUtils, Extent, esriConfig, intl, IdentityManager, OAuthInfo, Portal, esriRequest, reactiveUtils,
-  SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol, densifyOperator] = await loadSdk([
+  SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, TextSymbol] = await loadSdk([
   "@arcgis/core/Map.js", "@arcgis/core/WebMap.js", "@arcgis/core/WebScene.js", "@arcgis/core/Camera.js",
   "@arcgis/core/layers/GraphicsLayer.js", "@arcgis/core/layers/FeatureLayer.js", "@arcgis/core/Graphic.js",
-  "@arcgis/core/Basemap.js", "@arcgis/core/widgets/Measurement.js", "@arcgis/core/widgets/ElevationProfile.js", "@arcgis/core/layers/ElevationLayer.js",
-  "@arcgis/core/widgets/CoordinateConversion.js",
-  "@arcgis/core/widgets/Legend.js", "@arcgis/core/layers/Layer.js",
+  "@arcgis/core/Basemap.js", "@arcgis/core/layers/Layer.js",
   "@arcgis/core/layers/support/Field.js", "@arcgis/core/layers/support/LabelClass.js", "@arcgis/core/renderers/support/jsonUtils.js",
   "@arcgis/core/geometry/Extent.js", "@arcgis/core/config.js", "@arcgis/core/intl.js", "@arcgis/core/identity/IdentityManager.js",
   "@arcgis/core/identity/OAuthInfo.js", "@arcgis/core/portal/Portal.js", "@arcgis/core/request.js", "@arcgis/core/core/reactiveUtils.js",
-  "@arcgis/core/symbols/SimpleMarkerSymbol.js", "@arcgis/core/symbols/SimpleLineSymbol.js", "@arcgis/core/symbols/SimpleFillSymbol.js", "@arcgis/core/symbols/TextSymbol.js",
-  "@arcgis/core/geometry/operators/densifyOperator.js"
+  "@arcgis/core/symbols/SimpleMarkerSymbol.js", "@arcgis/core/symbols/SimpleLineSymbol.js", "@arcgis/core/symbols/SimpleFillSymbol.js", "@arcgis/core/symbols/TextSymbol.js"
 ]);
+// The SDK code for a tool is downloaded when the tool is first opened, not when the app starts (5.0.0-beta.4): on a slow
+// connection the map is there sooner, and a class that never measures never downloads Measure.
+let Legend, Measurement, CoordinateConversion, ElevationProfile, ElevationLayer, densifyOperator;
+const TOOL_CODE = {
+  legend: [["@arcgis/core/widgets/Legend.js", (m) => { Legend = m; }]],
+  measure: [["@arcgis/core/widgets/Measurement.js", (m) => { Measurement = m; }], ["@arcgis/core/widgets/CoordinateConversion.js", (m) => { CoordinateConversion = m; }]],
+  profile: [["@arcgis/core/widgets/ElevationProfile.js", (m) => { ElevationProfile = m; }], ["@arcgis/core/layers/ElevationLayer.js", (m) => { ElevationLayer = m; }]],
+  curves: [["@arcgis/core/geometry/operators/densifyOperator.js", (m) => { densifyOperator = m; }]]
+};
+const toolCode = {};
+function need(tool) {
+  if (!toolCode[tool]) {
+    toolCode[tool] = $arcgis.import(TOOL_CODE[tool].map((x) => x[0])).then((mods) => { TOOL_CODE[tool].forEach((x, i) => x[1](mods[i])); })
+      .catch((e) => { toolCode[tool] = null; console.error("Couldn't load the " + tool + " tool", e); toast(S.sdkFailed, 6000); throw e; });
+  }
+  return toolCode[tool];
+}
 esriConfig.portalUrl = PORTAL;
 try { if (cfg.locale && cfg.locale !== "en") intl.setLocale(cfg.locale); } catch (e) { console.warn("Locale not supported", e); }
 
@@ -275,10 +288,21 @@ async function restGet(path, query) {
 // ============================================================ Map, views and widgets
 const graphicsLayer = new GraphicsLayer({ id: "__sketch", title: S.sketchLayer, elevationInfo: { mode: "on-the-ground" }, listMode: "hide" });
 const defaultBasemap = () => new Basemap({ portalItem: { id: cfg.defaultBasemap } });
-const localMap = new EsriMap({ basemap: defaultBasemap(), ground: "world-elevation", layers: [graphicsLayer] });
+// A link that opens a map or scene starts without the default basemap: that map brings its own, and the default one
+// (its item, style and first tiles) would be downloaded only to be replaced (5.0.0-beta.4). It is put in if the open fails.
+const linkedScene = !authStash && F.threeD !== false && HEX32.test(params.get("webscene") || "") ? params.get("webscene") : null;
+const linkedMap = !authStash && !linkedScene && HEX32.test(params.get("webmap") || "") ? params.get("webmap") : null;
+const localMap = new EsriMap({ basemap: linkedScene || linkedMap ? null : defaultBasemap(), ground: "world-elevation", layers: [graphicsLayer] });
+// The linked map starts downloading now, while the view and the rest of the app are still being set up.
+let preloaded = null;
+if (linkedScene || linkedMap) {
+  const m = linkedScene ? new WebScene({ portalItem: { id: linkedScene } }) : new WebMap({ portalItem: { id: linkedMap } });
+  preloaded = { id: linkedScene || linkedMap, map: m }; m.load().catch(() => {});
+}
+function takePreloaded(itemId, Type) { const p = preloaded; preloaded = null; return p && p.id === itemId && p.map instanceof Type && p.map.loadStatus !== "failed" ? p.map : new Type({ portalItem: { id: itemId } }); }
 const startCenter = Array.isArray(cfg.startView.center) ? cfg.startView.center : [0, 20];
 // The views are made by the SDK's map and scene components (arcgis-map, arcgis-scene), the supported way from SDK 5 on;
-// the rest of the app works with the MapView / SceneView each one holds (5.0.0-beta.3).
+// the rest of the app works with the MapView / SceneView each one holds (5.0.0-beta.4).
 async function componentView(tag, hostId, props) {
   const el = document.createElement(tag); el.className = "view-el";
   Object.assign(el, props);
@@ -296,14 +320,19 @@ let view = mapView, sceneView = null, mode = "2d";
 const viewHandlers = [];
 function onViews(evt, fn) { viewHandlers.push([evt, fn]); mapView.on(evt, fn); if (sceneView) sceneView.on(evt, fn); }
 function activeMap() { return view.map; }
+let startDone = null;
+const started = new Promise((res) => { startDone = res; });   // the app has started, and a map opened from a link is in
 function addViewUI(v, is3d) {
   // The controls on the view are SDK components placed in the map / scene component's slots (5.0.0-beta.2; they were
   // widgets added to view.ui, which SDK 6 removes). The 3D compass is left out: the rose replaces it.
   const el = viewEls.get(v);
   const slot = (tag, where, attrs) => { const c = document.createElement(tag); c.slot = where; for (const k in (attrs || {})) c.setAttribute(k, attrs[k]); el.appendChild(c); return c; };
   if (F.search !== false) { const ex = slot("arcgis-expand", "top-left", { "expand-icon": "search", "expand-tooltip": S.search, group: "top-left" }); ex.appendChild(document.createElement("arcgis-search")); }
-  slot("arcgis-home", "top-left");
-  slot("arcgis-zoom", "top-left");
+  // Home remembers where the view was when it was made, so it is made once the view is somewhere: a map opened from
+  // a link starts with no basemap, and nowhere yet (Home made then threw an error inside the SDK).
+  const zoom = slot("arcgis-zoom", "top-left");
+  const home = document.createElement("arcgis-home"); home.slot = "top-left";
+  started.then(() => reactiveUtils.whenOnce(() => v.ready && !!v.viewpoint && !!v.viewpoint.targetGeometry)).then(() => el.insertBefore(home, zoom)).catch(() => {});
   if (is3d) slot("arcgis-navigation-toggle", "top-left");
   const stack = document.createElement("div"); stack.className = "ll-stack";
   if (F.compass !== false) stack.appendChild(makeCompass(v, is3d));
@@ -516,15 +545,15 @@ function closePanels(restoreFocus) {
 }
 function togglePanel(name) { if (openPanelName === name) closePanels(); else leaveData(() => openPanel(name)); }
 function panelOpening(name) {
-  if (name === "sketch") { sketchPanelOpen = true; sketchToolsOn(true); selectForEdit(null); }
+  if (name === "sketch") { sketchPanelOpen = true; sketchToolsOn(true); selectForEdit(null); need("curves").catch(() => {}); }
   if (name === "layers") renderLayers();
   if (name === "bookmarks") showBmList();
   if (name === "save") renderAgol();
   if (name === "about") renderVersions();
-  if (name === "legend") ensureLegend();
+  if (name === "legend") need("legend").then(() => { if (openPanelName === "legend") ensureLegend(); }).catch(() => {});
   if (name === "basemaps") ensureGallery();
-  if (name === "measure") ensureMeasure();
-  if (name === "profile") { closeTable(false); $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles(); ensureProfile(); }
+  if (name === "measure") need("measure").then(() => { if (openPanelName === "measure") ensureMeasure(); }).catch(() => {});
+  if (name === "profile") { closeTable(false); $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles(); need("profile").then(() => { if (openPanelName === "profile") ensureProfile(); }).catch(() => {}); }
 }
 function panelClosing(name) {
   if (name === "sketch") { sketchToolsOn(false); sketchPanelOpen = false; }
@@ -602,9 +631,13 @@ const newUid = () => "f" + Date.now().toString(36) + Math.random().toString(36).
 const SKETCH_TOOLS = ["point", "polyline", "freehandPolyline", "polygon", "freehandPolygon", "rectangle", "circle", "text"];
 const sketch = document.createElement("arcgis-sketch");
 sketch.defaultGraphicsLayerDisabled = true;   // draw on the app's sketch layer only, never a layer of its own
-$("sketchBar").appendChild(sketch);
+// It goes on the page (and its code is downloaded) when Sketch is first opened: see sketchToolsOn (5.0.0-beta.4).
+let sketchPlaced = null;
+const sketchOnPage = new Promise((res) => { sketchPlaced = res; });
+function placeSketch() { if (!sketch.isConnected) { $("sketchBar").appendChild(sketch); sketchPlaced(); } }
 // Settings go on once the component is ready: set earlier, some are lost when it starts up.
 const sketchReady = (async () => {
+  await sketchOnPage;
   await customElements.whenDefined("arcgis-sketch");
   if (sketch.componentOnReady) await sketch.componentOnReady();
   Object.assign(sketch, {
@@ -653,6 +686,7 @@ function straighten(g) {
   if (!g || !g.geometry || !/^(polyline|polygon)$/.test(g.geometry.type)) return;
   const j = g.geometry.toJSON();
   if (!j.curvePaths && !j.curveRings) return;
+  if (!densifyOperator) { need("curves").then(() => straighten(g)).catch(() => {}); return; }   // (loaded when Sketch opens; this is for a curve finished before it arrived)
   try { g.geometry = densifyOperator.execute(g.geometry, 0, { maxAngleInDegrees: 2 }); } catch (e) { console.warn("Couldn't straighten a curve", e); }
 }
 function addSketchGraphic(gj) {
@@ -761,6 +795,7 @@ function endSketchOps() {
 }
 // The Sketch panel turns the toolbar on and off. Closed, clicking a sketch opens its pop-up instead of selecting it.
 function sketchToolsOn(on) {
+  if (on) placeSketch();
   if (!on) endSketchOps();
   $("sketchBar").hidden = !on;
   sketchReady.then(() => { sketch.updateOnGraphicClickDisabled = $("sketchBar").hidden; });
@@ -903,9 +938,10 @@ function stopMeasuring() {
   measurePressed(null); measureActive = false; $("coordWrap").hidden = true;
   updatePopupEnabled();
 }
-$("mDist").addEventListener("click", () => { ensureMeasure(); $("coordWrap").hidden = true; measurement.activeTool = mode === "3d" ? "direct-line" : "distance"; measurePressed("mDist"); measureActive = true; updatePopupEnabled(); });
-$("mArea").addEventListener("click", () => { ensureMeasure(); $("coordWrap").hidden = true; measurement.activeTool = "area"; measurePressed("mArea"); measureActive = true; updatePopupEnabled(); });
-$("mCoord").addEventListener("click", () => {
+$("mDist").addEventListener("click", async () => { try { await need("measure"); } catch (e) { return; } ensureMeasure(); $("coordWrap").hidden = true; measurement.activeTool = mode === "3d" ? "direct-line" : "distance"; measurePressed("mDist"); measureActive = true; updatePopupEnabled(); });
+$("mArea").addEventListener("click", async () => { try { await need("measure"); } catch (e) { return; } ensureMeasure(); $("coordWrap").hidden = true; measurement.activeTool = "area"; measurePressed("mArea"); measureActive = true; updatePopupEnabled(); });
+$("mCoord").addEventListener("click", async () => {
+  try { await need("measure"); } catch (e) { return; }
   try { if (measurement) measurement.clear(); } catch (e) { /* idle */ }
   // Capture mode: the coordinates stay where the map was clicked. (In Esri's default live mode they follow the pointer,
   // so moving to the panel to copy them would copy wherever the pointer last crossed the map.)
@@ -1031,7 +1067,7 @@ function tune3d(v) {
   calm(); reactiveUtils.watch(() => v.map, () => v.when().then(calm).catch(() => {}));   // a scene brings its own lighting
 }
 const TILT_3D = Math.max(0, Math.min(80, Number(cfg.threeDTilt) || 0));
-// Which views a map allows (5.0.0-beta.3):
+// Which views a map allows (5.0.0-beta.4):
 //  - a web scene is 3D only (sceneOnly): it can hold layers and a camera that have no 2D form
 //  - a web map tagged "atlas-2d-only" on its ArcGIS Online item is 2D only (twoDOnly): its author switched 3D off
 const TAG_2D_ONLY = "atlas-2d-only";
@@ -1213,6 +1249,15 @@ function applyParsedWebMap(parsed) {
   bookmarks = parsed.bookmarks; updateToolBadges();
   keepSketchOnTop();
 }
+// The item's details and its map JSON, as the SDK fetched them when it loaded the map. (Before 5.0.0-beta.4 the app
+// asked ArcGIS Online for both itself as well, so each was downloaded twice.) If the SDK doesn't hand them over, they are fetched.
+async function loadedItemJson(m, itemId) {
+  const copy = (o) => (o && typeof o === "object" ? JSON.parse(JSON.stringify(o)) : null);
+  const item = copy(m.portalItem && m.portalItem.sourceJSON), data = copy(m.resourceInfo);
+  if (item && item.id === itemId && data && Array.isArray(data.operationalLayers)) return { item, data };
+  const [i, d] = await Promise.all([restGet(`/sharing/rest/content/items/${itemId}`), restGet(`/sharing/rest/content/items/${itemId}/data`)]);
+  return { item: i, data: d };
+}
 async function openWebMapItem(itemId, opts) {
   opts = opts || {};
   if (!HEX32.test(itemId || "")) return false;
@@ -1220,11 +1265,11 @@ async function openWebMapItem(itemId, opts) {
   closeModal("openModal");
   if (!opts.quiet) toast(t("openingMap", { title: opts.title || "" }));
   try {
-    const [item, data] = await Promise.all([restGet(`/sharing/rest/content/items/${itemId}`), restGet(`/sharing/rest/content/items/${itemId}/data`)]);
+    const wm = takePreloaded(itemId, WebMap);
+    await wm.load();
+    const { item, data } = await loadedItemJson(wm, itemId);
     const parsed = readWebMap(data, { trusted: true });
     if (!parsed.ok) throw new Error("Not a web map");
-    const wm = new WebMap({ portalItem: { id: itemId } });
-    await wm.load();
     if (!opts.keepWorkspace) resetWorkspace();
     for (const op of (data.operationalLayers || []).filter(isOwnLayerJson)) { const l = wm.layers.find((x) => x.id === op.id); if (l) wm.remove(l); }
     const wasScene = sceneOnly;
@@ -1283,10 +1328,10 @@ async function openWebSceneItem(itemId, opts) {
   closeModal("openModal");
   if (!opts.quiet) toast(t("openingMap", { title: opts.title || "" }));
   try {
-    const [item, data] = await Promise.all([restGet(`/sharing/rest/content/items/${itemId}`), restGet(`/sharing/rest/content/items/${itemId}/data`)]);
-    if (item.type !== "Web Scene") throw new Error("Not a web scene");
-    const ws = new WebScene({ portalItem: { id: itemId } });
+    const ws = takePreloaded(itemId, WebScene);
     await ws.load();
+    const { item, data } = await loadedItemJson(ws, itemId);
+    if (item.type !== "Web Scene") throw new Error("Not a web scene");
     closePanels(false);
     resetWorkspace();
     await showScene(ws);
@@ -1672,7 +1717,8 @@ function layerRow(l, owner, depth, pos, count) {
     if (u.legend && !group) {
       const box = document.createElement("div"); box.className = "lyr-legend";
       extra.appendChild(box);
-      try { rowWidgets.push(new Legend({ view, container: box, layerInfos: [{ layer: l, title: "" }], respectLayerVisibility: false, hideLayersNotInCurrentView: false })); }
+      if (!Legend) { need("legend").then(() => { if (!$("layersPanel").hidden) renderLayers({ keepFocus: true }); }).catch(() => { box.textContent = S.noLegend; }); }
+      else try { rowWidgets.push(new Legend({ view, container: box, layerInfos: [{ layer: l, title: "" }], respectLayerVisibility: false, hideLayersNotInCurrentView: false })); }
       catch (e) { box.textContent = S.noLegend; }
     }
     if (u.transp) {
@@ -2341,7 +2387,7 @@ function createBrowser(o) {
 
 // ---------- Open map
 const openCollectionMap = (it) => (it.type === "Web Scene" ? openWebSceneItem(it.id, { title: it.title }) : openWebMapItem(it.id, { title: it.title }));
-// The collection's web maps and, where 3D is on, its web scenes (5.0.0-beta.3); a scene's card says 3D.
+// The collection's web maps and, where 3D is on, its web scenes (5.0.0-beta.4); a scene's card says 3D.
 const mapBrowser = createBrowser({ p: "om", query: F.threeD === false ? 'type:"Web Map"' : '(type:"Web Map" OR type:"Web Scene")', accept: () => true, kind: "maps", thumbOpens: true, descLabel: () => S.mapDescription,
   decorate(b, item) { b.textContent = S.openThisMap; b.setAttribute("aria-label", S.openThisMap + ": " + (item.title || "")); },
   share: F.share === false ? null : shareMapLink,
@@ -2825,6 +2871,16 @@ async function handleDroppedFile(f, handlePromise) {
 }
 
 // ============================================================ Local save and open (.amap; older .mmap files open too)
+// A sketch drawn in 3D carries a height of 0 on every point (the sketch layer lies on the ground). Saved sketches are
+// flat shapes, as the ones drawn in 2D are: x and y only (Sketch 3D 1.0).
+function flatGeometryJson(geom) {
+  const j = geom.toJSON(), xy = (c) => [c[0], c[1]];
+  delete j.hasZ; delete j.hasM; delete j.z; delete j.m;
+  if (j.paths) j.paths = j.paths.map((p) => p.map(xy));
+  if (j.rings) j.rings = j.rings.map((r) => r.map(xy));
+  if (j.points) j.points = j.points.map(xy);
+  return j;
+}
 function currentViewpoint() { return { center: [view.center.longitude, view.center.latitude], zoom: view.zoom }; }
 function buildDocument() {
   const doc = {
@@ -2835,7 +2891,7 @@ function buildDocument() {
     layerStates: currentSource ? sourceLayers().map((l) => ({ id: l.id, title: l.title, visible: l.visible !== false, opacity: l.opacity })) : [],
     portalLayers: [...portalLayers.values()].map((l) => ({ ...l.__item, visible: l.visible !== false, opacity: l.opacity })),
     sketchVisible: graphicsLayer.visible !== false,
-    graphics: graphicsLayer.graphics.toArray().map((g) => { straighten(g); return { geometry: g.geometry.toJSON(), attributes: { ...g.attributes } }; }),
+    graphics: graphicsLayer.graphics.toArray().map((g) => { straighten(g); return { geometry: flatGeometryJson(g.geometry), attributes: { ...g.attributes } }; }),
     layers: dataLayers.map((fl) => ({ ...fl._srcDef, visible: fl.visible !== false, opacity: fl.opacity, showLabels: fl.labelsVisible !== false, definitionExpression: hasFilter(fl) ? filterText(fl) : undefined }))
   };
   if (bookmarks.length) doc.bookmarks = bookmarks.map((b) => ({ title: b.title, viewpoint: b.viewpoint, layers: b.layers || [], thumb: b.thumb || null, camera: b.camera ? b.camera.toJSON() : null }));
@@ -3394,6 +3450,8 @@ function renderVersions() {
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
     ["3D scenes", "1.0", "Web scenes from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],
+    ["Loading", "1.0", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Elevation and Sketch is downloaded when the tool is first opened."],
+    ["Sketch in 3D", "1.0", "The Sketch toolbar works in the 3D view and in scenes with the same tools. Sketches lie on the ground and are saved as flat shapes, so they are the same in 2D."],
     ["3D quality", "1.0", "How much work the 3D view does. Low (smaller textures, less memory, no shadows or stars) is chosen for a device with 4 GB of memory or less, 4 processor cores or fewer, or no graphics chip; otherwise medium. A config (threeDQuality) or a link (?quality=low, medium or high) can fix it."],
     ["Views", "2.0", "The 2D and 3D views are the SDK's map and scene components, with Search, Home, Zoom, the navigation toggle and the scale bar as components in their slots."],
     ["Time", "1.0", "The SDK's Time Bar on maps saved with time settings: play, step and a slider, set up from the map's own settings."],
@@ -3424,9 +3482,7 @@ if (authStash) {
   if (authStash.doc) { const res = sanitizeDoc(authStash.doc); if (res.ok) { await loadDocument(res.doc); markDirty(); } }
 }
 // A link can open a web map (webmap=<id>, in 2D) or a web scene (webscene=<id>, in 3D). With both, the scene is opened.
-const deepScene = params.get("webscene"), deepLink = params.get("webmap");
-if (!authStash) {
-  if (deepScene && HEX32.test(deepScene) && F.threeD !== false) openWebSceneItem(deepScene, { skipConfirm: true });
-  else if (deepLink && HEX32.test(deepLink)) openWebMapItem(deepLink, { skipConfirm: true });
-}
+const linkedOpen = linkedScene ? openWebSceneItem(linkedScene, { skipConfirm: true }) : linkedMap ? openWebMapItem(linkedMap, { skipConfirm: true }) : null;
+if (linkedOpen) linkedOpen.then((ok) => { if (!ok && !localMap.basemap) localMap.basemap = defaultBasemap(); }).finally(startDone);
+else startDone();
 console.info(cfg.appName, "v" + APP_VERSION, "config", cfgName);
