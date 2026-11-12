@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.9";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.10";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.9";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.10";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.9";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.10";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.9";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.9";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.9";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.10";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.10";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.10";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.9";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.10";
 
-const APP_VERSION = "5.0.0-beta.9";
+const APP_VERSION = "5.0.0-beta.10";
 const COMPASS_VERSION = "1.1";
-const PROFILE_VERSION = "2.0";
+const PROFILE_VERSION = "3.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
 const CONFIG_SCHEMA = 1;
 const SDK_VERSION = "5.2";
@@ -259,13 +259,13 @@ const [EsriMap, WebMap, WebScene, Camera, GraphicsLayer, FeatureLayer, Graphic, 
   "@arcgis/core/identity/OAuthInfo.js", "@arcgis/core/portal/Portal.js", "@arcgis/core/request.js", "@arcgis/core/core/reactiveUtils.js",
   "@arcgis/core/symbols/SimpleMarkerSymbol.js", "@arcgis/core/symbols/SimpleLineSymbol.js", "@arcgis/core/symbols/SimpleFillSymbol.js", "@arcgis/core/symbols/TextSymbol.js"
 ]);
-// The SDK code for a tool is downloaded when the tool is first opened, not when the app starts (5.0.0-beta.9): on a slow
+// The SDK code for a tool is downloaded when the tool is first opened, not when the app starts (5.0.0-beta.4): on a slow
 // connection the map is there sooner, and a class that never measures never downloads Measure.
-let Legend, Measurement, CoordinateConversion, ElevationProfile, ElevationLayer, densifyOperator, WebStyleSymbol, cimSymbolUtils;
+let Legend, Measurement, CoordinateConversion, ElevationLayer, densifyOperator, WebStyleSymbol, cimSymbolUtils;
 const TOOL_CODE = {
   legend: [["@arcgis/core/widgets/Legend.js", (m) => { Legend = m; }]],
   measure: [["@arcgis/core/widgets/Measurement.js", (m) => { Measurement = m; }], ["@arcgis/core/widgets/CoordinateConversion.js", (m) => { CoordinateConversion = m; }]],
-  profile: [["@arcgis/core/widgets/ElevationProfile.js", (m) => { ElevationProfile = m; }], ["@arcgis/core/layers/ElevationLayer.js", (m) => { ElevationLayer = m; }]],
+  profile: [["@arcgis/core/layers/ElevationLayer.js", (m) => { ElevationLayer = m; }]],
   curves: [["@arcgis/core/geometry/operators/densifyOperator.js", (m) => { densifyOperator = m; }]],
   symbols: [["@arcgis/core/symbols/WebStyleSymbol.js", (m) => { WebStyleSymbol = m; }], ["@arcgis/core/symbols/support/cimSymbolUtils.js", (m) => { cimSymbolUtils = m; }]]
 };
@@ -1289,7 +1289,24 @@ $("mClear").addEventListener("click", stopMeasuring);
 // Esri's World Elevation TopoBathy 3D: land and the sea floor (the service behind the SDK's "world-topobathymetry" ground).
 // Sampled directly, so the profile dips below sea level in 2D and 3D alike, whatever the map's ground.
 const TOPOBATHY_URL = "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/TopoBathy3D/ImageServer";
-let elevationProfile = null, topoBathy = null, profileWatch = null;
+// Elevation profile 3.0 (5.0.0-beta.10): the app's own tool and chart; before, Esri's Elevation Profile widget, which
+// could not be given a sea-level line or a filled chart (and is one of the widgets SDK 6 removes).
+//  - The line: click the map for each point and double-click to finish, or click a line already on the map (a
+//    sketched line, or a line feature of a layer). Over a line that can be chosen the pointer becomes a hand.
+//  - The heights: up to 512 points along the line, asked of the elevation service in one request.
+//  - The chart: the whole width under the map. Land is filled in earth colours, lighter at the top and darker with
+//    depth; where the line goes below sea level the water is shown and a dashed line marks sea level.
+//  - Moving along the chart (pointer, or the arrow keys) shows a dot at that place on the line on the map.
+let topoBathy = null, prof = null, profDraft = null, profHover = null, profBusy = 0, profAt = -1;
+const profGraphics = { line: null, dot: null, draft: null };
+const PROF_LINE = { type: "simple-line", color: [255, 127, 0, 1], width: 3 };
+const PROF_DOT = { type: "simple-marker", style: "circle", color: [255, 255, 255, 1], size: 13, outline: { color: [200, 60, 0, 1], width: 3 } };
+const profActive = () => openPanelName === "profile";
+function setViewCursor(c) { const el = viewEls.get(view); try { if (el) el.style.cursor = c || ""; if (view.container) view.container.style.cursor = c || ""; } catch (e) { /* no container */ } }
+function profShow(key, graphic) {
+  for (const v of [mapView, sceneView]) if (v && profGraphics[key] && v.graphics.includes(profGraphics[key])) v.graphics.remove(profGraphics[key]);
+  profGraphics[key] = graphic; if (graphic) view.graphics.add(graphic);
+}
 function ensureProfile() {
   if (!topoBathy) {
     topoBathy = new ElevationLayer({ url: TOPOBATHY_URL });
@@ -1298,31 +1315,208 @@ function ensureProfile() {
       $("profileSource").textContent = src ? t("profileSource", { src }) : ""; $("profileSource").title = src;
     }).catch(() => {});
   }
-  if (!elevationProfile) elevationProfile = new ElevationProfile({ view, container: "profileBody", unit: units,
-    profiles: [{ type: "query", source: topoBathy, title: S.profileLine, color: "#ff7f00" }] });
-  else elevationProfile.view = view;
-  startProfileSketch();
-}
-// Ready to draw as soon as the tool opens: the next click on the map starts the line (no "New profile" first).
-function startProfileSketch() {
-  if (!elevationProfile) return;
-  const vm = elevationProfile.viewModel;
-  if (profileWatch) { profileWatch.remove(); profileWatch = null; }
-  let done = false;
-  const go = (state) => {
-    if (done || state === "disabled") return;   // "disabled" until the view is ready
-    done = true;
-    if (profileWatch) { profileWatch.remove(); profileWatch = null; }
-    if (state === "ready" && openPanelName === "profile") { try { vm.start({ mode: "sketch" }); } catch (e) { console.error(e); } }
-  };
-  profileWatch = reactiveUtils.watch(() => vm.state, go, { initial: true });
-  if (done && profileWatch) { profileWatch.remove(); profileWatch = null; }
+  fillProfileLines();
+  if (prof) { profShow("line", new Graphic({ geometry: prof.line, symbol: PROF_LINE })); renderProfile(); } else profMessage(S.profileHint);
+  setViewCursor("crosshair");
 }
 function stopProfile() {
-  if (profileWatch) { profileWatch.remove(); profileWatch = null; }
-  if (!elevationProfile) return;
-  try { elevationProfile.viewModel.cancel(); elevationProfile.viewModel.clear(); } catch (e) { /* idle */ }
+  profDraft = null; profHover = null; profBusy++;
+  for (const k of ["line", "dot", "draft"]) profShow(k, null);
+  setViewCursor("");
 }
+function clearProfile() { prof = null; profAt = -1; profDraft = null; for (const k of ["line", "dot", "draft"]) profShow(k, null); $("profLines").value = ""; profMessage(S.profileHint); $("profStats").replaceChildren(); $("profNew").hidden = true; }
+function profMessage(text) { $("profChart").replaceChildren(); const p = document.createElement("p"); p.className = "prof-msg"; p.textContent = text; $("profChart").appendChild(p); $("profStatus").textContent = text; }
+// the lines that can be chosen without the pointer: the sketched lines, by name
+function sketchLines() { return graphicsLayer.graphics.filter((g) => g.geometry && g.geometry.type === "polyline").toArray(); }
+function fillProfileLines() {
+  const sel = $("profLines"), lines = sketchLines();
+  sel.replaceChildren(new Option(S.profilePickLine, ""));
+  lines.forEach((g, i) => sel.appendChild(new Option((g.attributes && g.attributes.title) || t("profileLineN", { n: i + 1 }), String(i))));
+  $("profLinesWrap").hidden = !lines.length;
+}
+// --- the line's points and their heights
+const R_EARTH = 6371008.8, D2R = Math.PI / 180;
+const lonLatToXY = (lon, lat) => [lon * D2R * 6378137, Math.log(Math.tan(Math.PI / 4 + (lat * D2R) / 2)) * 6378137];
+function haversine(a, b) { const dLat = (b[1] - a[1]) * D2R, dLon = (b[0] - a[0]) * D2R, h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * D2R) * Math.cos(b[1] * D2R) * Math.sin(dLon / 2) ** 2; return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(h))); }
+async function profileOf(geometry) {
+  const sr = geometry.spatialReference, merc = sr && (sr.isWebMercator || sr.wkid === 102100 || sr.wkid === 3857), geo = sr && (sr.isWGS84 || sr.wkid === 4326);
+  if (!merc && !geo) { profMessage(S.profileNoSR); return; }
+  // Every part of the line, as Web Mercator vertices: a line between two points is straight there, on the flat map and
+  // (seen in a test: great-circle sampling put the dot off the line) on the globe too, whose scenes are in Web Mercator.
+  const verts = []; for (const path of geometry.paths) for (const c of path) verts.push(merc ? [c[0], c[1]] : lonLatToXY(c[0], c[1]));
+  if (verts.length < 2) return;
+  const segs = []; let total = 0; for (let i = 1; i < verts.length; i++) { const l = Math.hypot(verts[i][0] - verts[i - 1][0], verts[i][1] - verts[i - 1][1]); segs.push(l); total += l; }
+  if (!(total > 0)) return;
+  const N = Math.min(512, Math.max(120, Math.round(($("profChart").clientWidth || 900) / 2.5)));
+  const pts = [];
+  for (let k = 0; k < N; k++) {
+    let d = (total * k) / (N - 1), i = 0; while (i < segs.length - 1 && d > segs[i]) { d -= segs[i]; i++; }
+    const f = segs[i] ? Math.min(1, d / segs[i]) : 0, x = verts[i][0] + (verts[i + 1][0] - verts[i][0]) * f, y = verts[i][1] + (verts[i + 1][1] - verts[i][1]) * f;
+    pts.push({ x, y, ll: xyToLonLat(x, y) });
+  }
+  const seq = ++profBusy;
+  profMessage(S.profileWorking);
+  profShow("line", new Graphic({ geometry, symbol: PROF_LINE })); profShow("draft", null); profShow("dot", null);
+  let z;
+  try {
+    const res = await topoBathy.queryElevation({ type: "polyline", paths: [pts.map((p) => p.ll)], spatialReference: { wkid: 4326 } }, { demResolution: "auto", noDataValue: NaN });
+    z = res.geometry.paths[0].map((c) => c[2]);
+  } catch (e) { console.error("Elevation not available", e); if (seq === profBusy) profMessage(S.profileFailed); return; }
+  if (seq !== profBusy || !profActive()) return;
+  let dist = 0, last = null, gain = 0, loss = 0, min = Infinity, max = -Infinity;
+  pts.forEach((p, i) => {
+    if (i) dist += haversine(pts[i - 1].ll, p.ll);
+    p.d = dist; p.z = Number.isFinite(z[i]) ? z[i] : last;
+    if (p.z != null) { if (last != null) { const dz = p.z - last; if (dz > 0) gain += dz; else loss -= dz; } last = p.z; min = Math.min(min, p.z); max = Math.max(max, p.z); }
+  });
+  const first = pts.find((p) => p.z != null); if (!first) { profMessage(S.profileFailed); return; }
+  for (const p of pts) { if (p.z == null) p.z = first.z; }
+  prof = { line: geometry, sr, pts, total: dist, min, max, gain, loss };
+  profAt = -1; $("profNew").hidden = false;
+  renderProfile();
+}
+// --- numbers, in the units the app is set to
+const profNum = (v, places) => new Intl.NumberFormat(S.locale || undefined, { maximumFractionDigits: places, minimumFractionDigits: 0 }).format(v);
+function profHeight(m) { const v = units === "imperial" ? m * 3.28084 : m; return profNum(Math.round(v) === 0 ? 0 : v, 0) + (units === "imperial" ? " ft" : " m"); }
+function profDist(m, totalM) {
+  if (units === "imperial") { const mi = m / 1609.344; return totalM < 1609.344 ? profNum(m * 3.28084, 0) + " ft" : profNum(mi, totalM < 16093 ? 1 : 0) + " mi"; }
+  return totalM < 1000 ? profNum(m, 0) + " m" : profNum(m / 1000, totalM < 10000 ? 1 : 0) + " km";
+}
+function niceTicks(lo, hi, want) {
+  const span = hi - lo || 1, raw = span / want, pow = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((st) => span / st <= want) || 10 * pow;
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-6; v += step) out.push(Math.abs(v) < step * 1e-6 ? 0 : v);
+  return out;
+}
+// --- the chart
+const SVGNS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs, text) { const e = document.createElementNS(SVGNS, tag); for (const k in attrs || {}) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; }
+let profScale = null;
+function renderProfile() {
+  if (!prof || !profActive()) return;
+  const host = $("profChart"), W = Math.max(320, host.clientWidth), H = Math.max(120, host.clientHeight);
+  const m = { l: 66, r: 18, t: 16, b: 30 }, w = W - m.l - m.r, h = H - m.t - m.b;
+  const hz = units === "imperial" ? 3.28084 : 1, unitDist = units === "imperial" ? (prof.total < 1609.344 ? 0.3048 : 1609.344) : (prof.total < 1000 ? 1 : 1000);
+  // the height axis: the line's own range with room above and below; sea level is always in view when the line goes below it
+  let lo = prof.min, hi = prof.max; const pad = Math.max((hi - lo) * 0.12, 5); lo -= pad; hi += pad;
+  const under = prof.min < 0; if (under && hi < 0) hi = pad;
+  const X = (d) => m.l + (prof.total ? (d / prof.total) * w : 0), Y = (z) => m.t + (1 - (z - lo) / (hi - lo)) * h;
+  profScale = { X, Y, m, w, h, W, H };
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, "aria-hidden": "true", focusable: "false", class: "prof-svg" });
+  const defs = svgEl("defs");
+  // earth: light at the surface, darker with depth (from the top of the chart to its bottom)
+  const earth = svgEl("linearGradient", { id: "profEarth", gradientUnits: "userSpaceOnUse", x1: 0, x2: 0, y1: Y(prof.max), y2: m.t + h });
+  for (const [o, c] of [[0, "#ead9b0"], [0.3, "#cfa76a"], [0.65, "#96622f"], [1, "#4b2e17"]]) earth.appendChild(svgEl("stop", { offset: o, "stop-color": c }));
+  const water = svgEl("linearGradient", { id: "profWater", gradientUnits: "userSpaceOnUse", x1: 0, x2: 0, y1: Y(0), y2: m.t + h });
+  for (const [o, c] of [[0, "#a9d6f0"], [1, "#3d86c0"]]) water.appendChild(svgEl("stop", { offset: o, "stop-color": c }));
+  defs.append(earth, water); svg.appendChild(defs);
+  svg.appendChild(svgEl("rect", { x: m.l, y: m.t, width: w, height: h, fill: "#fbfaf7" }));
+  // grid and the height scale
+  for (const v of niceTicks(lo * hz, hi * hz, Math.max(2, Math.min(5, Math.floor(h / 34))))) {
+    const y = Y(v / hz); if (y < m.t - 0.5 || y > m.t + h + 0.5) continue;
+    svg.appendChild(svgEl("line", { x1: m.l, x2: m.l + w, y1: y, y2: y, stroke: "#dcd8cf", "stroke-width": 1 }));
+    svg.appendChild(svgEl("text", { x: m.l - 8, y: y + 4.5, "text-anchor": "end", class: "prof-tick" }, profNum(v, 0) + (units === "imperial" ? " ft" : " m")));
+  }
+  if (under) svg.appendChild(svgEl("rect", { x: m.l, y: Y(0), width: w, height: m.t + h - Y(0), fill: "url(#profWater)", class: "prof-water" }));
+  const top = prof.pts.map((p, i) => (i ? "L" : "M") + X(p.d).toFixed(1) + " " + Y(p.z).toFixed(1)).join("");
+  svg.appendChild(svgEl("path", { d: top + `L${(m.l + w).toFixed(1)} ${m.t + h}L${m.l} ${m.t + h}Z`, fill: "url(#profEarth)", class: "prof-land" }));
+  svg.appendChild(svgEl("path", { d: top, fill: "none", stroke: "#3a2412", "stroke-width": 2, "stroke-linejoin": "round", class: "prof-top" }));
+  if (under) {   // sea level, where the line goes below it
+    svg.appendChild(svgEl("line", { x1: m.l, x2: m.l + w, y1: Y(0), y2: Y(0), stroke: "#0b4f8a", "stroke-width": 2, "stroke-dasharray": "7 5", class: "prof-sea" }));
+    const atStart = prof.pts[0].z < prof.pts[prof.pts.length - 1].z;   // named at the end that is under water, clear of the land
+    svg.appendChild(svgEl("text", { x: atStart ? m.l + 6 : m.l + w - 6, y: Y(0) - 6, "text-anchor": atStart ? "start" : "end", class: "prof-sea-label" }, S.profileSeaLevel));
+  }
+  // the distance scale
+  for (const v of niceTicks(0, prof.total / unitDist, Math.max(3, Math.min(10, Math.floor(w / 110))))) {
+    const x = X(v * unitDist);
+    svg.appendChild(svgEl("line", { x1: x, x2: x, y1: m.t + h, y2: m.t + h + 5, stroke: "#4a4a4a", "stroke-width": 1 }));
+    svg.appendChild(svgEl("text", { x, y: m.t + h + 20, "text-anchor": v === 0 ? "start" : "middle", class: "prof-tick" }, profNum(v, 1) + (units === "imperial" ? (unitDist === 0.3048 ? " ft" : " mi") : (unitDist === 1 ? " m" : " km"))));
+  }
+  svg.appendChild(svgEl("rect", { x: m.l, y: m.t, width: w, height: h, fill: "none", stroke: "#8a8a8a", "stroke-width": 1 }));
+  // the place the pointer (or the arrow keys) is at
+  const g = svgEl("g", { id: "profMark", visibility: "hidden" });
+  g.append(svgEl("line", { id: "profGuide", y1: m.t, y2: m.t + h, stroke: "#1f1f1f", "stroke-width": 1.5 }), svgEl("circle", { id: "profPoint", r: 6, fill: "#fff", stroke: "#c83c00", "stroke-width": 3 }));
+  svg.appendChild(g);
+  host.replaceChildren(svg);
+  const tip = document.createElement("div"); tip.className = "prof-tip"; tip.id = "profTip"; tip.hidden = true; host.appendChild(tip);
+  // what the chart says, in words, and the figures along the bottom
+  const stats = [[S.profileLength, profDist(prof.total, prof.total)], [S.profileHighest, profHeight(prof.max)], [S.profileLowest, profHeight(prof.min)], [S.profileClimb, profHeight(prof.gain)], [S.profileDescent, profHeight(prof.loss)]];
+  $("profStats").replaceChildren(...stats.map(([k, v]) => { const d = document.createElement("div"); d.className = "prof-stat"; const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = v; d.append(dt, dd); return d; }));
+  $("profStatus").textContent = t("profileSummary", { length: stats[0][1], high: stats[1][1], low: stats[2][1] }) + (under ? " " + S.profileBelowSea : "");
+  host.setAttribute("aria-valuemin", "0"); host.setAttribute("aria-valuemax", String(prof.pts.length - 1));
+  profMark(profAt, false);
+}
+function profMark(i, announce) {
+  const host = $("profChart"), mark = document.getElementById("profMark"), tip = $("profTip");
+  if (!prof || !mark || !profScale) return;
+  if (i < 0 || i >= prof.pts.length) { profAt = -1; mark.setAttribute("visibility", "hidden"); if (tip) tip.hidden = true; profShow("dot", null); host.setAttribute("aria-valuenow", "0"); host.setAttribute("aria-valuetext", S.profileNoPlace); return; }
+  profAt = i; const p = prof.pts[i], x = profScale.X(p.d), y = profScale.Y(p.z);
+  mark.setAttribute("visibility", "visible");
+  const gl = document.getElementById("profGuide"); gl.setAttribute("x1", x); gl.setAttribute("x2", x);
+  const pt = document.getElementById("profPoint"); pt.setAttribute("cx", x); pt.setAttribute("cy", y);
+  const text = t("profileAt", { dist: profDist(p.d, prof.total), height: profHeight(p.z) });
+  tip.textContent = text; tip.hidden = false;
+  const tw = tip.offsetWidth || 150; tip.style.left = Math.max(profScale.m.l, Math.min(profScale.W - tw - 6, x + (x + tw + 18 > profScale.W ? -tw - 12 : 12))) + "px"; tip.style.top = Math.max(2, Math.min(profScale.m.t + profScale.h - 34, y - 38)) + "px";
+  host.setAttribute("aria-valuenow", String(i)); host.setAttribute("aria-valuetext", text);
+  // the same place on the line on the map
+  const geom = { type: "point", x: p.x, y: p.y, spatialReference: { wkid: 102100 } };
+  if (profGraphics.dot && view.graphics.includes(profGraphics.dot)) profGraphics.dot.geometry = geom; else profShow("dot", new Graphic({ geometry: geom, symbol: PROF_DOT }));
+}
+{
+  const host = $("profChart");
+  const at = (e) => { if (!prof || !profScale) return -1; const r = host.getBoundingClientRect(), x = e.clientX - r.left; if (x < profScale.m.l - 4 || x > profScale.m.l + profScale.w + 4) return -1; return Math.max(0, Math.min(prof.pts.length - 1, Math.round(((x - profScale.m.l) / profScale.w) * (prof.pts.length - 1)))); };
+  host.addEventListener("pointermove", (e) => profMark(at(e)));
+  host.addEventListener("pointerdown", (e) => profMark(at(e)));
+  host.addEventListener("pointerleave", () => { if (document.activeElement !== host) profMark(-1); });
+  host.addEventListener("blur", () => profMark(-1));
+  host.addEventListener("keydown", (e) => {
+    if (!prof) return; const n = prof.pts.length, step = e.shiftKey ? Math.round(n / 10) : Math.max(1, Math.round(n / 100));
+    const to = { ArrowRight: profAt + step, ArrowUp: profAt + step, ArrowLeft: profAt - step, ArrowDown: profAt - step, Home: 0, End: n - 1, PageUp: profAt + Math.round(n / 10), PageDown: profAt - Math.round(n / 10) }[e.key];
+    if (to === undefined) return; e.preventDefault(); profMark(Math.max(0, Math.min(n - 1, profAt < 0 && !["Home", "End"].includes(e.key) ? 0 : to)));
+  });
+  if (typeof ResizeObserver !== "undefined") { let rt = 0; new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(() => { if (prof && profActive()) renderProfile(); }, 80); }).observe(host); }
+  $("profNew").addEventListener("click", () => { clearProfile(); setViewCursor("crosshair"); });
+  $("profLines").addEventListener("change", () => { const g = sketchLines()[Number($("profLines").value)]; if ($("profLines").value !== "" && g) profileOf(g.geometry.clone()); });
+}
+// --- on the map: choose a line, or draw one
+const lineUnder = async (e) => {
+  try { const hit = await view.hitTest(e); const r = (hit.results || []).find((x) => x.type === "graphic" && x.graphic && x.graphic.geometry && x.graphic.geometry.type === "polyline" && x.graphic !== profGraphics.line && x.graphic !== profGraphics.draft); return r ? r.graphic : null; } catch (err) { return null; }
+};
+let hoverTimer = 0, hoverSeq = 0;
+onViews("pointer-move", (e) => {
+  if (!profActive()) return;
+  if (profDraft) {   // the line so far, and on to the pointer
+    const p = view.toMap({ x: e.x, y: e.y }); if (!p) return;
+    const g = { type: "polyline", paths: [[...profDraft.map((c) => [c.x, c.y]), [p.x, p.y]]], spatialReference: p.spatialReference };
+    if (profGraphics.draft && view.graphics.includes(profGraphics.draft)) profGraphics.draft.geometry = g; else profShow("draft", new Graphic({ geometry: g, symbol: { ...PROF_LINE, style: "short-dash" } }));
+    return;
+  }
+  clearTimeout(hoverTimer); const seq = ++hoverSeq;
+  hoverTimer = setTimeout(async () => { const g = await lineUnder(e); if (seq !== hoverSeq || !profActive() || profDraft) return; profHover = g; setViewCursor(g ? "pointer" : "crosshair"); }, 40);   // a hand over a line that can be chosen
+});
+// Points are taken on "immediate-click": the view's "click" waits to see whether a double-click follows, and is not
+// sent at all when one does, so the place double-clicked would never be added to the line.
+onViews("click", (e) => { if (profActive()) e.stopPropagation(); });   // no pop-ups while the tool is open
+onViews("immediate-click", async (e) => {
+  if (!profActive() || e.button === 2) return;
+  if (!profDraft) {
+    const g = profHover || await lineUnder(e);
+    if (g) { profHover = null; setViewCursor("crosshair"); $("profLines").value = ""; profileOf(g.geometry.clone()); return; }   // a line on the map was chosen
+    if (prof) clearProfile();
+    profDraft = [];
+  }
+  if (!e.mapPoint) return;
+  const last = profDraft[profDraft.length - 1];   // the second click of a double-click is the same place: once only
+  if (!last || Math.hypot(last.sx - e.x, last.sy - e.y) > 4) { const q = e.mapPoint; profDraft.push({ x: q.x, y: q.y, spatialReference: q.spatialReference, sx: e.x, sy: e.y }); }
+  if (profDraft.length === 1) profMessage(S.profileDrawing);
+});
+function finishProfileDraft() {
+  if (!profDraft) return;
+  const pts = profDraft; profDraft = null; profShow("draft", null);
+  if (pts.length < 2) { profMessage(S.profileHint); return; }
+  profileOf({ type: "polyline", paths: [pts.map((c) => [c.x, c.y])], spatialReference: pts[0].spatialReference });
+}
+onViews("double-click", (e) => { if (!profActive()) return; e.stopPropagation(); if (profDraft) finishProfileDraft(); });
+onViews("key-down", (e) => { if (!profActive() || !profDraft) return; if (e.key === "Enter") { e.stopPropagation(); finishProfileDraft(); } else if (e.key === "Escape") { e.stopPropagation(); profDraft = null; profShow("draft", null); profMessage(S.profileHint); } });
 
 // The Measure tool opens a small menu above it: Measure, Elevation profile (as in MapMaker).
 const menuItems = () => [...$("measureMenu").querySelectorAll('[role="menuitem"]')].filter((b) => !b.hidden);
@@ -1448,7 +1642,7 @@ async function setMode(m, opts) {
   if (timeBar) { const te = timeBar.timeExtent; timeBar.view = view; if (te) view.timeExtent = te; }   // the time control follows into 2D / 3D
   if (gallery.items) renderGallery();   // 3D lists the group's 3D basemaps too
   if (measurement) measurement.view = view;
-  if (elevationProfile) { stopProfile(); elevationProfile.view = view; if (openPanelName === "profile") startProfileSketch(); }
+  if (profActive()) { for (const k of ["line", "dot", "draft"]) profShow(k, null); profDraft = null; ensureProfile(); }   // the profile's line follows to the other view
   if (coordWidget) coordWidget.view = view;
   if (legend) legend.view = view;
   if (m === "3d") endSwipe();   // Swipe is for 2D maps
@@ -3769,7 +3963,7 @@ function renderVersions() {
     ["Basemaps", BASEMAPS_VERSION, "MapMaker's basemap cards: the basemap group's maps in the group's own order, two to a row; in 3D, its 3D basemaps first."],
     ["Saved maps list (Open map, My map files)", RECENT_VERSION, "Maps saved on this device, newest first, kept in this browser. Chrome and Edge reopen the file itself; Safari and Firefox keep a copy of each saved map."],
     ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
-    ["Elevation profile", PROFILE_VERSION, "Esri's Elevation Profile widget, opened from Measure and ready to draw: the height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D."],
+    ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line you draw or choose, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
     ["3D scenes", "1.0", "Web scenes from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],
