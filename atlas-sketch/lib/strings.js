@@ -78,7 +78,7 @@ export const DEFAULT_STRINGS = {
   groupError: "Couldn't load the maps. Check your connection and try again.",
   loadMore: "Show more",
   openThisMap: "Open map",
-  openThisScene: "Open 3D scene", dimLabel: "Show", dimAll: "All", dim2d: "2D maps", dim3d: "3D scenes", scenesCount: "{n} 3D scenes", scenesCountOne: "1 3D scene",
+  openThisScene: "Open 3D map", dimLabel: "Show", dimAll: "All", dim2d: "2D maps", dim3d: "3D maps", scenesCount: "{n} 3D maps", scenesCountOne: "1 3D map",
   share: "Share",
   linkCopied: "Link to “{title}” copied. Paste it wherever you want to share the map.",
   linkCopyManually: "Copy this link to share the map:",
@@ -194,10 +194,10 @@ export const DEFAULT_STRINGS = {
   dropWhat: "Drop a .csv file to add data, or an .amap file to open a saved map.",
   pieIn3d: "Pie-chart layers only draw in 2D. Switch back to 2D to see them.",
   no3d: "The 3D view couldn't start on this device.",
-  only3d: "This is a 3D scene, so it can't be shown in 2D.",
+  only3d: "This is a 3D map, so it can't be shown in 2D.",
   only2d: "This map is set to 2D only.",
-  sceneCard: "3D scene",
-  sceneNoArcgisSave: "A 3D scene can't be saved to ArcGIS Online from here yet. Sign out to save it to this device.",
+  sceneCard: "3D map",
+  sceneNoArcgisSave: "A 3D map can't be saved to ArcGIS Online from here yet. Sign out to save it to this device.",
 
   // Compass
   compassN: "N", compassE: "E", compassS: "S", compassW: "W",
