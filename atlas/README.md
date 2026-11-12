@@ -16,6 +16,7 @@ Version **1.14.8**. Created by Jason Sawle.
 |---|---|
 | `https://jsawle.github.io/localmapsave/atlas/` | Neutral "School Atlas" branding |
 | `…/atlas/?config=mapmaker` | MapMaker's groups, units, colours and wording, to compare side by side with the real app. No logos and no name in the header (the browser tab still says National Geographic MapMaker) |
+| `…/atlas/?config=test` | Same as `mapmaker`, but content comes from the test group "Schools Living Atlas – 5.0 test" (`c3ac404ac811494ea6fa116abc0cf39b`, GIS 4 Schools org): the 183 live items plus test content such as 3D scenes and maps with charts |
 | `…/atlas/?config=example-es` | A Spanish-language version for a distributor (Panama start view) |
 | `…/atlas/?webmap=<item id>` | Opens straight into one map (works with any config) |
 
