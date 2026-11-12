@@ -109,7 +109,8 @@ def main():
         before = page.evaluate(CAM)
         page.evaluate("document.querySelectorAll('#bmList .bm-go')[1].click()"); page.wait_for_timeout(5000); after = page.evaluate(CAM)
         check(abs(after["x"] - before["x"]) + abs(after["y"] - before["y"]) + abs(after["heading"] - before["heading"]) + abs(after["tilt"] - before["tilt"]) > 0.001, "a bookmark moves the camera (heading %.0f, tilt %.0f)" % (after["heading"], after["tilt"]))
-        click("#bmAddBtn"); page.fill("#bmTitleInput", "My view"); click("#bmSave"); page.wait_for_timeout(500)
+        # the element's own click, once: a pointer click that lands late and is then repeated would add the bookmark twice
+        page.evaluate("document.querySelector('#bmAddBtn').click()"); page.fill("#bmTitleInput", "My view"); page.evaluate("document.querySelector('#bmSave').click()"); page.wait_for_timeout(500)
         check(bm_titles()[-1] == "My view" and len(bm_titles()) == SLIDES + 1, "a bookmark can be added in the scene")
         page.keyboard.press("Escape")
 
