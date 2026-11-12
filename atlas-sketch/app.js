@@ -2,21 +2,21 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.13";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.14";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.13";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.14";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.13";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.13";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.14";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.14";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.13";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.13";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.13";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.14";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.14";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.14";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.13";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.14";
 
-const APP_VERSION = "5.0.0-beta.13";
+const APP_VERSION = "5.0.0-beta.14";
 const COMPASS_VERSION = "1.1";
 const PROFILE_VERSION = "3.1";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -672,7 +672,8 @@ function updatePopupEnabled() {
 const COLOUR_NAMES = String(S.colourNames || "").split(",");
 let selectedGraphics = [], selectedFeature = null;   // selectedFeature: the one sketch whose pop-up is being edited
 // areaShape: an area's styled fill (a point's symbol and an area's are chosen separately; on a sketch both are its "shape")
-let pendingStyle = { color: PALETTE_HEX[0], size: 12, rotation: 0, shape: "", areaShape: "", pattern: "solid", arrow: "none", fill: 25, fillColor: "", outlineTransparency: 0, outlineWidth: 2 };
+let pendingStyle = { color: PALETTE_HEX[0], size: 12, rotation: 0, shape: "", areaShape: "", pattern: "solid", arrow: "none", fill: 25, fillColor: "", outlineTransparency: 0, outlineWidth: 2,
+  font: "", bold: 1, italic: 0, haloColor: "#ffffff", haloSize: 1.5 };   // text: its font, bold and italic, and its halo (size 0 = no halo)
 const newUid = () => "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 // Freehand is a segment option inside the line and area tools (as in Map Viewer), not a button of its own.
 const SKETCH_TOOLS = ["point", "polyline", "freehandPolyline", "polygon", "freehandPolygon", "rectangle", "circle", "text"];
@@ -769,7 +770,11 @@ function vectorSymbol(o) {
 const LINE_STYLES = { solid: "solid", dash: "dash", dot: "dot", "dash-dot": "dash-dot", "long-dash": "long-dash" };
 function symbolFor(kind, o) {
   const rgb = hexToRgb(o.color), style = LINE_STYLES[o.pattern] || "solid";
-  if (kind === "text") return { type: "text", text: o.text || S.textDefault, color: o.color, haloColor: "#ffffff", haloSize: 1.5, angle: o.rotation || 0, font: { size: Math.max(10, o.size || 16), weight: "bold" } };
+  if (kind === "text") {   // as Map Viewer sets text up: a font, bold and italic, a size, a colour, a halo, and its rotation
+    const sym = { type: "text", text: o.text || S.textDefault, color: o.color, angle: o.rotation || 0, font: { ...textFont(o), size: Math.max(10, o.size || 16) } };
+    if (o.haloSize > 0) { sym.haloColor = o.haloColor || "#ffffff"; sym.haloSize = o.haloSize; } else { sym.haloColor = null; sym.haloSize = 0; }
+    return sym;
+  }
   if (kind === "polyline") {
     const sym = { type: "simple-line", color: o.color, width: Math.max(2, Math.round((o.size || 12) / 4)), style };
     if (ARROWS[o.arrow]) sym.marker = { style: "arrow", placement: ARROWS[o.arrow], color: o.color };
@@ -784,7 +789,8 @@ function symbolFor(kind, o) {
 }
 const kindOf = (g) => (g.attributes && g.attributes.kind === "text" ? "text" : (g.geometry && g.geometry.type) || "point");
 const styleOf = (a) => ({ color: a.color || PALETTE_HEX[0], size: a.size || 12, rotation: a.rotation || 0, text: a.title, shape: a.shape || "", pattern: a.pattern || "solid", arrow: a.arrow || "none", fill: a.fill == null ? 25 : a.fill,
-  fillColor: a.fillColor || "", outlineTransparency: a.outlineTransparency || 0, outlineWidth: a.outlineWidth == null ? 2 : a.outlineWidth });
+  fillColor: a.fillColor || "", outlineTransparency: a.outlineTransparency || 0, outlineWidth: a.outlineWidth == null ? 2 : a.outlineWidth,
+  font: a.font || "", bold: a.bold === 0 ? 0 : 1, italic: a.italic ? 1 : 0, haloColor: a.haloColor || "#ffffff", haloSize: a.haloSize == null ? 1.5 : a.haloSize });
 // what the tools draw an area with next, in a sketch's own terms
 const pendingArea = () => ({ ...pendingStyle, shape: pendingStyle.areaShape });
 function applyStyle(g) {
@@ -852,7 +858,7 @@ function setImagePreview(dataUrl) {
   if (dataUrl) { $("imgThumb").src = dataUrl; $("imgPreview").hidden = false; $("imgPick").textContent = S.replaceImage; }
   else { $("imgThumb").removeAttribute("src"); $("imgPreview").hidden = true; $("imgPick").textContent = S.addImage; }
 }
-function highlightSwatch(hex) { [...$("swatches").children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.color === hex))); }
+function highlightSwatch(hex) { [...$("swatches").children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.color === hex))); if (document.activeElement !== $("colourCustom")) $("colourCustom").value = hex; }
 // The Sketch panel follows Map Viewer's Sketch pane (Sketch panel 3.0, 5.0.0-beta.6): a line saying what the tool
 // in hand does; then the kind of sketch and what suits it. A point has its recent symbols and its current symbol,
 // which opens a Change symbol view (category, search, the symbols, Done); colour and size. A line has colour, width,
@@ -935,6 +941,20 @@ function populateSketchPanel() {
     setPair("fFillT", ft); setPair("fOutlineT", first.outlineTransparency || 0); setPair("fOutlineW", first.outlineWidth == null ? 2 : first.outlineWidth);
   }
   $("rotSection").hidden = kind !== "text";
+  for (const id of ["secFont", "secHalo"]) $(id).hidden = kind !== "text";
+  $("secPlain").hidden = !styledArea;
+  if (kind === "text") {
+    const f = TEXT_FONTS[first.font] || TEXT_FONTS[""], drawn = textFont(first);
+    $("fFont").value = TEXT_FONTS[first.font] ? first.font : "";
+    // Bold and Italic are offered only where the font has them
+    const setB = (id, on, can) => { const b = $(id); b.setAttribute("aria-pressed", String(on)); b.disabled = !can; b.title = can ? b.dataset.label : fmt(S.fontHasNo, { style: b.dataset.label }); };
+    setB("fBold", drawn.weight === "bold", f.bold);
+    setB("fItalic", drawn.style === "italic", f.italic && (f.both || !first.bold));
+    const halo = first.haloSize > 0;
+    $("fHalo").checked = halo; $("haloOpts").hidden = !halo;
+    pressSwatch("haloSwatches", first.haloColor || "#ffffff"); $("haloCustom").value = first.haloColor || "#ffffff";
+    if (halo) setPair("fHaloW", first.haloSize);
+  }
   popupFieldsEnabled(!!sel);
   setImagePreview(a ? a.imageUrl || "" : "");
   if (document.activeElement !== $("fTitle")) $("fTitle").value = a ? a.title || "" : "";
@@ -950,7 +970,9 @@ function populateSketchPanel() {
     const nm = document.createElement("span"); nm.className = "sym-cur-name"; nm.textContent = symbolTitle(shape); const ch = document.createElement("span"); ch.className = "chev"; ch.setAttribute("aria-hidden", "true"); ch.textContent = "›";
     cur.append(nm, ch); cur.setAttribute("aria-label", S.currentSymbol + ": " + symbolTitle(shape) + ". " + S.changeSymbol);
     const row = $("recentRow"); row.replaceChildren();
-    const recents = recentSymbols[symbolGeom()];
+    // the plain one is always first, so there is a way back from a styled fill or a picture symbol
+    const plain = { shape: "", title: kind === "polygon" ? S.basicPolygon : S.symbolCircle };
+    const recents = [plain, ...recentSymbols[symbolGeom()].filter((x) => x.shape !== "")];
     for (const r of recents) row.appendChild(symbolButton(r.shape, r.title || symbolTitle(r.shape), 30));
     $("recentNone").hidden = recents.length > 0; $("recentNone").textContent = kind === "polygon" ? S.noRecentPolygonSymbols : S.noRecentSymbols; row.hidden = !recents.length;
     pressOne("recentRow", "shape", shape);
@@ -958,7 +980,8 @@ function populateSketchPanel() {
   }
 }
 // What a style control may change on a sketch of each kind
-const STYLE_KINDS = { shape: ["point"], areaShape: ["polygon"], arrow: ["polyline"], pattern: ["polyline", "polygon"], fill: ["polygon"], fillColor: ["polygon"], outlineTransparency: ["polygon"], outlineWidth: ["polygon"], rotation: ["text"] };
+const STYLE_KINDS = { shape: ["point"], areaShape: ["polygon"], arrow: ["polyline"], pattern: ["polyline", "polygon"], fill: ["polygon"], fillColor: ["polygon"], outlineTransparency: ["polygon"], outlineWidth: ["polygon"], rotation: ["text"],
+  font: ["text"], bold: ["text"], italic: ["text"], haloColor: ["text"], haloSize: ["text"] };
 // Change symbol: each category is one of the sketch styles; its list (names, titles, small pictures) is fetched when first chosen.
 const symbolLists = new Map(), symbolTitles = new Map();
 const LEFT_OUT = new Set((Array.isArray(cfg.sketchSymbolsLeftOut) ? cfg.sketchSymbolsLeftOut : ["bar", "casino", "vineyard"]).map((x) => String(x).toLowerCase()));   // not for a school atlas; a config can choose
@@ -989,7 +1012,7 @@ async function ensureSymbolSet() {
   const shown = q ? items.filter((it) => it.title.toLowerCase().includes(q) || it.tags.includes(q)) : items;
   grid.replaceChildren();
   if (set.circle && (!q || S.symbolCircle.toLowerCase().includes(q))) grid.appendChild(symbolButton("", S.symbolCircle, 36));
-  if (geom === "polygon" && set === sets[0] && (!q || S.basicPolygon.toLowerCase().includes(q))) grid.appendChild(symbolButton("", S.basicPolygon, 36));   // back to the plain fill
+  if (geom === "polygon" && (!q || S.basicPolygon.toLowerCase().includes(q))) grid.appendChild(symbolButton("", S.basicPolygon, 36));   // back to the plain fill
   const setName = S["symbolSet_" + set.key] || set.key;
   for (const it of shown) grid.appendChild(symbolButton(it.shape, /^Symbol \d/.test(it.title) ? setName + ", " + it.title : it.title, 36));   // the drawn sets only number their symbols
   $("symbolStatus").textContent = q ? t("symbolsFound", { n: grid.children.length }) : "";
@@ -1075,6 +1098,30 @@ function pair(id, key, toValue) {
 pair("fFillT", "fill", (t) => 100 - t);            // kept as how solid the fill is; shown, as in Map Viewer, as its transparency
 pair("fOutlineT", "outlineTransparency");
 pair("fOutlineW", "outlineWidth");
+// Text: font, bold and italic, halo
+{
+  const sel = $("fFont");
+  for (const key of Object.keys(TEXT_FONTS)) { const o = document.createElement("option"); o.value = key; o.textContent = key ? TEXT_FONTS[key].family : S.fontDefault; sel.appendChild(o); }
+  sel.addEventListener("change", () => { restyleSelection("font", sel.value); populateSketchPanel(); });
+  const cur = () => (selectedGraphics.length ? styleOf(selectedGraphics[0].attributes || {}) : pendingStyle);
+  for (const [id, key, label] of [["fBold", "bold", S.bold], ["fItalic", "italic", S.italic]]) {
+    const b = $(id); b.dataset.label = label; b.setAttribute("aria-label", label); b.title = label;
+    b.addEventListener("click", () => { restyleSelection(key, b.getAttribute("aria-pressed") === "true" ? 0 : 1); populateSketchPanel(); });
+  }
+  let lastHalo = 1.5;
+  $("fHalo").addEventListener("change", () => { if (!$("fHalo").checked) lastHalo = cur().haloSize || lastHalo; restyleSelection("haloSize", $("fHalo").checked ? lastHalo : 0); populateSketchPanel(); });
+  PALETTE_HEX.concat(["#ffffff", "#000000"].filter((h) => !PALETTE_HEX.includes(h))).forEach((hex) => {
+    const i = PALETTE_HEX.indexOf(hex), name = (i >= 0 ? COLOUR_NAMES[i] : hex === "#ffffff" ? S.colourWhite : S.colourBlack) || hex;
+    const b = document.createElement("button"); b.type = "button"; b.className = "swatch"; b.style.background = hex; b.dataset.color = hex; b.setAttribute("aria-label", name.trim()); b.title = name.trim(); b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => { restyleSelection("haloColor", hex); populateSketchPanel(); });
+    $("haloSwatches").appendChild(b);
+  });
+  $("haloCustom").addEventListener("input", () => { const v = $("haloCustom").value.toLowerCase(); restyleSelection("haloColor", v); pressSwatch("haloSwatches", v); });
+  pair("fHaloW", "haloSize");
+  $("skPlainFill").addEventListener("click", () => chooseSymbol("", S.basicPolygon));
+  // a colour of your own for a point, a line or text, as areas already had
+  $("colourCustom").addEventListener("input", () => { const v = $("colourCustom").value.toLowerCase(); restyleSelection("color", v); highlightSwatch(v); });
+}
 // Pattern and arrow choices: small pictures of the line, each a button
 {
   const NS = "http://www.w3.org/2000/svg", DASH = { solid: "", dash: "7 4", dot: "2 4", "dash-dot": "8 3 2 3", "long-dash": "12 4" };
@@ -1145,7 +1192,8 @@ sketch.addEventListener("arcgisCreate", (e) => {
     title: isText ? (typed && typed !== "hello world" ? typed : S.textDefault) : "", description: "", imageUrl: "",
     color: pendingStyle.color, size: isText ? Math.max(14, pendingStyle.size) : pendingStyle.size, rotation: isText ? pendingStyle.rotation : 0,
     shape: isText ? "" : graphic.geometry && graphic.geometry.type === "polygon" ? pendingStyle.areaShape : graphic.geometry && graphic.geometry.type === "point" ? pendingStyle.shape : "",
-    pattern: pendingStyle.pattern, arrow: pendingStyle.arrow, fill: pendingStyle.fill, fillColor: pendingStyle.fillColor, outlineTransparency: pendingStyle.outlineTransparency, outlineWidth: pendingStyle.outlineWidth };
+    pattern: pendingStyle.pattern, arrow: pendingStyle.arrow, fill: pendingStyle.fill, fillColor: pendingStyle.fillColor, outlineTransparency: pendingStyle.outlineTransparency, outlineWidth: pendingStyle.outlineWidth,
+    font: pendingStyle.font, bold: pendingStyle.bold, italic: pendingStyle.italic, haloColor: pendingStyle.haloColor, haloSize: pendingStyle.haloSize };
   applyStyle(graphic);
   graphic.popupTemplate = popupTemplate();
   markDirty();
@@ -4080,8 +4128,8 @@ function renderVersions() {
     ["3D scenes", "1.0", "Web scenes from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],
     ["Loading", "1.1", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Swipe, the table, Elevation and Sketch is downloaded when the tool is first opened. All of these are the SDK's components (or the app's own code), not its widgets, which SDK 6 removes."],
     ["Sketch measuring", "1.1", "While drawing: tooltips, the length of each side (segment labels) and snapping to other sketches are on from the start; each can be turned off in the toolbar's Settings. Lengths and areas are shown with no decimal places."],
-    ["Sketch panel", "3.1", "Laid out like Map Viewer's Sketch pane: what the tool in hand does, then what suits it. A point has recent symbols and a Change symbol view (category, search, symbols). A selected sketch has its name, Pop-up, Duplicate and Delete. One toolbar on the map."],
-    ["Sketch styles", "2.2", "Points: symbols from 14 of Esri's sketch styles, the ones Map Viewer's Sketch offers. Lines: patterns and arrows. Areas, set up as in Map Viewer: fill colour and transparency, outline colour, transparency, width and pattern, or a styled fill (hatches, land use, pencil landscape; 2D only). Tooltips are on while drawing."],
+    ["Sketch panel", "3.2", "Laid out like Map Viewer's Sketch pane: what the tool in hand does, then what suits it. The plain circle or plain fill is always first among the recent symbols, and a styled fill says how to get back to colours and an outline. A point has recent symbols and a Change symbol view (category, search, symbols). A selected sketch has its name, Pop-up, Duplicate and Delete. One toolbar on the map."],
+    ["Sketch styles", "2.3", "Points: symbols from 14 of Esri's sketch styles, the ones Map Viewer's Sketch offers. Lines: patterns and arrows. Text, set up as in Map Viewer: a font (11, from Esri's font service), bold and italic where the font has them, size, colour, a halo with its colour and size, and rotation. Areas, set up as in Map Viewer: fill colour and transparency, outline colour, transparency, width and pattern, or a styled fill (hatches, land use, pencil landscape; 2D only). Tooltips are on while drawing."],
     ["Sketch in 3D", "1.0", "The Sketch toolbar works in the 3D view and in scenes with the same tools. Sketches lie on the ground and are saved as flat shapes, so they are the same in 2D."],
     ["3D quality", "1.0", "How much work the 3D view does. Low (smaller textures, less memory, no shadows or stars) is chosen for a device with 4 GB of memory or less, 4 processor cores or fewer, or no graphics chip; otherwise medium. A config (threeDQuality) or a link (?quality=low, medium or high) can fix it."],
     ["Views", "2.0", "The 2D and 3D views are the SDK's map and scene components, with Search, Home, Zoom, the navigation toggle and the scale bar as components in their slots."],

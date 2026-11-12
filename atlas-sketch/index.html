@@ -242,6 +242,19 @@
     .sym-cur{ margin-top:0; }
     .sym-cur-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .pat-row{ display:flex; gap:6px; flex-wrap:wrap; }
+    /* text: font, bold and italic, halo */
+    .font-row{ display:flex; gap:8px; align-items:stretch; }
+    .font-row .field{ flex:1 1 auto; min-width:0; }
+    .font-style{ display:flex; gap:6px; flex:none; }
+    .tb-btn{ width:40px; min-height:40px; display:flex; align-items:center; justify-content:center; background:#fff; color:#1f1f1f; border:2px solid var(--line2); border-radius:4px; font:inherit; font-size:17px; cursor:pointer; font-family:Georgia, "Times New Roman", serif; }
+    .tb-btn:hover:not(:disabled){ background:#f3f3f3; }
+    .tb-btn[aria-pressed="true"]{ border-color:var(--ink); background:#eef4fb; }
+    .tb-btn:disabled{ color:#767676; background:#f3f3f3; cursor:not-allowed; }
+    .tb-btn:focus-visible{ outline:3px solid var(--focus, #005e95); outline-offset:1px; }
+    .check-row{ display:flex; align-items:center; gap:8px; font-size:15px; font-weight:600; margin-bottom:8px; cursor:pointer; }
+    .check-row input{ width:20px; height:20px; }
+    #haloOpts .label{ margin-top:8px; }
+    #secPlain .btn{ margin-top:6px; }
     .pat-btn{ width:56px; height:34px; display:flex; align-items:center; justify-content:center; padding:0 5px; background:#fff; color:#323232; border:2px solid var(--line2); border-radius:4px; cursor:pointer; }
     .pat-btn svg{ width:44px; height:16px; display:block; }
     .pat-btn:hover{ background:#f3f3f3; }
@@ -762,7 +775,10 @@
               <p class="label" data-i18n="currentSymbol">Current symbol</p>
               <button class="sk-row sym-cur" type="button" id="skSymbolOpen"></button>
             </div>
-            <div class="section" id="secColour" hidden><p class="label" data-i18n="symbol">Colour</p><div class="swatches" id="swatches" role="group"></div></div>
+            <div class="section" id="secPlain" hidden><p class="hint" data-i18n="styledFillHint">This fill is drawn as it is, so it has no colours or outline to set.</p><button class="btn" type="button" id="skPlainFill" data-i18n="usePlainFill">Use a plain fill instead</button></div>
+            <div class="section" id="secFont" hidden><label class="label" for="fFont" data-i18n="font">Font</label>
+              <div class="font-row"><select class="field" id="fFont"></select><div class="font-style" role="group" data-i18n-aria="fontStyle" aria-label="Style"><button class="tb-btn" type="button" id="fBold" aria-pressed="false"><b aria-hidden="true">B</b></button><button class="tb-btn" type="button" id="fItalic" aria-pressed="false"><i aria-hidden="true">I</i></button></div></div></div>
+            <div class="section" id="secColour" hidden><p class="label" id="colourLabel" data-i18n="symbol">Colour</p><div class="colour-row"><div class="swatches" id="swatches" role="group" aria-labelledby="colourLabel"></div><label class="custom-colour"><span class="sr-only" data-i18n="customColour">Colour of your own</span><input type="color" id="colourCustom" value="#0079c1" /></label></div></div>
             <div class="section" id="secSize" hidden><label class="label" for="fSize" id="sizeLabel">Size</label><div class="slider-row"><input type="range" id="fSize" min="6" max="48" value="12" /><span class="slider-val" id="sizeVal">12</span></div></div>
             <div class="section" id="secFillColour" hidden><p class="label" id="fillColourLabel" data-i18n="fillColour">Fill colour</p><div class="colour-row"><div class="swatches" id="fillSwatches" role="group" aria-labelledby="fillColourLabel"></div><label class="custom-colour"><span class="sr-only" data-i18n="customFillColour">Fill colour of your own</span><input type="color" id="fillCustom" value="#0079c1" /></label></div></div>
             <div class="section" id="secFillT" hidden><label class="label" for="fFillT" data-i18n="fillTransparency">Fill transparency</label><div class="slider-row"><input type="range" id="fFillT" min="0" max="100" step="1" value="75" /><span class="num-wrap"><input class="num" type="number" id="fFillTN" min="0" max="100" step="1" value="75" data-i18n-aria="fillTransparency" aria-label="Fill transparency" /><span aria-hidden="true">%</span></span></div></div>
@@ -771,6 +787,10 @@
             <div class="section" id="secOutlineW" hidden><label class="label" for="fOutlineW" data-i18n="outlineWidth">Outline width</label><div class="slider-row"><input type="range" id="fOutlineW" min="0" max="12" step="0.5" value="2" /><span class="num-wrap"><input class="num" type="number" id="fOutlineWN" min="0" max="12" step="0.5" value="2" data-i18n-aria="outlineWidth" aria-label="Outline width" /><span aria-hidden="true">px</span></span></div></div>
             <div class="section" id="secPattern" hidden><p class="label" id="patternLabel">Pattern</p><div class="pat-row" id="patternRow" role="group" aria-labelledby="patternLabel"></div></div>
             <div class="section" id="secArrow" hidden><p class="label" id="arrowLabel" data-i18n="lineArrow">Arrow</p><div class="pat-row" id="arrowRow" role="group" aria-labelledby="arrowLabel"></div></div>
+            <div class="section" id="secHalo" hidden>
+              <label class="check-row"><input type="checkbox" id="fHalo" checked /><span data-i18n="halo">Halo</span></label>
+              <div id="haloOpts"><p class="label" id="haloColourLabel" data-i18n="haloColour">Halo colour</p><div class="colour-row"><div class="swatches" id="haloSwatches" role="group" aria-labelledby="haloColourLabel"></div><label class="custom-colour"><span class="sr-only" data-i18n="customHaloColour">Halo colour of your own</span><input type="color" id="haloCustom" value="#ffffff" /></label></div>
+                <label class="label" for="fHaloW" data-i18n="haloSize">Halo size</label><div class="slider-row"><input type="range" id="fHaloW" min="0.5" max="6" step="0.5" value="1.5" /><span class="num-wrap"><input class="num" type="number" id="fHaloWN" min="0.5" max="6" step="0.5" value="1.5" data-i18n-aria="haloSize" aria-label="Halo size" /><span aria-hidden="true">px</span></span></div></div></div>
             <div class="section" id="rotSection" hidden><label class="label" for="fRot" data-i18n="rotation">Rotation</label><div class="slider-row"><input type="range" id="fRot" min="0" max="360" value="0" /><span class="slider-val" id="rotVal">0°</span></div></div>
           </div>
           <div id="skSymbols" class="sk-sub" hidden>
@@ -994,6 +1014,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.13"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.14"></script>
 </body>
 </html>

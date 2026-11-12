@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.13**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.14**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -12,6 +12,35 @@
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Text as Map Viewer sets it up, and a way back from a styled fill (5.0.0-beta.14)
+
+**Text.** Map Viewer's text options are Content, Font, Size, colour and a Halo switch with its colour and size (Esri's "Create sketch layers" help). The text tool now has those, plus bold and italic, and the rotation it already had (Sketch styles 2.3, Sketch panel 3.2).
+
+| Option | What it does |
+|---|---|
+| Font | Eleven fonts from Esri's font service, the ones map text can be drawn in: the standard one (Arial Unicode MS), Noto Sans, Atkinson Hyperlegible, Noto Serif, Merriweather, Playfair Display, Josefin Slab, Ubuntu Mono, Special Elite (typewriter), Caveat and Patrick Hand (handwriting) |
+| Bold, Italic | Offered only where the font has them on the service (checked for both the 2D and the 3D font files); otherwise the button is off and says why |
+| Colour | The eight colours, and now a colour of your own (points and lines have this too) |
+| Size | As before |
+| Halo | On or off; its colour (the eight, white, black, or your own) and its size, 0.5 to 6 px |
+| Rotation | As before |
+
+A style carries on to the next text drawn, as in Map Viewer. Text made before this release has none of the new settings and stays as it was: bold, with a white halo.
+
+**Saved files** (writer 3.3): each text keeps `font`, `bold`, `italic`, `haloColor` and `haloSize` (0 = no halo), and its label symbol in the web map has the font family, weight, style and halo, so other ArcGIS apps draw it the same. Rotation is kept for this app only: a web map's label symbol has no angle.
+
+Not built: text alignment and multi-line options, a background box, recent text styles, and Map Viewer's full font list.
+
+**A way back from a styled fill.** After choosing a hatch or another styled fill there was no obvious way back to the fill colour and outline settings: "Basic polygon" was only in the first category of Change symbol. Now:
+
+- the plain fill is always the first of the recent polygon symbols (and the plain circle the first for points);
+- under the current symbol the panel says a styled fill has no colours or outline to set, with a **Use a plain fill instead** button;
+- Basic polygon is the first choice in every category of Change symbol.
+
+The MapMaker config also gains American spellings for the area, halo and units wording that had been left British.
+
+Tests: `python3 atlas-sketch/tests/live-sketch-text.py` (37 checks, with axe-core scans); `node atlas-sketch/tests/scenes.test.mjs` is now 36 checks.
 
 ## The last widgets become components (5.0.0-beta.13)
 

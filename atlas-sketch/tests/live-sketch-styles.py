@@ -102,7 +102,7 @@ def main():
         page.click('#symbolGrid .sym-btn[aria-label="Fox"]'); page.click("#skSymbolsDone"); page.wait_for_selector("#skMain:not([hidden])")
         check(page.evaluate("document.activeElement.id") == "skSymbolOpen" and "Fox" in page.inner_text("#skSymbolOpen"), "Done goes back to Current symbol, now Fox")
         check("secColour" not in shown(), "a drawn symbol keeps its own colours, so Colour isn't offered")
-        check(page.locator("#recentRow .sym-btn").count() == 1 and page.get_attribute("#recentRow .sym-btn", "aria-label") == "Fox", "Fox is the first of the Recent symbols")
+        check(page.evaluate("[...document.querySelectorAll('#recentRow .sym-btn')].map(b => b.getAttribute('aria-label'))") == ["Circle", "Fox"], "Fox is the first of the Recent symbols, after the plain circle that is always there")
         page.wait_for_timeout(2500)   # the symbol is fetched once
         page.mouse.click(500, 300); ok = count(1); sk = page.evaluate(SKETCHES)
         check(ok and sk[0]["shape"] == "web:" + ANIMALS + "/Fox", "a point drawn now is a Fox: " + str(sk[0]["shape"] if sk else None))
@@ -124,7 +124,7 @@ def main():
         check(ok and page.evaluate("document.activeElement.id") == "sketchH", "Delete removes the selected one, and focus goes to the panel's heading")
         start("point"); page.wait_for_timeout(500); page.click("#skSymbolOpen"); page.select_option("#symbolSet", "pins"); page.wait_for_function("document.querySelectorAll('#symbolGrid .sym-btn').length >= 16", timeout=60000)
         page.locator("#symbolGrid .sym-btn").first.click(); page.click("#skSymbolsDone")
-        check("secColour" in shown() and page.locator("#recentRow .sym-btn").count() == 2, "a pin takes the chosen colour, so Colour is offered; two Recent symbols now")
+        check("secColour" in shown() and page.locator("#recentRow .sym-btn").count() == 3, "a pin takes the chosen colour, so Colour is offered; two Recent symbols now, after the circle")
         finish()
 
         print("== a line: pattern and arrows")
@@ -181,7 +181,7 @@ def main():
         axe("Change symbol, area")
         page.screenshot(path=str(shots / "sketch-area-symbols.png"))
         page.click('#symbolGrid .sym-btn[aria-label="A Crosshatch"]'); page.click("#skSymbolsDone"); page.wait_for_selector("#skMain:not([hidden])"); page.wait_for_timeout(2500)
-        check(shown() == ["sketchHint", "skKind", "secSymbol"] and "A Crosshatch" in page.inner_text("#skSymbolOpen") and page.get_attribute("#recentRow .sym-btn", "aria-label") == "A Crosshatch", "with a styled fill chosen, only the symbol is offered, and it is the first Recent polygon symbol")
+        check(shown() == ["sketchHint", "skKind", "secSymbol", "secPlain"] and "A Crosshatch" in page.inner_text("#skSymbolOpen") and page.evaluate("[...document.querySelectorAll('#recentRow .sym-btn')].map(b => b.getAttribute('aria-label')).slice(0, 2)") == ["Basic polygon", "A Crosshatch"], "with a styled fill chosen, the symbol and the way back to a plain fill are offered; it is the first Recent polygon symbol after the plain one")
         page.mouse.move(520, 180); page.mouse.down(); page.mouse.move(580, 220, steps=4); page.mouse.move(620, 250, steps=3); page.mouse.up(); ok = count(4)
         page.wait_for_function("(() => { const v = document.querySelector('arcgis-map').view; return v.map.layers.find(x => x.id === '__sketch').graphics.some(g => g.symbol && g.symbol.type === 'cim' && g.geometry.type === 'polygon'); })()", timeout=30000)
         check(ok, "a rectangle drawn now has the crosshatch (a CIM symbol)")
@@ -189,7 +189,7 @@ def main():
 
         print("== text")
         start("text"); page.wait_for_function("!document.querySelector('#rotSection').hidden", timeout=10000)
-        check(shown() == ["sketchHint", "skKind", "secColour", "secSize", "rotSection"], "the text tool shows Colour, Size and Rotation: " + ", ".join(shown()))
+        check(shown() == ["sketchHint", "skKind", "secFont", "secColour", "secSize", "secHalo", "rotSection"], "the text tool shows Font, Colour, Size, Halo and Rotation: " + ", ".join(shown()))
         finish(); page.wait_for_timeout(600)
         check(shown() == ["sketchHint"], "with the tool put down, only the hint again")
         page.wait_for_timeout(1500); page.screenshot(path=str(shots / "sketch-styles-map.png"))

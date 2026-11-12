@@ -4,7 +4,7 @@
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "3.2";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill). 3.2: areas have a fill colour, outline transparency and width, and can take a styled fill
+export const WEBMAP_WRITER_VERSION = "3.3";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill). 3.2: areas have a fill colour, outline transparency and width, and can take a styled fill
 export const WEBMAP_SPEC_VERSION = "2.31";
 export const WEBSCENE_SPEC_VERSION = "1.40";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
@@ -38,6 +38,29 @@ function rgbToHex(c) {
   if (!Array.isArray(c) || c.length < 3) return null;
   return "#" + c.slice(0, 3).map((n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0")).join("");
 }
+// Sketch styles 2.3, text as Map Viewer sets it up: a font, bold and italic, and a halo with a colour and a size.
+// The fonts are ones Esri's font service (static.arcgis.com/fonts) has for map text; "bold", "italic" and "both" say
+// which of a font's styles it has there (checked November 2026), so the app offers only what will be drawn.
+export const TEXT_FONTS = {
+  "": { family: "Arial Unicode MS", bold: true, italic: false, both: false },
+  "noto-sans": { family: "Noto Sans", bold: true, italic: true, both: true },
+  "atkinson-hyperlegible": { family: "Atkinson Hyperlegible", bold: true, italic: true, both: true },
+  "noto-serif": { family: "Noto Serif", bold: true, italic: true, both: true },
+  "merriweather": { family: "Merriweather", bold: true, italic: true, both: true },
+  "playfair-display": { family: "Playfair Display", bold: true, italic: true, both: true },
+  "josefin-slab": { family: "Josefin Slab", bold: true, italic: true, both: true },
+  "ubuntu-mono": { family: "Ubuntu Mono", bold: true, italic: true, both: true },
+  "special-elite": { family: "Special Elite", bold: false, italic: false, both: false },
+  "caveat": { family: "Caveat", bold: true, italic: false, both: false },
+  "patrick-hand": { family: "Patrick Hand", bold: false, italic: false, both: false }
+};
+// the font a text is drawn with: only a weight and style its font has
+export function textFont(a) {
+  const f = TEXT_FONTS[a && a.font] || TEXT_FONTS[""];
+  let bold = !!(a && a.bold) && f.bold, italic = !!(a && a.italic) && f.italic;
+  if (bold && italic && !f.both) italic = false;
+  return { family: f.family, weight: bold ? "bold" : "normal", style: italic ? "italic" : "normal" };
+}
 export function cleanSketchAttributes(a, geometry, symbol) {
   a = a && typeof a === "object" ? a : {};
   let color = HEX_COLOR.test(a.color) ? a.color.toLowerCase() : null;
@@ -58,7 +81,13 @@ export function cleanSketchAttributes(a, geometry, symbol) {
     // outline's transparency (%) and width (0 = no outline). "fill" stays how solid the fill is (100 - its transparency).
     fillColor: HEX_COLOR.test(a.fillColor) ? a.fillColor.toLowerCase() : "",
     outlineTransparency: clamp(a.outlineTransparency, 0, 100, 0),
-    outlineWidth: clamp(a.outlineWidth, 0, 20, 2)
+    outlineWidth: clamp(a.outlineWidth, 0, 20, 2),
+    // Sketch styles 2.3 (text). A file from before has none of these: its text was bold with a white halo, as it stays.
+    font: typeof a.font === "string" && TEXT_FONTS[a.font] ? a.font : "",
+    bold: a.bold === 0 || a.bold === false || a.bold === "0" ? 0 : 1,
+    italic: a.italic === 1 || a.italic === true || a.italic === "1" ? 1 : 0,
+    haloColor: HEX_COLOR.test(a.haloColor) ? a.haloColor.toLowerCase() : "#ffffff",
+    haloSize: clamp(a.haloSize, 0, 6, 1.5)
   };
 }
 // A point symbol is the plain circle ("") or one of Esri's vector point symbols by name ("web:school"): the 2D point
@@ -214,6 +243,11 @@ const SKETCH_FIELDS = [
   { name: "fillColor", alias: "fillColor", type: "esriFieldTypeString", length: 7 },
   { name: "outlineTransparency", alias: "outlineTransparency", type: "esriFieldTypeDouble" },
   { name: "outlineWidth", alias: "outlineWidth", type: "esriFieldTypeDouble" },
+  { name: "font", alias: "font", type: "esriFieldTypeString", length: 40 },
+  { name: "bold", alias: "bold", type: "esriFieldTypeDouble" },
+  { name: "italic", alias: "italic", type: "esriFieldTypeDouble" },
+  { name: "haloColor", alias: "haloColor", type: "esriFieldTypeString", length: 7 },
+  { name: "haloSize", alias: "haloSize", type: "esriFieldTypeDouble" },
   { name: "_style", alias: "_style", type: "esriFieldTypeString", length: 200 }
 ];
 export const SKETCH_LAYER_PREFIX = "__sketch_";
@@ -253,6 +287,8 @@ function styleKey(kind, a) {
 }
 
 /** Sketch graphics -> up to four feature-collection layers (points, lines, areas, text). */
+// texts that look the same share one label class
+const textStyleKey = (a) => [a.color, a.size, a.font || "", a.bold === 0 ? 0 : 1, a.italic ? 1 : 0, a.haloColor || "#ffffff", a.haloSize == null ? 1.5 : a.haloSize].join("|");
 export function sketchToOperationalLayers(graphics, title, visible, icon) {
   const groups = { point: [], polyline: [], polygon: [], text: [] };
   for (const g of graphics) { const k = g.attributes.kind === "text" ? "text" : geometryKind(g.geometry); groups[k].push(g); }
@@ -267,7 +303,9 @@ export function sketchToOperationalLayers(graphics, title, visible, icon) {
       return { geometry: g.geometry, attributes: { ObjectId: i + 1, uid: a.uid, kind: a.kind, title: a.title, description: a.description,
         imageUrl: a.imageUrl || "", color: a.color, size: a.size, rotation: a.rotation || 0,
         shape: a.shape || "", pattern: a.pattern || "solid", arrow: a.arrow || "none", fill: a.fill == null ? 25 : a.fill,
-        fillColor: a.fillColor || "", outlineTransparency: a.outlineTransparency || 0, outlineWidth: a.outlineWidth == null ? 2 : a.outlineWidth, _style: k === "text" ? a.color + "|" + a.size : styleKey(gkind, a) } };
+        fillColor: a.fillColor || "", outlineTransparency: a.outlineTransparency || 0, outlineWidth: a.outlineWidth == null ? 2 : a.outlineWidth,
+        font: a.font || "", bold: a.bold === 0 ? 0 : 1, italic: a.italic ? 1 : 0, haloColor: a.haloColor || "#ffffff", haloSize: a.haloSize == null ? 1.5 : a.haloSize,
+        _style: k === "text" ? textStyleKey(a) : styleKey(gkind, a) } };
     });
     const layerDefinition = { name: (title || "Sketches") + " (" + names[k] + ")", type: "Feature Layer", geometryType: ESRI_GEOM[gkind],
       objectIdField: "ObjectId", fields: SKETCH_FIELDS, drawingInfo: {} };
@@ -275,9 +313,11 @@ export function sketchToOperationalLayers(graphics, title, visible, icon) {
       layerDefinition.drawingInfo.renderer = { type: "simple", symbol: { type: "esriSMS", style: "esriSMSCircle", color: [0, 0, 0, 0], size: 1, outline: { type: "esriSLS", style: "esriSLSNull", color: [0, 0, 0, 0], width: 0 } } };
       const classes = [...new Set(feats.map((f) => f.attributes._style))];
       layerDefinition.drawingInfo.labelingInfo = classes.map((key) => {
-        const [color, size] = key.split("|");
-        return { where: "_style = '" + key.replace(/'/g, "''") + "'", labelExpressionInfo: { expression: "$feature.title" }, labelPlacement: "esriServerPointLabelPlacementCenterCenter",
-          symbol: { type: "esriTS", color: hexToRgba(color, 255), haloColor: [255, 255, 255, 255], haloSize: 1.5, font: { family: "Arial", size: Math.max(10, Number(size)), weight: "bold" } } };
+        const [color, size, font, bold, italic, haloColor, haloSize] = key.split("|");
+        const f = textFont({ font, bold: bold === "1", italic: italic === "1" });
+        const symbol = { type: "esriTS", color: hexToRgba(color, 255), font: { family: f.family, size: Math.max(10, Number(size)), weight: f.weight, style: f.style } };
+        if (Number(haloSize) > 0) { symbol.haloColor = hexToRgba(haloColor, 255); symbol.haloSize = Number(haloSize); }
+        return { where: "_style = '" + key.replace(/'/g, "''") + "'", labelExpressionInfo: { expression: "$feature.title" }, labelPlacement: "esriServerPointLabelPlacementCenterCenter", symbol };
       });
       layerDefinition.showLabels = true;
     } else {
