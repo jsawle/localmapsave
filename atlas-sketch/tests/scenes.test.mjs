@@ -1,5 +1,5 @@
 // Web scene files (saved-map format 3.0). Run: node atlas-sketch/tests/scenes.test.mjs
-import { docToWebScene, readWebScene, looksLikeWebScene, looksLikeWebMap, docToWebMap, readWebMap, WEBSCENE_SPEC_VERSION, WEBMAP_WRITER_VERSION } from "../lib/doc.js";
+import { docToWebScene, readWebScene, looksLikeWebScene, looksLikeWebMap, docToWebMap, readWebMap, WEBSCENE_SPEC_VERSION, WEBMAP_WRITER_VERSION, TEXT_FONTS, textFont, cleanSketchAttributes, sketchToOperationalLayers } from "../lib/doc.js";
 let n = 0, bad = 0;
 const ok = (c, msg, got) => { n++; if (!c) { bad++; console.log("  FAIL " + msg + (got !== undefined ? " — got " + JSON.stringify(got) : "")); } else console.log("  ok   " + msg); };
 
@@ -24,7 +24,7 @@ const doc = {
 };
 const ws = docToWebScene(doc, { baseMap: source.baseMap, sourceLayers: source.operationalLayers, portalLayers: [], appVersion: "5.0.0-test", sketchTitle: "Sketch", sketchVisible: true, camera, scene: source });
 
-ok(WEBMAP_WRITER_VERSION === "3.2", "the saved-map writer is 3.2", WEBMAP_WRITER_VERSION);
+ok(WEBMAP_WRITER_VERSION === "3.3", "the saved-map writer is 3.3", WEBMAP_WRITER_VERSION);
 ok(looksLikeWebScene(ws), "a saved scene is recognised as a web scene");
 ok(!looksLikeWebScene(docToWebMap(doc, { baseMap: source.baseMap, sourceLayers: [], portalLayers: [] })), "a saved web map is not");
 ok(ws.version === WEBSCENE_SPEC_VERSION && ws.viewingMode === "global" && ws.ground.layers[0].id === "elev", "it has the spec version, the kind of scene and the source's ground");
@@ -57,4 +57,27 @@ ok(safe.webscene.ground.layers[0].url.startsWith("https://elevation3d"), "a grou
 ok(readWebMap(ws).ok && looksLikeWebMap(ws), "(a scene file also has the web map shape, so the scene check runs first)");
 const wm2 = docToWebMap(doc, { baseMap: source.baseMap, sourceLayers: [], portalLayers: [] });
 ok(!readWebScene(wm2).ok, "a web map file is refused by the scene reader");
+// Text (saved-map format 3.3): font, bold, italic, halo
+{
+  const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  ok(Object.keys(TEXT_FONTS).length === 11 && TEXT_FONTS[""].family === "Arial Unicode MS", "eleven text fonts, the standard one first");
+  ok(eq(textFont({ font: "noto-serif", bold: 1, italic: 1 }), { family: "Noto Serif", weight: "bold", style: "italic" }), "a font with bold italic is given it");
+  ok(eq(textFont({ font: "caveat", bold: 1, italic: 1 }), { family: "Caveat", weight: "bold", style: "normal" }), "a font without italic stays upright");
+  ok(eq(textFont({ font: "patrick-hand", bold: 1, italic: 1 }), { family: "Patrick Hand", weight: "normal", style: "normal" }), "a font with neither is regular");
+  ok(eq(textFont({ font: "nonsense", bold: 0 }), { family: "Arial Unicode MS", weight: "normal", style: "normal" }), "an unknown font is the standard one");
+  const pt = { x: 1, y: 2, spatialReference: { wkid: 102100 } };
+  const old = cleanSketchAttributes({ kind: "text", title: "A", color: "#112233", size: 20 }, pt);
+  ok(old.font === "" && old.bold === 1 && old.italic === 0 && old.haloColor === "#ffffff" && old.haloSize === 1.5, "a text saved before these options is bold with a white halo", old);
+  const bad1 = cleanSketchAttributes({ kind: "text", font: "<script>", bold: "x", italic: "yes", haloColor: "red", haloSize: 99 }, pt);
+  ok(bad1.font === "" && bad1.bold === 1 && bad1.italic === 0 && bad1.haloColor === "#ffffff" && bad1.haloSize === 6, "values that aren't valid are put right", bad1);
+  const a = cleanSketchAttributes({ kind: "text", title: "B", color: "#112233", size: 24, font: "merriweather", bold: 0, italic: 1, haloColor: "#FFEE00", haloSize: 0 }, pt);
+  ok(a.font === "merriweather" && a.bold === 0 && a.italic === 1 && a.haloColor === "#ffee00" && a.haloSize === 0, "valid values are kept (a halo of size 0 is no halo)", a);
+  const lyr = sketchToOperationalLayers([{ geometry: pt, attributes: a }, { geometry: pt, attributes: old }], "Sketches", true).find((l) => l.id === "__sketch_text").featureCollection.layers[0];
+  const labels = lyr.layerDefinition.drawingInfo.labelingInfo;
+  ok(labels.length === 2, "two texts that look different get a label class each");
+  const la = labels.find((c) => c.symbol.font.family === "Merriweather"), lo = labels.find((c) => c.symbol.font.family === "Arial Unicode MS");
+  ok(la && eq(la.symbol.font, { family: "Merriweather", size: 24, weight: "normal", style: "italic" }) && !("haloSize" in la.symbol), "the written symbol has the font and style, and no halo when it is off", la && la.symbol);
+  ok(lo && lo.symbol.font.weight === "bold" && eq(lo.symbol.haloColor, [255, 255, 255, 255]) && lo.symbol.haloSize === 1.5, "the standard text is written bold with its white halo", lo && lo.symbol);
+  ok(lyr.featureSet.features[0].attributes.font === "merriweather" && lyr.featureSet.features[0].attributes.haloSize === 0, "each text's choices are in its attributes");
+}
 console.log(bad ? `${bad} of ${n} FAILED` : `All ${n} checks passed.`); process.exit(bad ? 1 : 0);

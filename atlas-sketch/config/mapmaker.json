@@ -46,5 +46,9 @@
     "sumType": "Each point colored by {color}.",
     "symbol": "Color",
     "sketchToolsHint": "Draw with the tools at the top of the map. Select a sketch to give it a pop-up, color and size.",
-    "manySelected": "{n} sketches selected: color and size change them all. Select just one to edit its pop-up." }
+    "manySelected": "{n} sketches selected: color and size change them all. Select just one to edit its pop-up.",
+    "fillColour": "Fill color", "outlineColour": "Outline color", "customFillColour": "Fill color of your own", "customOutlineColour": "Outline color of your own",
+    "customColour": "Color of your own", "haloColour": "Halo color", "customHaloColour": "Halo color of your own",
+    "styledFillHint": "This fill is drawn as it is, so it has no colors or outline to set.",
+    "unitsMetric": "km: kilometers and meters" }
 }
