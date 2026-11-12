@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.20";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.21";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.20";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.21";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.20";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.20";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.20";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.21";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.21";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.21";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.20";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.20";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.20";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.21";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.21";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.21";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.20";
+  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.21";
 
-const APP_VERSION = "5.0.0-beta.20";
+const APP_VERSION = "5.0.0-beta.21";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
   partnerLogos: [],
   theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", toolActive: "", toolActiveInk: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
   portalUrl: "https://www.arcgis.com",
-  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.20). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
+  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.21). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
   basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
   defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   startView: { center: [0, 20], zoom: 2 },
@@ -4230,24 +4230,24 @@ function renderVersions() {
     [cfg.appName + " (app)", APP_VERSION, "White-label build of the MapMaker app: every MapMaker tool, local save, CSV data, ArcGIS Online sign-in. Created by Jason Sawle."],
     ["Basemaps", BASEMAPS_VERSION, "MapMaker's basemap cards: the basemap group's maps in the group's own order, two to a row; in 3D, its 3D basemaps first."],
     ["Saved maps list (Open map, My map files)", RECENT_VERSION, "Maps saved on this device, newest first, kept in this browser. Chrome and Edge reopen the file itself; Safari and Firefox keep a copy of each saved map."],
-    ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages. Where the collection has 3D scenes, a row above the maps shows all, the 2D maps or the 3D scenes, with how many of each; a scene's card is marked 3D on its picture."],
+    ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages. Where the collection has 3D maps (web scenes), a row above the maps shows all, the 2D maps or the 3D maps, with how many of each; a 3D map's card is marked 3D on its picture."],
     ["Units", UNITS_VERSION, "Kilometres and metres, or miles and feet, in Measure, Elevation and Sketch. With units set to auto the app starts in miles on a device whose time zone is in the United States and in kilometres elsewhere; if the time zone isn't known, the browser's language decides. Nothing is sent anywhere to work this out. The km / mi switch changes the units, and the choice is kept on this device."],
     ["Docks", "1.0", "The chart, the table and Elevation open in a dock under the map. Drag the bar along the dock's top, or use the arrow keys on it, to make it taller or shorter; double-click the bar for the usual height. The height is kept for each kind of dock while the app is open."],
     ["Charts", CHARTS_VERSION, "A chart set up on a layer in Map Viewer, drawn by the SDK's chart component under the map: Map layers, then the layer's Chart button. Selecting on the chart highlights those features on the map. The chart's own toolbar has its legend, selection, only what is in view, zoom and saving."],
     ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). A line you draw takes the shortest way round the Earth between the places you click (a great circle), so on the flat map a long line is a curve; a line you choose on the map is followed as it is drawn. The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
-    ["3D scenes", "1.0", "Web scenes from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],
+    ["3D maps", "1.0", "3D maps (ArcGIS web scenes) from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],
     ["Loading", "1.1", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Swipe, the table, Elevation and Sketch is downloaded when the tool is first opened. All of these are the SDK's components (or the app's own code), not its widgets, which SDK 6 removes."],
     ["Sketch measuring", "1.1", "While drawing: tooltips, the length of each side (segment labels) and snapping to other sketches are on from the start; each can be turned off in the toolbar's Settings. Lengths and areas are shown with no decimal places."],
     ["Sketch panel", "3.2", "Laid out like Map Viewer's Sketch pane: what the tool in hand does, then what suits it. The plain circle or plain fill is always first among the recent symbols, and a styled fill says how to get back to colours and an outline. A point has recent symbols and a Change symbol view (category, search, symbols). A selected sketch has its name, Pop-up, Duplicate and Delete. One toolbar on the map."],
     ["Sketch styles", "2.3", "Points: symbols from 14 of Esri's sketch styles, the ones Map Viewer's Sketch offers. Lines: patterns and arrows. Text, set up as in Map Viewer: a font (11, from Esri's font service), bold and italic where the font has them, size, colour, a halo with its colour and size, and rotation. Areas, set up as in Map Viewer: fill colour and transparency, outline colour, transparency, width and pattern, or a styled fill (hatches, land use, pencil landscape; 2D only). Tooltips are on while drawing."],
-    ["Sketch in 3D", "1.0", "The Sketch toolbar works in the 3D view and in scenes with the same tools. Sketches lie on the ground and are saved as flat shapes, so they are the same in 2D."],
+    ["Sketch in 3D", "1.0", "The Sketch toolbar works in the 3D view and in 3D maps with the same tools. Sketches lie on the ground and are saved as flat shapes, so they are the same in 2D."],
     ["3D quality", "1.0", "How much work the 3D view does. Low (smaller textures, less memory, no shadows or stars) is chosen for a device with 4 GB of memory or less, 4 processor cores or fewer, or no graphics chip; otherwise medium. A config (threeDQuality) or a link (?quality=low, medium or high) can fix it."],
     ["Views", "2.0", "The 2D and 3D views are the SDK's map and scene components, with Search, Home, Zoom, the navigation toggle and the scale bar as components in their slots."],
     ["Time", "1.0", "The SDK's Time Bar on maps saved with time settings: play, step and a slider, set up from the map's own settings."],
     ["Older .mmap files (open only)", String(DOC_VERSION), "MapMakerLocalDocument versions 2 to 4, from earlier versions of this app, the local-save concept and Map Studio. (.mmap files saved as web maps by versions 1.2 to 1.6 open like .amap files.)"],
-    ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview. 3.5: in 3D and in scenes the features lie on the ground."],
+    ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview. 3.5: in 3D and in 3D maps the features lie on the ground."],
     ["Filter (lab)", FILTER_VERSION, "A layer's Filter panel, laid out like Map Viewer's: conditions on number and text fields (including 'is one of' a list), a histogram with a slider, a count of what's shown. A filter the map's author set, a list included, opens as ordinary conditions that can be changed. Built from Calcite components and the SDK's Histogram and Slider components; saved as the layer's definitionExpression."],
     ["Sketch", SKETCH_VERSION, "Points, lines, areas, circles and text, with pop-ups, images, colour, size and rotation; move, reshape and delete."],
     [S.configLabel, String(cfg.configVersion || 1), cfgChain.join(".json, on ") + ".json (schema " + CONFIG_SCHEMA + ")" + (localeFile ? "; language file locales/" + localeFile.name + ".json " + (localeFile.version || "1.0") : "")],
