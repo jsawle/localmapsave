@@ -2,25 +2,26 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.14";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.15";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.14";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.15";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.14";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.14";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.15";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.15";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.15";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.14";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.14";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.14";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.15";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.15";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.15";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.14";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.15";
 
-const APP_VERSION = "5.0.0-beta.14";
+const APP_VERSION = "5.0.0-beta.15";
 const COMPASS_VERSION = "1.1";
 const PROFILE_VERSION = "3.1";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
-const CONFIG_SCHEMA = 1;
+const CONFIG_SCHEMA = 2;
 const SDK_VERSION = "5.2";
 const AUTH_STASH = "atlas.authReturn";
 
@@ -57,14 +58,6 @@ const DEFAULT_CONFIG = {
     bookmarks: true, threeD: true, save: true, localSave: true, screenshot: true, print: true, search: true, signIn: true, compass: true, elevationProfile: true, filter: true },
   strings: {}
 };
-function mergeConfig(base, over) {
-  const out = Array.isArray(base) ? base.slice() : { ...base };
-  for (const k of Object.keys(over || {})) {
-    const b = base ? base[k] : undefined, o = over[k];
-    out[k] = b && o && typeof b === "object" && typeof o === "object" && !Array.isArray(b) && !Array.isArray(o) ? mergeConfig(b, o) : o;
-  }
-  return out;
-}
 function readAuthStash() {
   try {
     const s = JSON.parse(sessionStorage.getItem(AUTH_STASH) || "null");
@@ -77,18 +70,15 @@ const params = new URLSearchParams(location.search);
 const returningFromSignIn = params.has("code") && params.has("state");
 const authStash = returningFromSignIn ? readAuthStash() : null;
 let cfgName = (params.get("config") || (authStash && authStash.config) || "default").replace(/[^\w-]/g, "") || "default";
-let configMissing = null;
-async function fetchConfig(name) { const r = await fetch(`./config/${name}.json`, { cache: "no-cache" }); if (!r.ok) throw new Error(String(r.status)); return r.json(); }
-let rawCfg = {};
-try { rawCfg = await fetchConfig(cfgName); }
-catch (e) {
-  console.warn("Config not found:", cfgName, e);
-  if (cfgName !== "default") { configMissing = cfgName; cfgName = "default"; try { rawCfg = await fetchConfig("default"); } catch (e2) { rawCfg = {}; } }
-}
+const fetchJson = async (path) => { const r = await fetch(path, { cache: "no-cache" }); if (!r.ok) throw new Error(String(r.status)); return r.json(); };
+const loaded = await loadConfig(cfgName, fetchJson);
+cfgName = loaded.name;
+const rawCfg = loaded.raw, cfgChain = loaded.chain, configMissing = loaded.missing, localeFile = loaded.localeFile, localeMissing = loaded.localeMissing;
+if (configMissing) console.warn("Config not found:", configMissing);
 const cfg = mergeConfig(DEFAULT_CONFIG, rawCfg);
 for (const k of ["contentGroup", "basemapGroup", "defaultBasemap"]) if (!HEX32.test(cfg[k] || "")) { console.warn("Config " + k + " isn't a 32-character item or group ID; using the default."); cfg[k] = DEFAULT_CONFIG[k]; }
 const F = cfg.features;
-const S = { ...DEFAULT_STRINGS, ...(cfg.strings || {}) };
+const S = buildStrings(DEFAULT_STRINGS, localeFile, cfg);
 const APPV = { app: cfg.appName };
 const t = (key, o) => fmt(S[key] != null ? S[key] : key, { ...APPV, ...(o || {}) });
 const PORTAL = String(cfg.portalUrl || "https://www.arcgis.com").replace(/\/+$/, "");
@@ -4138,7 +4128,8 @@ function renderVersions() {
     ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview. 3.5: in 3D and in scenes the features lie on the ground."],
     ["Filter (lab)", FILTER_VERSION, "A layer's Filter panel, laid out like Map Viewer's: conditions on number and text fields, a histogram with a slider, a count of what's shown. Built from Calcite components and the SDK's Histogram and Slider components; saved as the layer's definitionExpression."],
     ["Sketch", SKETCH_VERSION, "Points, lines, areas, circles and text, with pop-ups, images, colour, size and rotation; move, reshape and delete."],
-    [S.configLabel, String(cfg.configVersion || 1), cfgName + ".json (schema " + CONFIG_SCHEMA + ")"],
+    [S.configLabel, String(cfg.configVersion || 1), cfgChain.join(".json, on ") + ".json (schema " + CONFIG_SCHEMA + ")" + (localeFile ? "; language file locales/" + localeFile.name + ".json " + (localeFile.version || "1.0") : "")],
+    ["Configs and language files", CONFIG_VERSION, "A config lists only what differs from the app's defaults and can start from another config (extends). The app's wording in a language comes from one shared file per language."],
     ["ArcGIS Maps SDK for JavaScript", SDK_VERSION, "Esri mapping library"]
   ];
   const tbl = $("versTable"); tbl.innerHTML = "";
@@ -4155,6 +4146,7 @@ view.when(() => {
   updatePopupEnabled();
   watchBottom(0);
   if (configMissing) toast("Config “" + configMissing + "” wasn't found, so the default is shown.", 6000);
+  if (localeMissing) console.warn("No language file for \"" + localeMissing + "\" in locales/, so the app's own wording is in English unless the config supplies it.");
 });
 if (authStash) {
   if (cfgName !== "default") { const u = new URL(location.href); u.searchParams.set("config", cfgName); history.replaceState(history.state, "", u.pathname + u.search); }
