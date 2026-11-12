@@ -77,7 +77,8 @@ def main():
             except Exception: return False
         def count(): return page.inner_text("#filterCount")
         def open_layers():
-            if not page.is_visible("#layersPanel"): click("#tool-layers")
+            # the element's own click, once: a pointer click that lands late followed by a second click would close the panel again
+            if not page.is_visible("#layersPanel"): page.evaluate("document.querySelector('#tool-layers').click()")
             wv('#layersList [data-key$=":filter"]', timeout=90000)
         def open_filter():
             open_layers(); page.evaluate("document.querySelector('#layersList [data-key$=\":filter\"]').click()")
