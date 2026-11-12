@@ -100,6 +100,15 @@
     .dock .panel-head h2{ font-size:16px; white-space:nowrap; }
     .dock-source{ flex:1 1 auto; min-width:0; font-size:12px; color:#4a4a4a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
     .dock-body{ flex:1 1 auto; min-height:0; overflow:hidden; }
+    /* the bar along the top of a dock: drag it (or use the arrow keys) to make the dock taller or shorter */
+    .dock{ position:relative; }
+    .dock-grip{ flex:none; height:14px; margin-top:-2px; display:flex; align-items:center; justify-content:center; cursor:ns-resize; touch-action:none; background:#f3f3f3; border-bottom:1px solid #dcdcdc; }
+    .dock-grip span{ width:44px; height:4px; border-radius:2px; background:#6a6a6a; }
+    .dock-grip:hover, .dock-grip.dragging{ background:#e2eef7; }
+    .dock-grip:hover span, .dock-grip.dragging span{ background:var(--brand); }
+    .dock-grip:focus-visible{ outline:3px solid var(--focus, #005e95); outline-offset:-3px; }
+    body.dock-dragging{ cursor:ns-resize; user-select:none; }
+    body.dock-dragging arcgis-map, body.dock-dragging arcgis-scene, body.dock-dragging .dock-body{ pointer-events:none; }
     .prof{ display:flex; flex-direction:column; padding:2px 10px 8px; }
     .prof-chart{ position:relative; flex:1 1 auto; min-height:0; border-radius:4px; }
     .prof-chart:focus-visible{ outline:3px solid var(--focus, #005e95); outline-offset:1px; }
@@ -869,10 +878,12 @@
       <div class="tile-tip" id="tileTip" role="tooltip" hidden></div>
     </main>
     <section class="dock table-dock" id="tableDock" hidden aria-labelledby="tableH">
+      <div class="dock-grip" role="separator" aria-orientation="horizontal" aria-valuemin="150" aria-valuemax="800" aria-valuenow="300" tabindex="0" data-i18n-aria="dockResize" aria-label="Resize: drag, or use the up and down arrow keys"><span aria-hidden="true"></span></div>
       <div class="panel-head"><h2 id="tableH" tabindex="-1"></h2><span class="chart-pick" id="chartPickWrap" hidden><label class="sr-only" for="chartPick" data-i18n="chartChoose">Which chart</label><select class="field" id="chartPick"></select></span><button class="x-btn" type="button" id="tableClose" data-i18n-aria="closeTable">&times;</button></div>
       <div class="dock-body" id="tableBody"></div>
     </section>
     <section class="dock" id="profilePanel" hidden aria-labelledby="profileH">
+      <div class="dock-grip" role="separator" aria-orientation="horizontal" aria-valuemin="150" aria-valuemax="800" aria-valuenow="300" tabindex="0" data-i18n-aria="dockResize" aria-label="Resize: drag, or use the up and down arrow keys"><span aria-hidden="true"></span></div>
       <div class="panel-head"><h2 id="profileH" tabindex="-1" data-i18n="elevationProfile">Elevation profile</h2><span class="dock-source" id="profileSource"></span><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
       <div class="dock-body prof" id="profileBody">
         <div class="prof-chart" id="profChart" tabindex="0" role="slider" aria-labelledby="profChartLabel" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"></div>
@@ -1018,6 +1029,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.16"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.17"></script>
 </body>
 </html>

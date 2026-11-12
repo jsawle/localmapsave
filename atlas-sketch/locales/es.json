@@ -182,6 +182,7 @@
     "tableOf": "Tabla: {title}",
     "tableFailed": "No se pudo mostrar la tabla de esta capa.",
     "closeTable": "Cerrar",
+    "dockResize": "Cambiar el tamaño: arrastra, o usa las teclas de flecha arriba y abajo", "dockHeight": "{n} píxeles de alto",
     "chart": "Gráfico", "chartOf": "Gráfico: {title}", "chartN": "Gráfico {n}", "chartChoose": "Qué gráfico", "chartFailed": "No se pudo mostrar el gráfico de esta capa.",
     "mapHasChart": "Este mapa tiene un gráfico. Abre Capas del mapa y elige el botón Gráfico de la capa.", "mapHasCharts": "Este mapa tiene gráficos en {n} capas. Abre Capas del mapa y elige el botón Gráfico de una capa.",
     "noLayerDescription": "Esta capa no tiene descripción.",
