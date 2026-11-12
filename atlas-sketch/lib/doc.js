@@ -4,7 +4,7 @@
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "3.3";        // 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill). 3.2: areas have a fill colour, outline transparency and width, and can take a styled fill
+export const WEBMAP_WRITER_VERSION = "3.4";        // 3.4: a map saved while in 3D reopens in 3D ("atlas3d": its camera); a spreadsheet layer keeps Columns in 3D ("atlasColumns3d"). 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill). 3.2: areas have a fill colour, outline transparency and width, and can take a styled fill
 export const WEBMAP_SPEC_VERSION = "2.31";
 export const WEBSCENE_SPEC_VERSION = "1.40";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
@@ -147,6 +147,7 @@ export function cleanDataLayer(ld, budget) {
     renderer: ld.renderer ? scrubSymbols(ld.renderer, 0) : null,
     labelingInfo: Array.isArray(ld.labelingInfo) ? scrubSymbols(ld.labelingInfo, 0) : null,
     popupInfo: cleanPopupInfo(ld.popupInfo, fields),
+    ...(ld.columns3d === true ? { columns3d: true } : {}),   // lab: Columns in 3D
     features: feats,
     visible: ld.visible !== false, opacity: clamp(ld.opacity, 0, 1, 1), showLabels: ld.showLabels !== false,
     definitionExpression: str(ld.definitionExpression, 2000).trim() || undefined   // the layer's filter (lab)
@@ -363,6 +364,7 @@ export function dataDefToOperationalLayer(def, visible, opacity) {
   return {
     id: DATA_LAYER_PREFIX + def.id, title: def.title, layerType: "ArcGISFeatureLayer", visibility: visible !== false, opacity: finite(opacity) ? opacity : 1,
     showLabels: !!def.labelingInfo && def.showLabels !== false,
+    ...(def.columns3d === true ? { [COLUMNS_3D_PROP]: true } : {}),
     featureCollection: { layers: [{
       layerDefinition: { name: def.title, type: "Feature Layer", geometryType: ESRI_GEOM[gtype] || gtype, objectIdField: def.objectIdField || "ObjectId",
         fields: def.fields, drawingInfo, ...filter },
@@ -380,7 +382,7 @@ export function operationalLayerToDataDef(op, budget) {
     id: String(op.id || "").replace(/^__data_/, ""), title: op.title || ld.name, geometryType: ld.geometryType, objectIdField: ld.objectIdField,
     fields: ld.fields, renderer: ld.drawingInfo && ld.drawingInfo.renderer, labelingInfo: ld.drawingInfo && ld.drawingInfo.labelingInfo,
     popupInfo: lyr.popupInfo, features: lyr.featureSet && lyr.featureSet.features, visible: op.visibility !== false, opacity: op.opacity,
-    showLabels: op.showLabels !== false, definitionExpression: ld.definitionExpression
+    showLabels: op.showLabels !== false, definitionExpression: ld.definitionExpression, columns3d: op[COLUMNS_3D_PROP] === true
   }, budget || { left: MAX_FEATURES });
 }
 export function isOwnLayerJson(op) { return !!op && typeof op.id === "string" && (op.id.startsWith(SKETCH_LAYER_PREFIX) || op.id.startsWith(DATA_LAYER_PREFIX)); }
@@ -499,6 +501,7 @@ export function docToWebMap(doc, ctx) {
 // A locked map (Save a locked copy: a teacher's class map, a student's handed-in work). This app never saves over it,
 // whatever the file is called or wherever it's copied. The mark is the one property in a saved map that the Web Map
 // Specification doesn't define; other ArcGIS apps ignore it. Anyone editing the file's text can remove it.
+export const COLUMNS_3D_PROP = "atlasColumns3d";   // on a spreadsheet layer: drawn as columns in the 3D view (lab)
 export const LOCK_PROP = "atlasLocked";
 export function isLockedMap(raw) { return !!raw && typeof raw === "object" && !Array.isArray(raw) && raw[LOCK_PROP] === true; }
 export function isLockedText(text) { try { return isLockedMap(JSON.parse(text)); } catch (e) { return false; } }
@@ -657,6 +660,15 @@ export function readWebMap(raw, opts) {
 // ---------------------------------------------------------------- web scenes (3D): saved and opened as a web scene
 // A web scene opened in this app is saved as a web scene (Web Scene Specification), in the same .amap file. What tells
 // the two apart is in the file: a scene has "viewingMode" and "ground", which a web map has not.
+// A web map has no 3D view of its own, so two things about 3D are kept in properties of this app's, which other apps
+// pass over: on the map, that it was saved while in 3D and from where it was seen; on a spreadsheet layer, that it is
+// drawn as columns in 3D. Its saved style stays the 2D one, so the map is whole in Map Viewer too.
+export const VIEW_3D_PROP = "atlas3d";
+/** The 3D camera a web map file was saved with, cleaned, or null. */
+export function saved3dCamera(raw) {
+  const v = raw && typeof raw === "object" ? raw[VIEW_3D_PROP] : null;
+  return v && typeof v === "object" ? cleanCamera(v.camera) : null;
+}
 export const TWO_D_ONLY_PROP = "atlas2dOnly";   // a web map its author set to 2D only (its item's "atlas-2d-only" tag), kept in the saved file
 export function looksLikeWebScene(raw) {
   return looksLikeWebMap(raw) && (raw.viewingMode === "global" || raw.viewingMode === "local") && !!raw.ground && typeof raw.ground === "object";
