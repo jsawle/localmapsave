@@ -480,6 +480,7 @@
     "profileWorking": "Buscando las alturas a lo largo de la línea…",
     "profileFailed": "No se pudieron obtener las alturas de esa línea. Inténtalo de nuevo o prueba con otra línea.",
     "profileNoSR": "Este mapa usa un sistema de coordenadas en el que la herramienta Elevación no puede trabajar.",
+    "units": "Unidades", "unitsMetric": "km: kilómetros y metros", "unitsImperial": "mi: millas y pies",
     "profileNew": "Nueva línea", "profilePickLine": "Usar una línea dibujada", "profileLineN": "Línea {n}",
     "profileChartLabel": "Lugar a lo largo de la línea. Las teclas de flecha se mueven por ella.",
     "profileSeaLevel": "Nivel del mar",

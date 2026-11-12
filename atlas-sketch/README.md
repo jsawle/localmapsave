@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.11**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.12**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -11,6 +11,25 @@
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Units that fit where the device is (5.0.0-beta.12)
+
+With `"units": "auto"` (now the default, and what the MapMaker config uses; it was fixed to imperial) the app starts in miles and feet on a device in the United States and in kilometres and metres elsewhere. This covers Measure, Elevation, and Sketch's tooltips and side labels. The scale bar is unchanged (`scalebar`, both by default).
+
+**How it decides** (`lib/units.js`, Units 1.0), first match wins:
+
+1. `units=imperial` or `units=metric` in the link.
+2. The person's own choice, made with the **km / mi** switch in Measure and Elevation. It is kept on the device (`localStorage`, key `atlas.units`).
+3. `"units": "imperial"` or `"metric"` in the config.
+4. The device's time zone: a zone of the United States or its territories is miles and feet, any other is kilometres and metres.
+5. If the time zone isn't known (missing, or plain UTC), the browser's language: a US region (`en-US`, `es-US`) is miles and feet.
+6. Otherwise kilometres and metres.
+
+No IP address lookup and no request to any service: the time zone and language are read from the browser. The time zone comes before the language because many browsers outside the US are left on US English. `"unitsSwitch": false` hides the switch (and ignores a remembered choice).
+
+Limits: a device set to the wrong time zone starts in the wrong units (the switch puts it right). Only the United States is treated as a miles country. The Measure tool's own units menu still works but its choice isn't remembered. Sketch's side labels take their units from the SDK's portal setting, as its documentation describes.
+
+Tests: `node atlas-sketch/tests/units.test.mjs` (42 checks) and `python3 atlas-sketch/tests/live-units.py` (18 checks, run with the browser set to Chicago and to London).
 
 ## Elevation: drawn lines take the shortest way round (5.0.0-beta.11)
 
