@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.25";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.26";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.25";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.26";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.25";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.25";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.25";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.26";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.26";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.26";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.25";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.25";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.25";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.26";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.26";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.26";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.25";
+  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.26";
 
-const APP_VERSION = "5.0.0-beta.25";
+const APP_VERSION = "5.0.0-beta.26";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
   partnerLogos: [],
   theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", toolActive: "", toolActiveInk: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
   portalUrl: "https://www.arcgis.com",
-  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.25). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
+  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.26). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
   basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
   defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   startView: { center: [0, 20], zoom: 2 },
@@ -424,6 +424,13 @@ function makeCompass(v, is3d) {
 }
 addViewUI(mapView, false);
 upgradeIcons();
+// Where to look to see new data. In 2D, its extent. In 3D a view from straight above hides height (columns, terrain),
+// so a view that isn't tilted yet is tilted to 55°; a tilt the user has already set is kept.
+const FRAME_TILT = 55;
+function frameTarget(extent) {
+  if (mode !== "3d" || !view.camera) return extent;
+  return view.camera.tilt < 20 ? { target: extent, tilt: FRAME_TILT, heading: view.camera.heading } : extent;
+}
 function goToSafe(target, opts) {
   const o = { animate: !reduceMotion, ...(opts || {}) };
   let tries = 0;
@@ -3421,7 +3428,7 @@ function continueCsv(name, parsed, latIdx, lonIdx) {
   addState.style = pickAutoStyle(addState);
   addState.fieldChoices = pickAutoFields(addState.style, addState);
   removePreview(false);
-  if (!prePreviewCam) { try { prePreviewCam = { center: [view.center.longitude, view.center.latitude], zoom: view.zoom }; } catch (e) { prePreviewCam = null; } }
+  if (!prePreviewCam) { try { prePreviewCam = { center: [view.center.longitude, view.center.latitude], zoom: view.zoom, camera: mode === "3d" && view.camera ? view.camera.clone() : null }; } catch (e) { prePreviewCam = null; } }
   openPanel("data");
   renderDataPanel();
   updatePreview(true);
@@ -3593,7 +3600,7 @@ function updateConfigSummary() {
 function removePreview(restoreCam) {
   clearTimeout(previewTimer); previewTimer = 0;
   if (previewLayer) { removeFromMaps(previewLayer); previewLayer = null; }
-  if (restoreCam && prePreviewCam) goToSafe({ center: prePreviewCam.center, zoom: prePreviewCam.zoom }, { animate: false });
+  if (restoreCam && prePreviewCam) goToSafe(mode === "3d" && prePreviewCam.camera ? prePreviewCam.camera : { center: prePreviewCam.center, zoom: prePreviewCam.zoom }, { animate: false });   // in 3D: the tilt and heading too
   if (restoreCam) prePreviewCam = null;
 }
 function updatePreview(frame) {
@@ -3606,7 +3613,7 @@ function updatePreview(frame) {
     let fl;
     try { fl = buildDataLayer(buildLayerDef(addState, "csvPreview")); } catch (e) { console.error(e); return; }
     previewLayer = fl; activeMap().add(fl); keepSketchOnTop();
-    if (frame) fl.when().then(() => fl.queryExtent()).then((r) => { if (r && r.extent) goToSafe(r.extent.expand(1.2), { animate: false }); }).catch(() => {});
+    if (frame) fl.when().then(() => fl.queryExtent()).then((r) => { if (r && r.extent) goToSafe(frameTarget(r.extent.expand(1.2)), { animate: false }); }).catch(() => {});
   }, frame ? 0 : 200);
 }
 function submitData() {
@@ -3619,7 +3626,7 @@ function submitData() {
   try { fl = addDataLayer(def); } catch (e) { console.error(e); toast(S.layerFailed.replace("{title}", def.title)); return; }
   addState = null;
   closePanels();
-  fl.when().then(() => fl.queryExtent()).then((r) => { if (r && r.extent) goToSafe(r.extent.expand(1.2), { animate: false }); }).catch(() => {});
+  fl.when().then(() => fl.queryExtent()).then((r) => { if (r && r.extent) goToSafe(frameTarget(r.extent.expand(1.2)), { animate: false }); }).catch(() => {});
   toast(t("addedPoints", { n }));
 }
 function applyStyleEdit() {
