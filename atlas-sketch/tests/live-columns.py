@@ -59,6 +59,16 @@ def main():
         print("== without the switch (config=mapmaker)")
         start("mapmaker"); drop("litter.csv", CSV); wv("#dataPanel:not([hidden]) #dataSubmit"); page.wait_for_timeout(800); style("graduated")
         check(page.evaluate("!document.querySelector('#columns3dBox')"), "By size has no columns choice")
+        style("numeric_color_size"); page.wait_for_timeout(600)
+        RAMP = "(() => { const l = " + LAYER.replace("PFX", json.dumps("csvPreview")) + " || " + LAYER.replace("PFX", json.dumps("__data_csvPreview")) + "; const v = l && (l.renderer.visualVariables || []).find(x => x.type === 'color'); return v ? v.stops.map(s => s.color.toHex()) : null; })()"
+        check(page.evaluate("!document.querySelector('#rampRevRow').hidden && !document.querySelector('#rampReverse').checked"), "Color & size has Reverse colours, off to start")
+        page.wait_for_timeout(1200); c0 = page.evaluate(RAMP); bg0 = page.evaluate("document.querySelector('#rampList .ramp-btn').style.background")
+        js("#rampReverse"); page.wait_for_timeout(1500); c1 = page.evaluate(RAMP); bg1 = page.evaluate("document.querySelector('#rampList .ramp-btn').style.background")
+        check(bool(c0) and bool(c1) and c1 == c0[::-1], f"ticked, the preview's colours run the other way ({c0[0]}…{c0[-1]} → {c1[0]}…{c1[-1]})")
+        check(bg0 != bg1 and "270deg" in bg1, "and the ramp buttons show it")
+        if a.axe:
+            page.add_script_tag(path=a.axe); v = page.evaluate(AXE, "#dataPanel"); check(not v, "the panel with Reverse colours: no WCAG 2.1 A/AA violations (axe-core): " + "; ".join(v))
+        style("graduated"); check(page.evaluate("document.querySelector('#rampRevRow').hidden"), "By size has no Reverse colours (no ramp)")
         PIE = "(() => { const b = document.querySelectorAll('#styleList .style-card')[5]; return [b.disabled, b.title]; })()"
         pie = page.evaluate(PIE); check(pie[0] is False, "in 2D Pie charts is offered")
         js("#tg3d"); wf("document.querySelector('#tg3d').getAttribute('aria-pressed') === 'true'", timeout=180000); page.wait_for_timeout(1500)
@@ -66,7 +76,11 @@ def main():
         js("#tg2d"); wf("document.querySelector('#tg2d').getAttribute('aria-pressed') === 'true'"); page.wait_for_timeout(1000)
         check(page.evaluate(PIE)[0] is False, "back in 2D, with the panel still open, it is offered again")
 
-        print("== with it (config=lab), in 3D")
+        print("== with it (config=lab)")
+        start("lab"); drop("litter.csv", CSV); wv("#dataPanel:not([hidden]) #dataSubmit"); page.wait_for_timeout(800); style("graduated")
+        check(page.evaluate("!document.querySelector('#columns3dBox')"), "in 2D the columns choice isn't shown")
+        js("#tg3d"); wf("(() => { const s = document.querySelector('arcgis-scene'); return !!(s && s.view && s.view.ready) && document.querySelector('#tg3d').getAttribute('aria-pressed') === 'true'; })()", timeout=180000); page.wait_for_timeout(1500)
+        check(page.evaluate("!!document.querySelector('#columns3dBox')"), "switching to 3D with the panel open shows it")
         start("lab"); to_3d()
         drop("litter.csv", CSV); wv("#dataPanel:not([hidden]) #dataSubmit"); page.wait_for_timeout(1500)
         TILT = "document.querySelector('arcgis-scene').view.camera.tilt"

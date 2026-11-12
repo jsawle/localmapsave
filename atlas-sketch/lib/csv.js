@@ -2,7 +2,7 @@
 // Pure functions only (no ArcGIS SDK), so they can be unit-tested in Node.
 // Nothing here sends the file anywhere: parsing happens in the browser.
 
-export const CSV_VERSION = "3.5";   // 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
+export const CSV_VERSION = "3.6";   // 3.6: Reverse colours on a colour ramp. 3.0: delimiter sniffing (, ; tab), decimal commas, quoted line breaks,
                                     // multi-language lat/long names, manual column choice
                                     // 3.1: a layer's style can be changed after it's added (stateFromLayerDef)
                                     // 3.2: coordinates with N/S/E/W and degrees-minutes-seconds; whole-number codes
@@ -544,7 +544,9 @@ export function stateFromLayerDef(def) {
   if (colorVV && Array.isArray(colorVV.stops) && colorVV.stops.length) {
     const first = (colorVV.stops[0].color || []).slice(0, 3).join(",");
     const ramp = COLOR_RAMPS.find((x) => x.colors[0].join(",") === first);
+    const turned = ramp ? null : COLOR_RAMPS.find((x) => x.colors[x.colors.length - 1].join(",") === first);   // saved with Reverse colours
     if (ramp) st.symbolChoices.ramp = ramp.id;
+    else if (turned) { st.symbolChoices.ramp = turned.id; st.symbolChoices.rampReverse = true; }
   }
   // Fall back to the automatic choice if the saved style no longer fits the columns (e.g. a file edited elsewhere).
   const style = DATA_STYLES.find((x) => x.id === styleId);
@@ -633,7 +635,8 @@ function numericColorRenderer(st, field) {
   let lo = Math.max(min, mean - sd), hi = Math.min(max, mean + sd);
   if (lo >= hi) { lo = min; hi = max; }
   if (lo >= hi) hi = lo + 1;
-  const ramp = (COLOR_RAMPS.find((r) => r.id === st.symbolChoices.ramp) || COLOR_RAMPS[0]).colors, n = ramp.length;
+  let ramp = (COLOR_RAMPS.find((r) => r.id === st.symbolChoices.ramp) || COLOR_RAMPS[0]).colors; const n = ramp.length;
+  if (st.symbolChoices.rampReverse) ramp = ramp.slice().reverse();   // Reverse colours: the low values get the ramp's last colour
   const r2 = (x) => Math.round(x * 100) / 100;
   const stops = ramp.map((c, i) => ({ value: r2(lo + (hi - lo) * i / (n - 1)), color: [c[0], c[1], c[2], POINT_FILL_ALPHA],
     label: i === 0 ? "< " + r2(lo) : (i === n - 1 ? "> " + r2(hi) : "") }));
