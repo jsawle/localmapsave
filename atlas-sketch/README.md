@@ -7,11 +7,29 @@
 | `https://jsawle.github.io/localmapsave/atlas-sketch/` | Neutral "School Atlas" branding |
 | `…/atlas-sketch/?config=mapmaker` | MapMaker's groups, units, colours and wording |
 | `…/atlas-sketch/?config=test` | Same as `mapmaker`, but content comes from the test group "Schools Living Atlas – 5.0 test" (`c3ac404ac811494ea6fa116abc0cf39b`, GIS 4 Schools org): the 183 live items plus test content such as 3D scenes and maps with charts |
-| `…/atlas-sketch/?config=example-es` | Spanish-language version |
+| `…/atlas-sketch/?config=example-es` | Spanish-language version: a 37-line config plus the shared `locales/es.json` |
 
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Configs and shared language files (5.0.0-beta.15)
+
+One app, one config per partner. A config in `config/` lists only what differs from the app's defaults; everything else is inherited.
+
+| Piece | Where | What it holds |
+|---|---|---|
+| Defaults | `DEFAULT_CONFIG` in `app.js` | Neutral "School Atlas", English, the live MapMaker content group, every tool on |
+| A config | `config/<name>.json`, opened with `?config=<name>` | Name, logo, colours, language, content group, start view, units, links, sign-in text, tool switches |
+| Starting from another config | `"extends": "<name>"` in a config | `config/test.json` is three lines: the MapMaker config with another content group. Up to three levels |
+| A language | `locales/<locale>.json`, chosen by `"locale"` in a config | All 515 pieces of the app's wording, the text direction (`"dir": "ltr"` or `"rtl"`), and a version. `es-PA` falls back to `es.json` |
+| A config's own wording | `"strings"` in a config | Laid over the language file, for a partner's own terms ("MapMaker maps") |
+
+`config/example-es.json` is the model for a distributor: 37 lines, no wording of its own. Before this release it carried its own copy of the whole Spanish translation (511 pieces, four behind the app); that is now `locales/es.json`, complete, and shared by any Spanish-language config.
+
+`node atlas-sketch/tests/config.test.mjs` checks every config and language file: it parses, IDs are IDs, colours are colours, what it extends exists, its language has a file, and each language file has every piece of wording with the same `{placeholders}` as the English. The About table shows the config, what it extends, and the language file with its version.
+
+Not done: right-to-left layout (the page direction is set from the language file, but the app's own styles are written left-to-right); a config kept as an ArcGIS Online item; `atlas/` (1.14.8) still uses whole-file configs.
 
 ## Text as Map Viewer sets it up, and a way back from a styled fill (5.0.0-beta.14)
 
