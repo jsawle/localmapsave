@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.16";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.17";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.16";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.17";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.16";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.16";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.16";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.17";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.17";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.17";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.16";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.16";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.16";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.17";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.17";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.17";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.16";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.17";
 
-const APP_VERSION = "5.0.0-beta.16";
+const APP_VERSION = "5.0.0-beta.17";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -590,7 +590,7 @@ function panelOpening(name) {
   if (name === "about") renderVersions();
   if (name === "legend") ensureLegend().catch(() => {});
   if (name === "basemaps") ensureGallery();
-  if (name === "profile") { closeTable(false); $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles(); need("profile").then(() => { if (openPanelName === "profile") ensureProfile(); }).catch(() => {}); }
+  if (name === "profile") { closeTable(false); setTimeout(() => { if (openPanelName === "profile") syncDockHeight($("profilePanel")); }, 0); $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles(); need("profile").then(() => { if (openPanelName === "profile") ensureProfile(); }).catch(() => {}); }
 }
 function panelClosing(name) {
   if (name === "sketch") { sketchToolsOn(false); sketchPanelOpen = false; }
@@ -2256,7 +2256,7 @@ async function openTable(l) {
     const c = document.createElement("div"); c.className = "table-host";
     $("tableBody").replaceChildren(c);
     $("tableH").textContent = t("tableOf", { title: l.title || "" });
-    $("tableDock").hidden = false;
+    $("tableDock").hidden = false; syncDockHeight($("tableDock"));
     $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles();
     const w = await toolEl("arcgis-feature-table", c, { view, layer: l });
     nameTableProgress(w);
@@ -2266,6 +2266,36 @@ async function openTable(l) {
   renderLayers({ keepFocus: true });
 }
 $("tableClose").addEventListener("click", () => closeTable(true));
+// A dock (the chart, the table, Elevation) can be made taller or shorter: drag the bar along its top, or with the bar
+// in focus use the up and down arrow keys (Page Up / Page Down for bigger steps, Home and End for the tallest and
+// shortest). The height chosen is kept for each kind of dock while the app is open; the map keeps at least 120px.
+const dockHeights = {};
+const dockKind = (dock) => (dock.id === "profilePanel" ? "profile" : dock.classList.contains("chart-dock") ? "chart" : "table");
+function dockLimits(dock) { const app = $("app").getBoundingClientRect(), top = $("mapWrap").getBoundingClientRect().top; return { min: 150, max: Math.max(150, Math.round(app.bottom - top - 120)) }; }
+function setDockHeight(dock, px, remember) {
+  const { min, max } = dockLimits(dock), hgt = Math.round(Math.min(max, Math.max(min, px)));
+  dock.style.height = hgt + "px";
+  if (remember) dockHeights[dockKind(dock)] = hgt;
+  const grip = dock.querySelector(".dock-grip");
+  if (grip) { grip.setAttribute("aria-valuemin", String(min)); grip.setAttribute("aria-valuemax", String(max)); grip.setAttribute("aria-valuenow", String(hgt)); grip.setAttribute("aria-valuetext", fmt(S.dockHeight, { n: hgt })); }
+  layoutBottom();
+}
+// when a dock opens (or changes from table to chart): the height last chosen for its kind, else the stylesheet's
+function syncDockHeight(dock) { const k = dockHeights[dockKind(dock)]; if (k) setDockHeight(dock, k, false); else { dock.style.height = ""; setDockHeight(dock, dock.getBoundingClientRect().height, false); dock.style.height = ""; } }
+for (const grip of document.querySelectorAll(".dock-grip")) {
+  const dock = grip.parentElement; let start = null;
+  grip.addEventListener("pointerdown", (e) => { if (e.button) return; start = { y: e.clientY, h: dock.getBoundingClientRect().height }; grip.setPointerCapture(e.pointerId); grip.classList.add("dragging"); document.body.classList.add("dock-dragging"); e.preventDefault(); });
+  grip.addEventListener("pointermove", (e) => { if (start) setDockHeight(dock, start.h + (start.y - e.clientY), true); });
+  const end = (e) => { if (!start) return; start = null; grip.classList.remove("dragging"); document.body.classList.remove("dock-dragging"); try { grip.releasePointerCapture(e.pointerId); } catch (err) { /* released */ } setTimeout(layoutBottom, 0); };
+  grip.addEventListener("pointerup", end); grip.addEventListener("pointercancel", end);
+  grip.addEventListener("keydown", (e) => {
+    const cur = dock.getBoundingClientRect().height, { min, max } = dockLimits(dock);
+    const to = { ArrowUp: cur + 20, ArrowDown: cur - 20, PageUp: cur + 100, PageDown: cur - 100, Home: max, End: min }[e.key];
+    if (to === undefined) return; e.preventDefault(); setDockHeight(dock, to, true);
+  });
+  grip.addEventListener("dblclick", () => { delete dockHeights[dockKind(dock)]; syncDockHeight(dock); });   // back to the usual height
+}
+window.addEventListener("resize", () => { for (const d of document.querySelectorAll(".dock:not([hidden])")) if (d.style.height) setDockHeight(d, parseFloat(d.style.height), false); });
 // Charts (1.0 in 5.0.0-beta.16): a chart the map's author set up on a layer in Map Viewer is drawn by the SDK's chart
 // component from that set-up, in the dock under the map (where the table goes; one or the other). The component's own
 // action bar has its tools: the legend, selecting, only what is in view, zoom, and saving the picture or the numbers.
@@ -2285,7 +2315,7 @@ async function openChart(l, index) {
     $("tableH").textContent = t("chartOf", { title: l.title || "" });
     const pick = $("chartPick"); pick.replaceChildren(...charts.map((ch, k) => new Option(chartTitle(ch, k), String(k)))); pick.value = String(i);
     $("chartPickWrap").hidden = charts.length < 2;
-    $("tableDock").classList.add("chart-dock"); $("tableDock").hidden = false;
+    $("tableDock").classList.add("chart-dock"); $("tableDock").hidden = false; syncDockHeight($("tableDock"));
     $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles();
     const el = document.createElement("arcgis-chart"); el.setAttribute("aria-label", chartTitle(charts[i], i));
     const bar = document.createElement("arcgis-charts-action-bar"); bar.slot = "action-bar"; el.appendChild(bar);
@@ -4157,6 +4187,7 @@ function renderVersions() {
     ["Saved maps list (Open map, My map files)", RECENT_VERSION, "Maps saved on this device, newest first, kept in this browser. Chrome and Edge reopen the file itself; Safari and Firefox keep a copy of each saved map."],
     ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
     ["Units", UNITS_VERSION, "Kilometres and metres, or miles and feet, in Measure, Elevation and Sketch. With units set to auto the app starts in miles on a device whose time zone is in the United States and in kilometres elsewhere; if the time zone isn't known, the browser's language decides. Nothing is sent anywhere to work this out. The km / mi switch changes the units, and the choice is kept on this device."],
+    ["Docks", "1.0", "The chart, the table and Elevation open in a dock under the map. Drag the bar along the dock's top, or use the arrow keys on it, to make it taller or shorter; double-click the bar for the usual height. The height is kept for each kind of dock while the app is open."],
     ["Charts", CHARTS_VERSION, "A chart set up on a layer in Map Viewer, drawn by the SDK's chart component under the map: Map layers, then the layer's Chart button. Selecting on the chart highlights those features on the map. The chart's own toolbar has its legend, selection, only what is in view, zoom and saving."],
     ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). A line you draw takes the shortest way round the Earth between the places you click (a great circle), so on the flat map a long line is a curve; a line you choose on the map is followed as it is drawn. The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],

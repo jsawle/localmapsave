@@ -231,6 +231,7 @@ export const DEFAULT_STRINGS = {
   tableOf: "Table: {title}",
   tableFailed: "Couldn’t show the table for this layer.",
   closeTable: "Close",
+  dockResize: "Resize: drag, or use the up and down arrow keys", dockHeight: "{n} pixels tall",
   chart: "Chart", chartOf: "Chart: {title}", chartN: "Chart {n}", chartChoose: "Which chart", chartFailed: "Couldn’t show the chart for this layer.",
   mapHasChart: "This map has a chart. Open Map layers and choose the layer's Chart button.", mapHasCharts: "This map has charts on {n} layers. Open Map layers and choose a layer's Chart button.",
   noLayerDescription: "There’s no description for this layer.",
