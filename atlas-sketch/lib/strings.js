@@ -316,7 +316,17 @@ export const DEFAULT_STRINGS = {
   profileSource: "Elevation data. {src}",
   showTools: "Show map tools",
   hideTools: "Hide map tools",
-  profileHint: "Draw a line on the map, or select a line you've sketched, to see how the height of the land changes along it.",
+  profileHint: "Click the map for each point of a line and double-click to finish, or click a line already on the map.",
+  profileDrawing: "Click for each point of the line. Double-click, or press Enter, to finish.",
+  profileWorking: "Finding the heights along the line…",
+  profileFailed: "The heights couldn't be found for that line. Try again, or try another line.",
+  profileNoSR: "This map uses a coordinate system the Elevation tool can't work in.",
+  profileNew: "New line", profilePickLine: "Use a sketched line", profileLineN: "Line {n}",
+  profileChartLabel: "Place along the line. The arrow keys move along it.",
+  profileSeaLevel: "Sea level",
+  profileLength: "Length", profileHighest: "Highest", profileLowest: "Lowest", profileClimb: "Total climb", profileDescent: "Total descent",
+  profileAt: "{dist} along: {height}", profileNoPlace: "No place chosen",
+  profileSummary: "The line is {length} long. Its highest point is {high} and its lowest {low}.", profileBelowSea: "Part of it is below sea level.",
 
   // Sketch
   sketchToolsJump: "Go to the drawing tools",

@@ -94,20 +94,29 @@
     .tool-menu .tool{ width:100px; height:auto; min-height:var(--tb-h); padding:10px 6px; gap:6px; white-space:normal; text-align:center; line-height:1.3; }
     .tool-menu .tool:not([hidden]) ~ .tool{ border-left:1px solid var(--tool-line); }
     .ti.md{ width:24px; height:24px; }
-    /* Elevation profile docked under the map: a short strip, so the map keeps most of the screen. Wide screens put the chart
-       on the left and the settings, the line's legend and the buttons on the right, so every control shows without scrolling. */
-    .dock{ flex:0 0 auto; height:clamp(210px, 30vh, 270px); display:flex; flex-direction:column; background:#fff; border-top:2px solid var(--brand); z-index:5; }
+    /* Elevation profile docked under the map: the chart runs the whole width, with the line's figures in one row beneath it. */
+    .dock{ flex:0 0 auto; height:clamp(230px, 34vh, 320px); display:flex; flex-direction:column; background:#fff; border-top:2px solid var(--brand); z-index:5; }
     .dock .panel-head{ padding:5px 8px 5px 14px; gap:14px; }
-    .dock .panel-head h2{ font-size:15px; white-space:nowrap; }
-    .dock-source{ flex:1 1 auto; min-width:0; font-size:11px; color:#5f5f5f; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
+    .dock .panel-head h2{ font-size:16px; white-space:nowrap; }
+    .dock-source{ flex:1 1 auto; min-width:0; font-size:12px; color:#4a4a4a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
     .dock-body{ flex:1 1 auto; min-height:0; overflow:hidden; }
-    #profileBody.esri-elevation-profile{ height:100%; box-sizing:border-box; padding:6px 14px 10px; }
-    #profileBody > div{ height:100%; display:grid; grid-template-columns:minmax(0, 1fr) minmax(200px, 260px); grid-template-rows:auto minmax(0, 1fr) auto;
-      grid-template-areas:"main header" "main legend" "main footer"; column-gap:18px; row-gap:6px; }
-    #profileBody .esri-elevation-profile__main-container{ grid-area:main; height:auto; min-height:0; }
-    #profileBody .esri-elevation-profile__header{ grid-area:header; }
-    #profileBody .esri-elevation-profile-legend{ grid-area:legend; margin-top:0; min-height:0; overflow:auto; }
-    #profileBody .esri-elevation-profile__footer{ grid-area:footer; margin-top:0; }
+    .prof{ display:flex; flex-direction:column; padding:2px 10px 8px; }
+    .prof-chart{ position:relative; flex:1 1 auto; min-height:0; border-radius:4px; }
+    .prof-chart:focus-visible{ outline:3px solid var(--focus, #005e95); outline-offset:1px; }
+    .prof-svg{ display:block; width:100%; height:100%; }
+    .prof-tick{ font:500 13px/1 var(--font, "Avenir Next", "Helvetica Neue", Arial, sans-serif); fill:#1f1f1f; }
+    .prof-sea-label{ font:600 13px/1 var(--font, "Avenir Next", "Helvetica Neue", Arial, sans-serif); fill:#0b3f6e; paint-order:stroke; stroke:#fff; stroke-width:3px; }
+    .prof-msg{ margin:0; height:100%; display:flex; align-items:center; justify-content:center; text-align:center; padding:0 20px; font-size:16px; color:#1f1f1f; }
+    .prof-tip{ position:absolute; pointer-events:none; white-space:nowrap; padding:5px 9px; border-radius:4px; background:#1f1f1f; color:#fff; font-size:14px; font-weight:600; }
+    .prof-tip[hidden]{ display:none; }
+    .prof-foot{ flex:none; display:flex; align-items:center; gap:16px; padding-top:6px; }
+    .prof-stats{ flex:1 1 auto; min-width:0; margin:0; display:flex; flex-wrap:wrap; gap:4px 28px; }
+    .prof-stat{ display:flex; align-items:baseline; gap:7px; }
+    .prof-stat dt{ font-size:14px; color:#3a3a3a; }
+    .prof-stat dd{ margin:0; font-size:16px; font-weight:700; color:#111; }
+    .prof-acts{ flex:none; display:flex; align-items:center; gap:8px; }
+    .prof-acts .field{ width:auto; max-width:220px; padding:6px 8px; }
+    .prof-acts .btn{ white-space:nowrap; }
     #app.docked .toolbar{ display:none; }
     #app.docked.tools-shown .toolbar{ display:flex; }
     .tools-toggle{ display:none; width:32px; height:32px; border:none; border-radius:0; background:#fff; color:#323232; cursor:pointer; align-items:center; justify-content:center; box-shadow:0 1px 2px rgba(0,0,0,.3); }
@@ -578,10 +587,8 @@
       .cat-foot-side:first-child:empty{ display:none; }
       .dock{ height:clamp(220px, 40vh, 300px); }
       /* narrow: the buttons and settings first, then the chart, then the legend */
-      #profileBody > div{ grid-template-columns:minmax(0, 1fr) auto; grid-template-areas:"footer header" "main main" "legend legend"; }
-      #profileBody .esri-elevation-profile__footer{ flex-direction:row; flex-wrap:wrap; justify-content:flex-start; gap:6px; }
-      #profileBody .esri-elevation-profile__action-button{ align-self:auto; margin:0; }
-      #profileBody .esri-elevation-profile-legend{ max-height:66px; }
+      .prof-foot{ flex-wrap:wrap; gap:6px 12px; }
+      .prof-stats{ gap:2px 16px; } .prof-stat dt{ font-size:13px; } .prof-stat dd{ font-size:14px; }
       .open-body{ padding:14px 16px 18px; }
       .dev-top{ padding:12px 16px; }
     }
@@ -833,7 +840,18 @@
     </section>
     <section class="dock" id="profilePanel" hidden aria-labelledby="profileH">
       <div class="panel-head"><h2 id="profileH" tabindex="-1" data-i18n="elevationProfile">Elevation profile</h2><span class="dock-source" id="profileSource"></span><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
-      <div class="dock-body" id="profileBody"></div>
+      <div class="dock-body prof" id="profileBody">
+        <div class="prof-chart" id="profChart" tabindex="0" role="slider" aria-labelledby="profChartLabel" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"></div>
+        <span class="sr-only" id="profChartLabel" data-i18n="profileChartLabel">Place along the line. The arrow keys move along it.</span>
+        <div class="prof-foot">
+          <dl class="prof-stats" id="profStats"></dl>
+          <div class="prof-acts">
+            <span id="profLinesWrap" hidden><label class="sr-only" for="profLines" data-i18n="profilePickLine">Use a sketched line</label><select class="field" id="profLines"></select></span>
+            <button class="btn" type="button" id="profNew" data-i18n="profileNew" hidden>New line</button>
+          </div>
+        </div>
+        <p class="sr-only" id="profStatus" role="status"></p>
+      </div>
     </section>
   </div>
 
@@ -965,6 +983,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.9"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.10"></script>
 </body>
 </html>

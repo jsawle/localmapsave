@@ -210,7 +210,7 @@ def main():
         check(fa.get("shape") == "web:" + ANIMALS + "/Fox" and ops["__sketch_lines"]["featureSet"]["features"][0]["attributes"].get("arrow") == "both", "each sketch also carries its choices, so it can be edited again")
         page.goto(f"{base}/index.html?config=mapmaker"); page.wait_for_function("document.querySelector('arcgis-map') && document.querySelector('arcgis-map').view && document.querySelector('arcgis-map').view.ready", timeout=120000); page.wait_for_timeout(1200)
         drop("sketch_styles.amap", json.dumps(saved)); page.wait_for_function("document.querySelector('#toast').textContent.includes('sketch styles')", timeout=60000)
-        count(4); page.wait_for_function(SKETCHES + ".some(s => s.sym === 'cim')", timeout=40000)
+        count(4); page.wait_for_function(SKETCHES + ".some(s => s.kind === 'point' && s.sym === 'cim')", timeout=40000)   # the point's own symbol, not just the hatched area's
         back = page.evaluate(SKETCHES); by = {s["kind"]: s for s in back}
         check(by["point"]["shape"] == "web:" + ANIMALS + "/Fox" and by["point"]["sym"] == "cim" and by["polyline"]["marker"] == "begin-end" and by["polyline"]["style"] == "dot" and True, "opened from the file, the point and line look as they did")
         areas = page.evaluate("(() => { const v = document.querySelector('arcgis-map').view; return v.map.layers.find(x => x.id === '__sketch').graphics.filter(g => g.attributes.kind === 'polygon').map(g => ({ type: g.symbol.type, a: g.symbol.type === 'simple-fill' ? g.symbol.color.a : null, w: g.symbol.outline ? g.symbol.outline.width : null, la: g.symbol.outline ? g.symbol.outline.color.a : null, shape: g.attributes.shape })).toArray(); })()")

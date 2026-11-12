@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.9**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.10**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -11,6 +11,23 @@
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Elevation: the app's own chart (5.0.0-beta.10)
+
+The Elevation tool no longer uses Esri's Elevation Profile widget (one of the widgets SDK 6.0 removes; it could not be given a sea-level line or a filled chart). The tool and its chart are now the app's own (Elevation profile 3.0).
+
+| | What it does |
+|---|---|
+| Layout | The chart runs the whole width under the map. The line's figures (length, highest, lowest, total climb, total descent) are one row beneath it |
+| Text | Scale labels 13px, figure labels 14px, figures 16px bold, near-black on white |
+| Sea level | Where the line goes below sea level the water is drawn and a dashed line, named "Sea level", marks it. Heights come from Esri's World Elevation **TopoBathy 3D** service, which has the sea floor |
+| Earth colours | The land is filled with a gradient, lightest at the line's highest point and darker down to the bottom of the chart |
+| Dot on the map | Moving over the chart, or the arrow keys when the chart has focus (Home, End, Shift for bigger steps), puts a dot at that place on the line on the map, with its distance and height shown on the chart. Works for a drawn line and for a sketched line |
+| Choosing a line | Over a line that can be chosen (a sketched line, or a line feature of a layer) the pointer becomes the hand; a click charts it. Sketched lines are also in a list, for keyboard use. Elsewhere the pointer is a crosshair: click for each point, double-click or Enter to finish, Escape to give up |
+
+Heights are read at up to 512 points along the line in one request. Units follow `units` in the config. Not built: drawing a new line with the keyboard alone (a sketched line can be chosen from the list); the slope figures the widget had.
+
+Tests: `python3 atlas-sketch/tests/live-elevation.py` (39 checks, with an axe-core scan).
 
 ## Segment labels, snapping, whole-number measurements (5.0.0-beta.8)
 
@@ -146,7 +163,7 @@ Not done yet, or not tested:
 - Sketching in a scene, and a spreadsheet layer in a scene, are saved by the same code as in a web map, and the unit tests cover the file. Drawing in 3D has not been tested in a browser.
 - Local scenes (flat, not a globe) are handled in code but no local scene has been opened in a test.
 - A scene or map with a layer that isn't shared publicly makes the SDK ask the reader to sign in. Three of Esri's older sample scenes do this. Content for classes needs every layer public.
-- Still widgets, to be moved to components: Measurement, Elevation Profile, Coordinate Conversion, Legend, Swipe, Feature Table.
+- Still widgets, to be moved to components: Measurement, Coordinate Conversion, Legend, Swipe, Feature Table. (Elevation Profile was replaced by the app's own chart in beta.10.)
 
 Tests: `node atlas-sketch/tests/scenes.test.mjs` (24 checks on the file format) and `python3 atlas-sketch/tests/live-scenes.py` (35 checks in Chromium against the real SDK and ArcGIS Online). The MapMaker collection has no web scene and no tagged map yet, so the live test adds the tag, and puts a scene in the list, by changing the services' answers on their way to the app. It also leaves a city scene's 3D buildings out, because the test browser draws 3D in software.
 
