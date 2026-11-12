@@ -421,10 +421,12 @@
     .flt-link{ background:none; border:0; color:var(--brand-strong); font:inherit; font-size:13.5px; cursor:pointer; padding:6px 4px; border-radius:3px; }
     .flt-link:hover{ text-decoration:underline; }
     .flt-base{ margin:0 0 10px; font-size:13px; line-height:1.4; color:#323232; }
-    .flt-base code{ display:block; margin-top:4px; padding:6px 8px; background:#fff; border:1px solid var(--line2); border-radius:3px; font-size:12px; word-break:break-word; white-space:pre-wrap; }
     #filterMatchRow{ margin:0 0 10px; }
     .flt-cond{ display:grid; gap:8px; border:1px solid var(--line2); background:#fff; border-radius:4px; padding:8px 12px 12px; margin:0 0 10px; }
-    .flt-cond-head{ display:flex; justify-content:space-between; align-items:center; font-size:14px; color:#151515; min-height:32px; }
+    .flt-cond-head{ display:flex; align-items:center; gap:6px; }
+    .flt-cond-head calcite-select{ flex:1 1 auto; min-width:0; }
+    .flt-cond-head .flt-rm{ flex:none; }
+    .flt-list-note{ margin:-2px 0 0; font-size:13px; color:#4a4a4a; }
     .flt-between{ display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center; font-size:13.5px; }
     .flt-hist summary{ cursor:pointer; font-size:13.5px; color:#151515; padding:4px 0; border-radius:3px; }
     .flt-hist-body{ box-sizing:border-box; padding:4px 6px 0; font-size:13px; color:#4a4a4a; }
@@ -730,7 +732,7 @@
         <div class="panel-head"><h2 id="filterH" tabindex="-1" data-i18n="filter">Filter</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
         <div class="panel-body">
           <div class="flt-top"><h3 data-i18n="filterShowWhere">Show features where</h3><button type="button" class="flt-link" id="filterClear" data-i18n="filterClearAll">Clear all</button></div>
-          <p class="flt-base" id="filterBase" hidden><span data-i18n="filterBaseNote">This layer already has a filter that can't be shown as conditions. It stays on, and your conditions are added to it:</span><code id="filterBaseSql"></code></p>
+          <p class="flt-base" id="filterBase" hidden data-i18n="filterBaseNote">The map's author has already filtered this layer. What you choose here narrows that down.</p>
           <div id="filterMatchRow" hidden></div>
           <div id="filterConds"></div>
           <div class="flt-add"><calcite-button id="filterAdd" appearance="outline" kind="neutral" round icon-start="plus" data-i18n="filterAddNew">Add new</calcite-button></div>
@@ -1029,6 +1031,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.17"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.18"></script>
 </body>
 </html>

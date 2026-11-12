@@ -2,9 +2,9 @@
 // A layer's filter is saved in the web map as its definitionExpression (Web Map Specification, layerDefinition), which
 // is how Map Viewer saves filters too. Nothing else is stored, so the conditions shown in the panel are read back from
 // the SQL: the forms this module writes are the forms it reads. SQL it can't read (written by hand, or by another app
-// in a form not listed here) is kept as it is and shown as text; conditions added in the panel are added to it.
+// in a form not listed here) is kept as it is and stays on; conditions added in the panel are added to it.
 // No ArcGIS SDK here, so it runs in Node for the unit tests.
-export const FILTER_VERSION = "1.1";
+export const FILTER_VERSION = "1.2";   // 1.2: "is one of" / "is not one of" (a list, written as IN / NOT IN), so a list filter set by a map's author is read as a condition
 export const MAX_CONDITIONS = 6;
 
 const NUMBER_TYPES = new Set(["small-integer", "integer", "single", "double", "long", "big-integer",
@@ -15,8 +15,8 @@ export function fieldKind(f) { return !f ? null : NUMBER_TYPES.has(f.type) ? "nu
 
 // The conditions offered for each kind of field, in Map Viewer's order and wording (see strings.js, filterOp_*).
 export const OPERATORS = {
-  number: ["is", "isNot", "atLeast", "atMost", "greater", "less", "between", "blank", "notBlank"],
-  text: ["is", "isNot", "contains", "notContains", "startsWith", "endsWith", "blank", "notBlank"]
+  number: ["is", "isNot", "isOneOf", "isNotOneOf", "atLeast", "atMost", "greater", "less", "between", "blank", "notBlank"],
+  text: ["is", "isNot", "isOneOf", "isNotOneOf", "contains", "notContains", "startsWith", "endsWith", "blank", "notBlank"]
 };
 export const DEFAULT_OPERATOR = { number: "atLeast", text: "is" };
 const COMPARE = { is: "=", isNot: "<>", atLeast: ">=", atMost: "<=", greater: ">", less: "<" };
@@ -26,6 +26,10 @@ export function rangeTypeFor(op) {
   return ({ is: "equal", isNot: "not-equal", atLeast: "at-least", atMost: "at-most", greater: "greater-than", less: "less-than", between: "between" })[op] || null;
 }
 export const needsValue = (op) => op !== "blank" && op !== "notBlank";
+/** Conditions whose value is a list (c.values), written as IN (...) / NOT IN (...). */
+export const isListOp = (op) => op === "isOneOf" || op === "isNotOneOf";
+export const MAX_LIST = 250;
+const goodList = (v) => Array.isArray(v) && v.length > 0 && v.length <= MAX_LIST && v.every((x) => typeof x === "string" && x !== "" && x.length <= 500);
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const NUM = "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?";
@@ -40,6 +44,7 @@ export function conditionComplete(c, fields) {
   const f = c && findField(fields, c.field), kind = fieldKind(f);
   if (!kind || !IDENT.test(f.name) || !OPERATORS[kind].includes(c.op)) return false;
   if (!needsValue(c.op)) return true;
+  if (isListOp(c.op)) return goodList(c.values) && (kind !== "number" || c.values.every((v) => num(v) !== null));
   if (kind === "number") return num(c.value) !== null && (c.op !== "between" || num(c.value2) !== null);
   return typeof c.value === "string" && c.value !== "" && c.value.length <= 500;
 }
@@ -49,6 +54,7 @@ export function conditionToSql(c, fields) {
   const f = findField(fields, c.field), kind = fieldKind(f), n = f.name;
   if (c.op === "blank") return n + " IS NULL";
   if (c.op === "notBlank") return n + " IS NOT NULL";
+  if (isListOp(c.op)) return n + (c.op === "isNotOneOf" ? " NOT IN (" : " IN (") + c.values.map((v) => (kind === "number" ? numText(num(v)) : quote(v))).join(",") + ")";
   if (kind === "number") {
     if (c.op === "between") { const a = num(c.value), b = num(c.value2); return n + " BETWEEN " + numText(Math.min(a, b)) + " AND " + numText(Math.max(a, b)); }
     return n + " " + COMPARE[c.op] + " " + numText(num(c.value));
@@ -104,8 +110,28 @@ function unwrap(s) {
   return s;
 }
 const unquote = (q) => q.slice(1, -1).replace(/''/g, "'");
+// 'a','b''c', 'd'  ->  ["a", "b'c", "d"], or null if it isn't a list of quoted texts
+function parseTextList(inner) {
+  const out = []; let i = 0; const n = inner.length;
+  const skip = () => { while (i < n && /\s/.test(inner[i])) i++; };
+  for (;;) {
+    skip(); if (inner[i] !== "'") return null;
+    let j = i + 1, v = "";
+    for (;;) { if (j >= n) return null; if (inner[j] === "'") { if (inner[j + 1] === "'") { v += "'"; j += 2; continue; } break; } v += inner[j++]; }
+    out.push(v); i = j + 1; skip();
+    if (i >= n) return out;
+    if (inner[i] !== ",") return null; i++;
+  }
+}
 function parseCondition(text, fields) {
   const s = unwrap(text);
+  const li = s.match(/^"?([A-Za-z_][A-Za-z0-9_]*)"?\s+(NOT\s+)?IN\s*\(([\s\S]*)\)$/i);
+  if (li) {
+    const f = findField(fields, li[1]), kind = fieldKind(f);
+    const nums = kind === "number" ? li[3].split(",").map((x) => x.trim()) : null;
+    const list = kind === "text" ? parseTextList(li[3]) : nums && nums.every((x) => new RegExp("^" + NUM + "$").test(x)) ? nums : null;
+    return list && goodList(list) ? { field: f.name, op: li[2] ? "isNotOneOf" : "isOneOf", value: "", value2: "", values: list } : null;
+  }
   let m = s.match(/^"?([A-Za-z_][A-Za-z0-9_]*)"?\s+IS\s+(NOT\s+)?NULL$/i);
   if (m) { const f = findField(fields, m[1]); return fieldKind(f) ? { field: f.name, op: m[2] ? "notBlank" : "blank", value: "", value2: "" } : null; }
   m = s.match(new RegExp('^"?([A-Za-z_][A-Za-z0-9_]*)"?\\s+BETWEEN\\s+(' + NUM + ")\\s+AND\\s+(" + NUM + ")$", "i"));
