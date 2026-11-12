@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.28";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.29";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.28";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, VIEW_3D_PROP, saved3dCamera, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.29";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.28";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.28";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.28";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.29";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.29";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.29";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.28";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.28";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.28";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.29";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.29";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.29";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.28";
+  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.29";
 
-const APP_VERSION = "5.0.0-beta.28";
+const APP_VERSION = "5.0.0-beta.29";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
   partnerLogos: [],
   theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", toolActive: "", toolActiveInk: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
   portalUrl: "https://www.arcgis.com",
-  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.28). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
+  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.29). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
   basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
   defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   startView: { center: [0, 20], zoom: 2 },
@@ -2083,6 +2083,8 @@ async function openWebMapFile(raw, fileName) {
     twoDOnly = raw[TWO_D_ONLY_PROP] === true; syncViewLocks();
     const vp = wm.initialViewProperties && wm.initialViewProperties.viewpoint;
     if (vp) goToSafe(vp, { animate: false });
+    const cam3d = !twoDOnly && F.threeD !== false ? saved3dCamera(raw) : null;   // saved while in 3D: back to 3D, seen from the same place
+    if (cam3d) { await setMode("3d", { keepCamera: true }); if (mode === "3d") goToSafe(Camera.fromJSON(cam3d), { animate: false }); }
     if (!$("bookmarksPanel").hidden) showBmList();
     if (!$("layersPanel").hidden) renderLayers();
     if (catalogLoaded) refreshCatalogButtons();
@@ -2184,7 +2186,7 @@ function buildDataLayer(ld) {
 // Columns in 3D (lab, features.columns3d): a spreadsheet layer sized by a number column can stand a column on each point
 // in the 3D view, its height showing the number. The layer's saved style stays the 2D one (By size and so on); the
 // columns are a way of drawing it in 3D, so 2D, the saved file and other apps are unchanged.
-const COLUMNS_VERSION = "0.3";   // 0.2: the Size slider sets how thick the columns are. 0.3: the choice is offered in the 3D view only
+const COLUMNS_VERSION = "0.4";   // 0.4: kept in a saved file. 0.2: the Size slider sets how thick the columns are. 0.3: the choice is offered in the 3D view only
 function columnSymbol(color, width) {
   const c = color && Number.isFinite(color.r) ? [color.r, color.g, color.b] : [0, 121, 193];
   return { type: "point-3d", symbolLayers: [{ type: "object", resource: { primitive: "cylinder" }, anchor: "bottom", width, depth: width, height: width, material: { color: c } }] };
@@ -3840,6 +3842,8 @@ async function buildWebMapJson(toFile) {
   if (sceneOnly) return docToWebScene(doc, { ...ctx, camera: sceneView && sceneView.camera ? sceneView.camera.toJSON() : null, scene: (currentSource && currentSource.data) || null });
   const wm = docToWebMap(doc, ctx);
   if (twoDOnly) wm[TWO_D_ONLY_PROP] = true;   // its author switched 3D off: the saved copy stays 2D only
+  // Saved to a file while in 3D: the file says so and from where it was seen, and opens that way again.
+  if (toFile && mode === "3d" && sceneView && sceneView.camera) wm[VIEW_3D_PROP] = { camera: sceneView.camera.toJSON() };
   return wm;
 }
 async function docText(locked) { const wm = await buildWebMapJson(true); if (locked) wm[LOCK_PROP] = true; return JSON.stringify(wm); }
@@ -4316,14 +4320,14 @@ function renderVersions() {
     ["Charts", CHARTS_VERSION, "A chart set up on a layer in Map Viewer, drawn by the SDK's chart component under the map: Map layers, then the layer's Chart button. Selecting on the chart highlights those features on the map. The chart's own toolbar has its legend, selection, only what is in view, zoom and saving."],
     ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). A line you draw takes the shortest way round the Earth between the places you click (a great circle), so on the flat map a long line is a curve; a line you choose on the map is followed as it is drawn. The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
-    ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
+    ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides. 3.4: a map saved to a file while in 3D opens in 3D again, seen from the same place."],
     ["3D maps", "1.1", "3D maps (ArcGIS web scenes) from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks, and a bookmark turns layers on and off as its slide does (not the slide's basemap or lighting). A web map whose item has the tag atlas-2d-only stays in 2D."],
     ["Loading", "1.1", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Swipe, the table, Elevation and Sketch is downloaded when the tool is first opened. All of these are the SDK's components (or the app's own code), not its widgets, which SDK 6 removes."],
     ["Sketch measuring", "1.1", "While drawing: tooltips, the length of each side (segment labels) and snapping to other sketches are on from the start; each can be turned off in the toolbar's Settings. Lengths and areas are shown with no decimal places."],
     ["Sketch panel", "3.2", "Laid out like Map Viewer's Sketch pane: what the tool in hand does, then what suits it. The plain circle or plain fill is always first among the recent symbols, and a styled fill says how to get back to colours and an outline. A point has recent symbols and a Change symbol view (category, search, symbols). A selected sketch has its name, Pop-up, Duplicate and Delete. One toolbar on the map."],
     ["Sketch styles", "2.3", "Points: symbols from 14 of Esri's sketch styles, the ones Map Viewer's Sketch offers. Lines: patterns and arrows. Text, set up as in Map Viewer: a font (11, from Esri's font service), bold and italic where the font has them, size, colour, a halo with its colour and size, and rotation. Areas, set up as in Map Viewer: fill colour and transparency, outline colour, transparency, width and pattern, or a styled fill (hatches, land use, pencil landscape; 2D only). Tooltips are on while drawing."],
     ["Sketch in 3D", "1.0", "The Sketch toolbar works in the 3D view and in 3D maps with the same tools. Sketches lie on the ground and are saved as flat shapes, so they are the same in 2D."],
-    ["Columns in 3D (lab)", COLUMNS_VERSION, "Only where a config turns it on (features.columns3d). A spreadsheet layer sized by a number column can be drawn in 3D as a column on each point. Height shows the number, from zero when no value is below zero; the tallest column is about a sixth of the distance across the points, and Size sets how thick the columns are. 2D and the saved style are unchanged, and the choice is not kept in a saved file yet."],
+    ["Columns in 3D (lab)", COLUMNS_VERSION, "Only where a config turns it on (features.columns3d). A spreadsheet layer sized by a number column can be drawn in 3D as a column on each point. Height shows the number, from zero when no value is below zero; the tallest column is about a sixth of the distance across the points, and Size sets how thick the columns are. 2D and the saved style are unchanged; the saved file notes the choice, so the columns come back when it is opened here."],
     ["3D quality", "1.0", "How much work the 3D view does. Low (smaller textures, less memory, no shadows or stars) is chosen for a device with 4 GB of memory or less, 4 processor cores or fewer, or no graphics chip; otherwise medium. A config (threeDQuality) or a link (?quality=low, medium or high) can fix it."],
     ["Views", "2.0", "The 2D and 3D views are the SDK's map and scene components, with Search, Home, Zoom, the navigation toggle and the scale bar as components in their slots."],
     ["Time", "1.0", "The SDK's Time Bar on maps saved with time settings: play, step and a slider, set up from the map's own settings."],

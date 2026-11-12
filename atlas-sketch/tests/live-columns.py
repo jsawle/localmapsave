@@ -84,7 +84,12 @@ def main():
         # the switch keeps the place: every point of the spreadsheet is still on screen, seen at an angle
         try: wf("document.querySelector('arcgis-scene').view.camera.tilt > 50 && !document.querySelector('arcgis-scene').view.interacting && !document.querySelector('arcgis-scene').view.animation", timeout=60000)
         except Exception: pass
-        page.wait_for_timeout(2500)
+        # wait until the camera has stopped (the same for 3 seconds)
+        last = None
+        for _ in range(20):
+            page.wait_for_timeout(3000); cur = page.evaluate("(() => { const c = document.querySelector('arcgis-scene').view.camera; return [c.position.latitude.toFixed(5), c.position.z.toFixed(0), c.tilt.toFixed(1)].join(); })()")
+            if cur == last: break
+            last = cur
         on = page.evaluate("""async (pts) => { const Point = await $arcgis.import("@arcgis/core/geometry/Point.js"); const v = document.querySelector('arcgis-scene').view; return { tilt: v.camera.tilt, lat: v.center.latitude, lon: v.center.longitude,
           on: pts.filter(([lon, lat]) => { const s = v.toScreen(new Point({ longitude: lon, latitude: lat })); return s && s.x > 0 && s.x < v.width && s.y > 0 && s.y < v.height; }).length }; }""",
           [[-117.1601, 32.7115], [-117.1585, 32.7098], [-117.1612, 32.7076], [-117.1590, 32.7066], [-117.1570, 32.7127], [-117.1640, 32.7060]])
@@ -136,8 +141,46 @@ def main():
         saved = json.loads(pathlib.Path(dl.value.path()).read_text())
         own = next(o for o in saved["operationalLayers"] if str(o.get("id", "")).startswith("__data_"))
         dr = own["featureCollection"]["layers"][0]["layerDefinition"]["drawingInfo"]["renderer"]
-        check(dr["type"] == "uniqueValue" and dr["defaultSymbol"]["type"] == "esriSMS", "the saved map holds the 2D style (no 3D symbols in a web map)")
+        check(dr["type"] == "uniqueValue" and dr["defaultSymbol"]["type"] == "esriSMS" and own.get("atlasColumns3d") is True, "the saved map holds the 2D style (no 3D symbols in a web map) and notes the columns")
         mark("after save"); to_3d(); r = rend("__data_"); check(bool(r) and r["prim"] == "cylinder", "back in 3D the columns return"); mark("end")
+        print("== saved in 3D, opened again")
+        page.evaluate("(() => { const v = document.querySelector('arcgis-scene').view; const c = v.camera.clone(); c.position = { x: -117.1600, y: 32.6985, z: 700, spatialReference: { wkid: 4326 } }; c.heading = 0; c.tilt = 62; return v.goTo(c, { animate: false }); })()"); page.wait_for_timeout(3000)
+        js("#tool-save"); js("#saveTile"); wv("#nameModal:not([hidden])"); page.fill("#fileNameInput", "cols3d")
+        with page.expect_download() as dl: js("#nameConfirm")
+        text3d = pathlib.Path(dl.value.path()).read_text(); saved3d = json.loads(text3d)
+        own = next(o for o in saved3d["operationalLayers"] if str(o.get("id", "")).startswith("__data_"))
+        check(own.get("atlasColumns3d") is True and abs(saved3d.get("atlas3d", {}).get("camera", {}).get("tilt", 0) - 62) < 1 and "viewingMode" not in saved3d, "the file is a web map that notes the 3D view (tilt 62°) and the layer's columns")
+        check("atlas3d" not in saved, "the copy saved from 2D has no 3D view noted")
+        def reopen(config, text):
+            start(config)
+            page.evaluate("""([name, text]) => { const dt = new DataTransfer(); dt.items.add(new File([text], name, { type: 'application/json' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); }""", ["cols3d.amap", text])
+            wf("document.querySelector('#toast').textContent.includes('cols3d')", timeout=120000)
+        reopen("lab", text3d)
+        wf("document.querySelector('#tg3d').getAttribute('aria-pressed') === 'true' && !!document.querySelector('arcgis-scene') && !!document.querySelector('arcgis-scene').view.camera", timeout=180000)
+        try: wf("Math.abs(document.querySelector('arcgis-scene').view.camera.tilt - 62) < 2 && Math.abs(document.querySelector('arcgis-scene').view.camera.position.latitude - 32.6985) < 0.002", timeout=60000)
+        except Exception: pass
+        cam = page.evaluate("(() => { const c = document.querySelector('arcgis-scene').view.camera; return [c.position.longitude, c.position.latitude, c.position.z, c.tilt]; })()")
+        check(abs(cam[0] + 117.16) < 0.002 and abs(cam[1] - 32.6985) < 0.002 and abs(cam[2] - 700) < 60 and abs(cam[3] - 62) < 2, "it opens in 3D, seen from where it was saved (%.4f, %.4f, %.0f m, tilt %.0f°)" % tuple(cam))
+        r = rend("__data_"); check(bool(r) and r["prim"] == "cylinder" and r["type"] == "unique-value", "and the layer is columns again: " + json.dumps(r)[:120])
+        DRAWN = """async () => { const v = document.querySelector('arcgis-scene').view; const l = v.map.layers.toArray().find(l => String(l.id).startsWith('__data_'));
+          const lv = await Promise.race([v.whenLayerView(l), new Promise(r => setTimeout(() => r(null), 20000))]); if (!lv) return { n: -1 };
+          let n = -2; try { n = (await lv.queryFeatures()).features.length; } catch (e) { n = String(e.message); }
+          return { n, vis: l.visible, lvVisible: lv.visible, suspended: lv.suspended, updating: lv.updating }; }"""
+        d = None
+        for _ in range(12):
+            d = page.evaluate(DRAWN)
+            if d.get("n") == 6: break
+            page.wait_for_timeout(5000)
+        check(d.get("n") == 6 and d.get("vis") and not d.get("suspended"), "the 3D view is drawing its 6 columns: " + json.dumps(d))
+        page.wait_for_timeout(15000); page.screenshot(path=str(shots / "columns-reopened.png"))
+        reopen("lab", json.dumps(saved))
+        page.wait_for_timeout(2500); check(page.evaluate("document.querySelector('#tg2d').getAttribute('aria-pressed') === 'true'"), "the copy saved from 2D opens in 2D")
+        to_3d(); r = rend("__data_"); check(bool(r) and r["prim"] == "cylinder", "its columns are kept too: switch to 3D and they are there")
+        reopen("mapmaker", text3d)
+        wf("document.querySelector('#tg3d').getAttribute('aria-pressed') === 'true' && !!document.querySelector('arcgis-scene')", timeout=180000); page.wait_for_timeout(2500)
+        r = rend("__data_"); check(bool(r) and r["sym"] == "simple-marker", "without the lab switch the file still opens in 3D, with ordinary sized points")
+        start("lab"); to_3d()
+
         print("== Cancel puts the 3D view back")
         js("#tool-open"); wv("#newMapBtn"); js("#newMapBtn"); page.wait_for_timeout(2500)
         page.evaluate("(() => { const v = document.querySelector('arcgis-scene').view; const c = v.camera.clone(); c.position = { x: -117.16, y: 32.71, z: 3000, spatialReference: { wkid: 4326 } }; c.tilt = 0; c.heading = 0; return v.goTo(c, { animate: false }); })()"); page.wait_for_timeout(2500)
