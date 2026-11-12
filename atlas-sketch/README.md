@@ -1,17 +1,29 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.19**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.20**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
 | `https://jsawle.github.io/localmapsave/atlas-sketch/` | Neutral "School Atlas" branding |
 | `…/atlas-sketch/?config=mapmaker` | MapMaker's groups, units, colours and wording |
-| `…/atlas-sketch/?config=test` | Same as `mapmaker`, but content comes from the test group "Schools Living Atlas – 5.0 test" (`c3ac404ac811494ea6fa116abc0cf39b`, GIS 4 Schools org): the 183 live items plus test content such as 3D scenes and maps with charts |
+| `…/atlas-sketch/?config=test` | The same as `mapmaker` (kept so earlier links still work) |
+| `…/atlas-sketch/?config=mapmaker-live` | The MapMaker config reading the **live** MapMaker group (`36443e9570294a1f883b5d2c5abfe6b5`), for comparing with what is live |
 | `…/atlas-sketch/?config=example-es` | Spanish-language version: a 37-line config plus the shared `locales/es.json` |
 
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Which content group the app reads (5.0.0-beta.20)
+
+While 5.0 is a pilot it reads the test group **"Schools Living Atlas – 5.0 test"** (`c3ac404ac811494ea6fa116abc0cf39b`, GIS 4 Schools org, owner Si_Claudius) on every link: with no `config`, and with `default`, `mapmaker`, `example-es` and `test`. That group ID is now the app's built-in content group; before, the built-in one was the live MapMaker group, and only `config=test` read the test group.
+
+- `config=mapmaker-live` reads the live MapMaker group, and is the only link that does.
+- Basemaps still come from MapMaker's basemap group (`406646c98d0f4c608a9438d40ce2df9e`) on every link; there is no test copy of it.
+- The test group's 183 original items are the live MapMaker items shared into it, not copies.
+- The older `atlas/` and `whitelabel/` folders are unchanged and still read the live group.
+
+To go back, or to launch on another group, change `contentGroup` in `DEFAULT_CONFIG` (app.js) or set `"contentGroup"` in a config.
 
 ## 3D scenes in Open map (5.0.0-beta.19)
 

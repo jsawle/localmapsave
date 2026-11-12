@@ -54,6 +54,11 @@ const fetchJson = async (path) => JSON.parse(fs.readFileSync(root + path.replace
   ok(test.raw.contentGroup === "c3ac404ac811494ea6fa116abc0cf39b" && mm.raw.contentGroup === undefined, "test changes the content group; mapmaker keeps the default");
   const { contentGroup: _a, configVersion: _b, ...restT } = test.raw, { configVersion: _c, ...restM } = mm.raw;
   ok(JSON.stringify(restT) === JSON.stringify(restM), "test is otherwise the MapMaker config");
+  // 5.0.0-beta.20: while 5.0 is a pilot the built-in content group is the test group; the live MapMaker group is one named config
+  const appSrc = fs.readFileSync(root + "app.js", "utf8"), live = await loadConfig("mapmaker-live", fetchJson), def = await loadConfig("default", fetchJson);
+  ok(/contentGroup: "c3ac404ac811494ea6fa116abc0cf39b"/.test(appSrc) && !/contentGroup: "36443e9570294a1f883b5d2c5abfe6b5"/.test(appSrc), "the app's built-in content group is the 5.0 test group");
+  ok(mm.raw.contentGroup === undefined && def.raw.contentGroup === undefined && es.raw.contentGroup === undefined, "default, mapmaker and example-es name no group, so they read the built-in one");
+  ok(live.raw.contentGroup === "36443e9570294a1f883b5d2c5abfe6b5" && live.chain.join(">") === "mapmaker-live>mapmaker", "only mapmaker-live reads the live MapMaker group");
   const none = await loadConfig("no-such-config", fetchJson);
   ok(none.missing === "no-such-config" && none.name === "default", "an unknown config falls back to default and says so");
   const loop = await loadConfig("a", async (p) => { if (p.endsWith("/a.json")) return { extends: "b", appName: "A" }; if (p.endsWith("/b.json")) return { extends: "a", locale: "xx" }; throw new Error("404"); });
