@@ -258,7 +258,6 @@
     .img-remove{ position:absolute; top:6px; right:6px; width:26px; height:26px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:16px; line-height:1; cursor:pointer; }
 
     /* Coordinates (Esri's widget is 400px wide; the panel is narrower) */
-    #coordBody.esri-coordinate-conversion, #coordBody .esri-coordinate-conversion{ width:100%; }
     .coord-copy{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:10px; }
     .coord-copy .hint{ margin:0; }
     /* lists */
@@ -303,8 +302,6 @@
     .lyr-transp{ display:flex; align-items:center; gap:10px; font-size:13px; color:#4a4a4a; }
     .lyr-transp input[type=range]{ flex:1 1 auto; accent-color:var(--brand); }
     .lyr-legend{ font-size:12px; }
-    .lyr-legend.esri-legend, .lyr-legend .esri-legend{ padding:0; background:none; }
-    .lyr-legend .esri-legend__service-label, .lyr-legend .esri-legend__layer-caption{ display:none; }
     .lyr-info-h{ font-size:14px; font-weight:600; margin:8px 0 6px; }
     .lyr-info-body{ font-size:14px; line-height:1.55; color:#323232; }
     .lyr-info-body p{ margin:0 0 10px; }
@@ -316,6 +313,8 @@
     .table-dock{ height:clamp(240px, 42vh, 460px); }
     .table-dock .panel-head h2{ font-size:14px; font-weight:500; }
     .table-dock .dock-body, .table-host{ height:100%; }
+    .table-host arcgis-feature-table{ display:block; width:100%; height:100%; }
+    #legendBody arcgis-legend, .lyr-legend arcgis-legend, #measureBody > *, #coordBody arcgis-coordinate-conversion{ display:block; width:100%; }
     @media (forced-colors: active){ .lt[aria-pressed="true"]{ border-color:Highlight; } }
 
     /* bookmarks */
@@ -995,6 +994,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.12"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.13"></script>
 </body>
 </html>

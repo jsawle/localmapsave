@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.12**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.13**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -12,6 +12,32 @@
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## The last widgets become components (5.0.0-beta.13)
+
+Esri deprecated every widget at SDK 5.0 and plans to remove them at 6.0 (Q1 2027). The five the app still used are now the SDK's components; with Sketch, the views, Search, Home, Zoom, the scale bar and the time bar already moved, and Elevation the app's own, the app's code asks for no widget class.
+
+| Tool | Was (widget) | Now (component) |
+|---|---|---|
+| Legend panel, and a layer's own legend | `Legend` | `arcgis-legend` |
+| Measure: distance, area | `Measurement` | `arcgis-distance-measurement-2d`, `arcgis-area-measurement-2d`, and in 3D `arcgis-direct-line-measurement-3d`, `arcgis-area-measurement-3d` |
+| Measure: coordinates | `CoordinateConversion` | `arcgis-coordinate-conversion` |
+| Swipe | `Swipe` | `arcgis-swipe` |
+| Table | `FeatureTable` | `arcgis-feature-table` |
+
+What is different to use:
+
+- **Measure has one units control.** The component's own units menu is hidden; the km / mi switch sets the units.
+- A component's code is still downloaded only when its tool is first used (the SDK fetches it when the element is made).
+- The table's progress bar had no name for a screen reader (axe-core, WCAG 4.1.2); the app gives it one.
+
+Found on the way: asking the SDK for the old Coordinates widget's translations (for the hemisphere letters a pasted spreadsheet column may use) left that bundle cached, and after a table had been opened the Coordinates component was handed it and failed its first drawing with a script error. The letters are now read from the component's own translation file.
+
+Still Esri's to finish: `arcgis-feature-table` downloads the `FeatureTable` widget class inside itself in SDK 5.2. Esri's transition plan says widgets stay until their component no longer wraps them, so this needs no change here, but it is worth a look when 6.0 arrives.
+
+Also in this release: an Elevation line across the 180° meridian is now tested (Japan to Alaska: one piece, the great-circle length, the dot on the line on both sides).
+
+Tests: `python3 atlas-sketch/tests/live-components.py` (24 checks, with axe-core scans); `live-elevation.py` is now 49 checks.
 
 ## Units that fit where the device is (5.0.0-beta.12)
 
@@ -191,7 +217,7 @@ Not done yet, or not tested:
 - Sketching in a scene, and a spreadsheet layer in a scene, are saved by the same code as in a web map, and the unit tests cover the file. Drawing in 3D has not been tested in a browser.
 - Local scenes (flat, not a globe) are handled in code but no local scene has been opened in a test.
 - A scene or map with a layer that isn't shared publicly makes the SDK ask the reader to sign in. Three of Esri's older sample scenes do this. Content for classes needs every layer public.
-- Still widgets, to be moved to components: Measurement, Coordinate Conversion, Legend, Swipe, Feature Table. (Elevation Profile was replaced by the app's own chart in beta.10.)
+- Measurement, Coordinate Conversion, Legend, Swipe and Feature Table were moved to components in beta.13. (Elevation Profile was replaced by the app's own chart in beta.10.)
 
 Tests: `node atlas-sketch/tests/scenes.test.mjs` (24 checks on the file format) and `python3 atlas-sketch/tests/live-scenes.py` (35 checks in Chromium against the real SDK and ArcGIS Online). The MapMaker collection has no web scene and no tagged map yet, so the live test adds the tag, and puts a scene in the list, by changing the services' answers on their way to the app. It also leaves a city scene's 3D buildings out, because the test browser draws 3D in software.
 

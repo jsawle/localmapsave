@@ -2,21 +2,21 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.12";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.13";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.12";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.13";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.12";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.12";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.13";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.13";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.12";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.12";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.12";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.13";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.13";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.13";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.12";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.13";
 
-const APP_VERSION = "5.0.0-beta.12";
+const APP_VERSION = "5.0.0-beta.13";
 const COMPASS_VERSION = "1.1";
 const PROFILE_VERSION = "3.1";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -263,10 +263,8 @@ const [EsriMap, WebMap, WebScene, Camera, GraphicsLayer, FeatureLayer, Graphic, 
 ]);
 // The SDK code for a tool is downloaded when the tool is first opened, not when the app starts (5.0.0-beta.4): on a slow
 // connection the map is there sooner, and a class that never measures never downloads Measure.
-let Legend, Measurement, CoordinateConversion, ElevationLayer, densifyOperator, WebStyleSymbol, cimSymbolUtils;
+let ElevationLayer, densifyOperator, WebStyleSymbol, cimSymbolUtils;
 const TOOL_CODE = {
-  legend: [["@arcgis/core/widgets/Legend.js", (m) => { Legend = m; }]],
-  measure: [["@arcgis/core/widgets/Measurement.js", (m) => { Measurement = m; }], ["@arcgis/core/widgets/CoordinateConversion.js", (m) => { CoordinateConversion = m; }]],
   profile: [["@arcgis/core/layers/ElevationLayer.js", (m) => { ElevationLayer = m; }]],
   curves: [["@arcgis/core/geometry/operators/densifyOperator.js", (m) => { densifyOperator = m; }]],
   symbols: [["@arcgis/core/symbols/WebStyleSymbol.js", (m) => { WebStyleSymbol = m; }], ["@arcgis/core/symbols/support/cimSymbolUtils.js", (m) => { cimSymbolUtils = m; }]]
@@ -279,6 +277,22 @@ function need(tool) {
   }
   return toolCode[tool];
 }
+// Legend, Measure, Coordinates, Swipe and the table are the SDK's components (5.0.0-beta.13; before, its widgets, which
+// SDK 6 removes). A component's code is downloaded by the SDK when its element is first made, so these are still
+// fetched only when the tool is first used. Settings go on once the component is ready (set earlier, some are lost).
+async function toolEl(tag, host, props) {
+  const el = document.createElement(tag);
+  if (host) host.appendChild(el);
+  let timer = 0;
+  try {
+    await Promise.race([customElements.whenDefined(tag), new Promise((_, no) => { timer = setTimeout(() => no(new Error(tag + " did not load")), 45000); })]);
+    if (el.componentOnReady) await el.componentOnReady();
+  } catch (e) { el.remove(); console.error("Couldn't load " + tag, e); toast(S.sdkFailed, 6000); throw e; }
+  finally { clearTimeout(timer); }
+  Object.assign(el, props || {});
+  return el;
+}
+function dropEl(el) { if (!el) return; try { if (el.destroy) el.destroy(); } catch (e) { /* gone */ } try { el.remove(); } catch (e) { /* gone */ } }
 esriConfig.portalUrl = PORTAL;
 try { if (cfg.locale && cfg.locale !== "en") intl.setLocale(cfg.locale); } catch (e) { console.warn("Locale not supported", e); }
 
@@ -583,9 +597,8 @@ function panelOpening(name) {
   if (name === "bookmarks") showBmList();
   if (name === "save") renderAgol();
   if (name === "about") renderVersions();
-  if (name === "legend") need("legend").then(() => { if (openPanelName === "legend") ensureLegend(); }).catch(() => {});
+  if (name === "legend") ensureLegend().catch(() => {});
   if (name === "basemaps") ensureGallery();
-  if (name === "measure") need("measure").then(() => { if (openPanelName === "measure") ensureMeasure(); }).catch(() => {});
   if (name === "profile") { closeTable(false); $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles(); need("profile").then(() => { if (openPanelName === "profile") ensureProfile(); }).catch(() => {}); }
 }
 function panelClosing(name) {
@@ -1171,8 +1184,11 @@ document.addEventListener("keydown", (e) => {
 }, true);
 
 // ============================================================ Legend, basemaps, measure
-let legend = null, measurement = null, coordWidget = null;
-function ensureLegend() { if (!legend) legend = new Legend({ view, container: "legendBody" }); else legend.view = view; }
+let legend = null, legendMaking = null, coordWidget = null;
+async function ensureLegend() {
+  if (!legend) { legendMaking = legendMaking || toolEl("arcgis-legend", $("legendBody"), { view }); try { legend = await legendMaking; } catch (e) { legendMaking = null; throw e; } }
+  legend.view = view;
+}
 
 // Basemaps, as MapMaker shows them: the basemap group's web maps (and, in 3D, its web scenes) as a two-column grid of
 // cards, in the group's own order (MapMaker's: date added, newest first). The card for the map's basemap is selected.
@@ -1285,29 +1301,47 @@ function setUnits(u, save) {
   if (u !== "imperial" && u !== "metric") return;
   units = u;
   if (save) { try { localStorage.setItem(UNITS_KEY, u); } catch (e) { /* no storage: for this visit only */ } }
-  try { if (measurement) { measurement.linearUnit = u; measurement.areaUnit = u; } } catch (e) { console.warn("Measure units not set", e); }
+  try { if (measureEl) measureEl.unit = u; } catch (e) { console.warn("Measure units not set", e); }
   sketchUnits(); syncUnitsSwitches();
   if (prof && profActive()) renderProfile();
 }
 document.querySelectorAll(".units-seg button[data-units]").forEach((b) => b.addEventListener("click", () => setUnits(b.dataset.units, true)));
 syncUnitsSwitches();
-function ensureMeasure() { if (!measurement) measurement = new Measurement({ view, container: "measureBody", linearUnit: units, areaUnit: units }); else measurement.view = view; }
+// Measure: one SDK component for each kind of measurement and each kind of view. It is made when a tool is chosen and
+// taken away when measuring stops. Its own units menu is hidden: the km / mi switch above it sets the units.
+const MEASURE_TAGS = { "2d": { distance: "arcgis-distance-measurement-2d", area: "arcgis-area-measurement-2d" }, "3d": { distance: "arcgis-direct-line-measurement-3d", area: "arcgis-area-measurement-3d" } };
+let measureEl = null, measureKind = null, measureSeq = 0;
+function clearMeasure() {
+  measureSeq++; measureKind = null;
+  if (measureEl) { try { measureEl.clear(); } catch (e) { /* idle */ } dropEl(measureEl); measureEl = null; }
+}
+async function startMeasure(kind) {
+  clearMeasure(); const seq = measureSeq; measureKind = kind;
+  let el; try { el = await toolEl(MEASURE_TAGS[mode][kind], $("measureBody"), { view, unit: units, hideUnitSelect: true }); } catch (e) { if (seq === measureSeq) stopMeasuring(); return; }
+  if (seq !== measureSeq) { dropEl(el); return; }   // another tool was chosen, or measuring stopped, meanwhile
+  measureEl = el;
+  try { await el.start(); } catch (e) { /* stopped before the first click */ }
+}
 function measurePressed(id) { ["mDist", "mArea", "mCoord"].forEach((b) => $(b).setAttribute("aria-pressed", String(b === id))); }
 function stopMeasuring() {
-  try { if (measurement) measurement.clear(); } catch (e) { /* idle */ }
+  clearMeasure();
   measurePressed(null); measureActive = false; $("coordWrap").hidden = true;
   updatePopupEnabled();
 }
-$("mDist").addEventListener("click", async () => { try { await need("measure"); } catch (e) { return; } ensureMeasure(); $("coordWrap").hidden = true; measurement.activeTool = mode === "3d" ? "direct-line" : "distance"; measurePressed("mDist"); measureActive = true; updatePopupEnabled(); });
-$("mArea").addEventListener("click", async () => { try { await need("measure"); } catch (e) { return; } ensureMeasure(); $("coordWrap").hidden = true; measurement.activeTool = "area"; measurePressed("mArea"); measureActive = true; updatePopupEnabled(); });
+$("mDist").addEventListener("click", () => { $("coordWrap").hidden = true; measurePressed("mDist"); measureActive = true; updatePopupEnabled(); startMeasure("distance"); });
+$("mArea").addEventListener("click", () => { $("coordWrap").hidden = true; measurePressed("mArea"); measureActive = true; updatePopupEnabled(); startMeasure("area"); });
+let coordMaking = null;
 $("mCoord").addEventListener("click", async () => {
-  try { await need("measure"); } catch (e) { return; }
-  try { if (measurement) measurement.clear(); } catch (e) { /* idle */ }
+  clearMeasure();
+  $("coordWrap").hidden = false; measurePressed("mCoord"); measureActive = false; updatePopupEnabled();
   // Capture mode: the coordinates stay where the map was clicked. (In Esri's default live mode they follow the pointer,
   // so moving to the panel to copy them would copy wherever the pointer last crossed the map.)
-  if (!coordWidget) { coordWidget = new CoordinateConversion({ view, container: "coordBody", mode: "capture" }); watchCoordCopy(); }
-  else { coordWidget.view = view; coordWidget.mode = "capture"; }
-  $("coordWrap").hidden = false; measurePressed("mCoord"); measureActive = false; updatePopupEnabled();
+  if (!coordWidget) {
+    coordMaking = coordMaking || toolEl("arcgis-coordinate-conversion", $("coordBody"), { view, mode: "capture" });
+    try { coordWidget = await coordMaking; } catch (e) { coordMaking = null; return; }
+    watchCoordCopy();
+  }
+  coordWidget.view = view; coordWidget.mode = "capture";
 });
 // Copy coordinates: the text Esri's own Copy puts on the clipboard (the tool's main row has no Copy button), ready to
 // paste into one spreadsheet cell; Add layer reads that column back (see parseCoordPair in lib/csv.js).
@@ -1702,7 +1736,6 @@ async function setMode(m, opts) {
   sketchReady.then(() => { sketch.view = view; });
   if (timeBar) { const te = timeBar.timeExtent; timeBar.view = view; if (te) view.timeExtent = te; }   // the time control follows into 2D / 3D
   if (gallery.items) renderGallery();   // 3D lists the group's 3D basemaps too
-  if (measurement) measurement.view = view;
   if (profActive()) { for (const k of ["line", "dot", "draft"]) profShow(k, null); profDraft = null; ensureProfile(); }   // the profile's line follows to the other view
   if (coordWidget) coordWidget.view = view;
   if (legend) legend.view = view;
@@ -2139,18 +2172,18 @@ function moveLayer(l, owner, to) {
 }
 function endSwipe() {
   if (!swipe) return;
-  try { mapView.ui.remove(swipe.widget); swipe.widget.destroy(); } catch (e) { /* gone */ }
+  dropEl(swipe.widget);
   swipe = null;
 }
+let swipeSeq = 0;
 async function toggleSwipe(l) {
   if (swipe && swipe.layer === l) { endSwipe(); renderLayers({ keepFocus: true }); return; }
-  endSwipe();
+  endSwipe(); const seq = ++swipeSeq;
   try {
-    const [Swipe] = await $arcgis.import(["@arcgis/core/widgets/Swipe.js"]);
-    if (mode !== "2d") return;
-    const w = new Swipe({ view: mapView, leadingLayers: [l], trailingLayers: [], direction: "horizontal", position: 50 });
-    mapView.ui.add(w);
-    swipe = { widget: w, layer: l };
+    // the swipe component sits inside the map component, over the map
+    const el = await toolEl("arcgis-swipe", viewEls.get(mapView), { view: mapView, leadingLayers: [l], trailingLayers: [], direction: "horizontal", swipePosition: 50 });
+    if (mode !== "2d" || seq !== swipeSeq) { dropEl(el); return; }
+    swipe = { widget: el, layer: l };
     toast(t("swipeOn", { title: l.title || "" }));
   } catch (e) { console.error(e); toast(S.swipeFailed); }
   renderLayers({ keepFocus: true });
@@ -2158,25 +2191,32 @@ async function toggleSwipe(l) {
 function closeTable(restoreFocus) {
   if (!table) return;
   const l = table.layer;
-  try { table.widget.destroy(); } catch (e) { /* gone */ }
+  dropEl(table.widget);
   table = null;
   $("tableDock").hidden = true; $("tableBody").innerHTML = "";
   if (openPanelName !== "profile") { $("app").classList.remove("docked", "tools-shown"); syncToolsToggles(); }
   setTimeout(layoutBottom, 0);
   if (!$("layersPanel").hidden) renderLayers({ focusKey: restoreFocus ? keyOf(l) + ":table" : null, keepFocus: !restoreFocus });
 }
+// The SDK's table has a progress bar with no name for a screen reader (WCAG 4.1.2, found by axe-core): it is given one.
+function nameTableProgress(el, tries = 0) {
+  const find = (n) => { if (!n) return null; if (n.nodeType === 1 && n.tagName === "CALCITE-PROGRESS") return n; if (n.shadowRoot) { const f = find(n.shadowRoot); if (f) return f; } for (const c of n.children || []) { const f = find(c); if (f) return f; } return null; };
+  const bar = el.isConnected ? find(el) : null;
+  if (bar) { if (!bar.label) bar.label = S.filterLoading || "Loading"; return; }
+  if (el.isConnected && tries < 20) setTimeout(() => nameTableProgress(el, tries + 1), 300);
+}
 async function openTable(l) {
   if (table && table.layer === l) { closeTable(true); return; }
   if (openPanelName === "profile") { closePanels(false); openPanel("layers", { focus: false }); }
   if (table) closeTable(false);
   try {
-    const [FeatureTable] = await $arcgis.import(["@arcgis/core/widgets/FeatureTable.js"]);
     const c = document.createElement("div"); c.className = "table-host";
     $("tableBody").replaceChildren(c);
     $("tableH").textContent = t("tableOf", { title: l.title || "" });
     $("tableDock").hidden = false;
     $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles();
-    const w = new FeatureTable({ view, layer: l, container: c });
+    const w = await toolEl("arcgis-feature-table", c, { view, layer: l });
+    nameTableProgress(w);
     table = { widget: w, layer: l };
     setTimeout(layoutBottom, 0);
   } catch (e) { console.error(e); toast(S.tableFailed); closeTable(false); return; }
@@ -2294,9 +2334,9 @@ function layerRow(l, owner, depth, pos, count) {
     if (u.legend && !group) {
       const box = document.createElement("div"); box.className = "lyr-legend";
       extra.appendChild(box);
-      if (!Legend) { need("legend").then(() => { if (!$("layersPanel").hidden) renderLayers({ keepFocus: true }); }).catch(() => { box.textContent = S.noLegend; }); }
-      else try { rowWidgets.push(new Legend({ view, container: box, layerInfos: [{ layer: l, title: "" }], respectLayerVisibility: false, hideLayersNotInCurrentView: false })); }
-      catch (e) { box.textContent = S.noLegend; }
+      const row = { el: null, gone: false, destroy() { this.gone = true; dropEl(this.el); } }; rowWidgets.push(row);
+      toolEl("arcgis-legend", box, { view, layerInfos: [{ layer: l, title: "" }], ignoreLayerVisibility: true, hideLayersNotInCurrentView: false })
+        .then((el) => { row.el = el; if (row.gone) dropEl(el); }).catch(() => { box.textContent = S.noLegend; });
     }
     if (u.transp) {
       const row = document.createElement("div"); row.className = "lyr-transp";
@@ -3121,8 +3161,17 @@ function showDataError(msg) {
 let hemisphereLetters = null;
 async function loadHemisphereLetters() {
   if (hemisphereLetters) return hemisphereLetters;
-  try { const m = await intl.fetchMessageBundle("esri/widgets/CoordinateConversion/t9n/CoordinateConversion"); hemisphereLetters = (m && m.abbreviatedDirections) || {}; }
-  catch (e) { console.warn("Hemisphere letters not loaded; English letters only", e); hemisphereLetters = {}; }
+  // Read from the Coordinates component's own translation file. (Not through the SDK's message bundles: asking those for
+  // the old widget's bundle left it cached, and the component was then handed it and failed its first drawing.)
+  hemisphereLetters = {};
+  const loc = String(cfg.locale || "en"), tries = [...new Set([loc, loc.split("-")[0], "en"])];
+  for (const l of tries) {
+    try {
+      const r = await fetch(`https://js.arcgis.com/${SDK_VERSION}/map-components/assets/coordinate-conversion/t9n/messages.${l}.json`);
+      if (!r.ok) continue;
+      const m = await r.json(); if (m && m.abbreviatedDirections) { hemisphereLetters = m.abbreviatedDirections; break; }
+    } catch (e) { console.warn("Hemisphere letters not loaded; English letters only", e); }
+  }
   return hemisphereLetters;
 }
 async function handleCsvText(name, text) {
@@ -4029,7 +4078,7 @@ function renderVersions() {
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
     ["3D scenes", "1.0", "Web scenes from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],
-    ["Loading", "1.0", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Elevation and Sketch is downloaded when the tool is first opened."],
+    ["Loading", "1.1", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Swipe, the table, Elevation and Sketch is downloaded when the tool is first opened. All of these are the SDK's components (or the app's own code), not its widgets, which SDK 6 removes."],
     ["Sketch measuring", "1.1", "While drawing: tooltips, the length of each side (segment labels) and snapping to other sketches are on from the start; each can be turned off in the toolbar's Settings. Lengths and areas are shown with no decimal places."],
     ["Sketch panel", "3.1", "Laid out like Map Viewer's Sketch pane: what the tool in hand does, then what suits it. A point has recent symbols and a Change symbol view (category, search, symbols). A selected sketch has its name, Pop-up, Duplicate and Delete. One toolbar on the map."],
     ["Sketch styles", "2.2", "Points: symbols from 14 of Esri's sketch styles, the ones Map Viewer's Sketch offers. Lines: patterns and arrows. Areas, set up as in Map Viewer: fill colour and transparency, outline colour, transparency, width and pattern, or a styled fill (hatches, land use, pencil landscape; 2D only). Tooltips are on while drawing."],
