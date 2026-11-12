@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.10";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.11";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.10";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.11";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.10";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.11";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.10";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.10";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.10";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.11";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.11";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.11";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.10";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.11";
 
-const APP_VERSION = "5.0.0-beta.10";
+const APP_VERSION = "5.0.0-beta.11";
 const COMPASS_VERSION = "1.1";
-const PROFILE_VERSION = "3.0";
+const PROFILE_VERSION = "3.1";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
 const CONFIG_SCHEMA = 1;
 const SDK_VERSION = "5.2";
@@ -1289,7 +1289,7 @@ $("mClear").addEventListener("click", stopMeasuring);
 // Esri's World Elevation TopoBathy 3D: land and the sea floor (the service behind the SDK's "world-topobathymetry" ground).
 // Sampled directly, so the profile dips below sea level in 2D and 3D alike, whatever the map's ground.
 const TOPOBATHY_URL = "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/TopoBathy3D/ImageServer";
-// Elevation profile 3.0 (5.0.0-beta.10): the app's own tool and chart; before, Esri's Elevation Profile widget, which
+// Elevation profile 3.0 (5.0.0-beta.10; 3.1 in beta.11: drawn lines are geodesic): the app's own tool and chart; before, Esri's Elevation Profile widget, which
 // could not be given a sea-level line or a filled chart (and is one of the widgets SDK 6 removes).
 //  - The line: click the map for each point and double-click to finish, or click a line already on the map (a
 //    sketched line, or a line feature of a layer). Over a line that can be chosen the pointer becomes a hand.
@@ -1338,21 +1338,42 @@ function fillProfileLines() {
 const R_EARTH = 6371008.8, D2R = Math.PI / 180;
 const lonLatToXY = (lon, lat) => [lon * D2R * 6378137, Math.log(Math.tan(Math.PI / 4 + (lat * D2R) / 2)) * 6378137];
 function haversine(a, b) { const dLat = (b[1] - a[1]) * D2R, dLon = (b[0] - a[0]) * D2R, h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * D2R) * Math.cos(b[1] * D2R) * Math.sin(dLon / 2) ** 2; return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(h))); }
-async function profileOf(geometry) {
+// The shortest way round the Earth between two places (a great circle), as longitudes and latitudes; the longitudes run
+// on past 180 rather than jumping, so the line stays in one piece on the map.
+const llUnit = ([lon, lat]) => [Math.cos(lat * D2R) * Math.cos(lon * D2R), Math.cos(lat * D2R) * Math.sin(lon * D2R), Math.sin(lat * D2R)];
+function geoBetween(p, q, f) {
+  const u = llUnit(p), v = llUnit(q), w = Math.acos(Math.max(-1, Math.min(1, u[0] * v[0] + u[1] * v[1] + u[2] * v[2])));
+  if (w < 1e-9) return [p[0], p[1]];
+  const k1 = Math.sin((1 - f) * w) / Math.sin(w), k2 = Math.sin(f * w) / Math.sin(w), x = k1 * u[0] + k2 * v[0], y = k1 * u[1] + k2 * v[1], z = k1 * u[2] + k2 * v[2];
+  let lon = Math.atan2(y, x) / D2R; const ref = p[0] + (q[0] - p[0]) * f; lon += Math.round((ref - lon) / 360) * 360;
+  return [lon, Math.atan2(z, Math.hypot(x, y)) / D2R];
+}
+const isMerc = (sr) => !!sr && (sr.isWebMercator || sr.wkid === 102100 || sr.wkid === 3857);
+const PROF_MAX_LAT = 85;   // Web Mercator has no poles
+const llToXY = (ll) => lonLatToXY(ll[0], Math.max(-PROF_MAX_LAT, Math.min(PROF_MAX_LAT, ll[1])));
+// the points clicked (Web Mercator), joined by great circles, as a line the map can draw
+function geodesicLine(clicks, perPart) {
+  const ll = clicks.map((c) => xyToLonLat(c.x, c.y)); for (let i = 1; i < ll.length; i++) ll[i][0] += Math.round((ll[i - 1][0] - ll[i][0]) / 360) * 360;   // each the short way from the last
+  const path = [llToXY(ll[0])];
+  for (let i = 1; i < ll.length; i++) for (let k = 1; k <= perPart; k++) path.push(llToXY(geoBetween(ll[i - 1], ll[i], k / perPart)));
+  return { ll, geometry: { type: "polyline", paths: [path], spatialReference: { wkid: 102100 } } };
+}
+// A line drawn in the tool is geodesic: `via` is its clicked places (longitude, latitude). A line chosen on the map (a
+// sketch, a feature) is followed as it is drawn there, straight between its points in Web Mercator.
+async function profileOf(geometry, via) {
   const sr = geometry.spatialReference, merc = sr && (sr.isWebMercator || sr.wkid === 102100 || sr.wkid === 3857), geo = sr && (sr.isWGS84 || sr.wkid === 4326);
   if (!merc && !geo) { profMessage(S.profileNoSR); return; }
-  // Every part of the line, as Web Mercator vertices: a line between two points is straight there, on the flat map and
-  // (seen in a test: great-circle sampling put the dot off the line) on the globe too, whose scenes are in Web Mercator.
-  const verts = []; for (const path of geometry.paths) for (const c of path) verts.push(merc ? [c[0], c[1]] : lonLatToXY(c[0], c[1]));
+  const verts = []; if (via) verts.push(...via); else for (const path of geometry.paths) for (const c of path) verts.push(merc ? [c[0], c[1]] : lonLatToXY(c[0], c[1]));
   if (verts.length < 2) return;
-  const segs = []; let total = 0; for (let i = 1; i < verts.length; i++) { const l = Math.hypot(verts[i][0] - verts[i - 1][0], verts[i][1] - verts[i - 1][1]); segs.push(l); total += l; }
+  const segs = []; let total = 0; for (let i = 1; i < verts.length; i++) { const l = via ? haversine(verts[i - 1], verts[i]) : Math.hypot(verts[i][0] - verts[i - 1][0], verts[i][1] - verts[i - 1][1]); segs.push(l); total += l; }
   if (!(total > 0)) return;
   const N = Math.min(512, Math.max(120, Math.round(($("profChart").clientWidth || 900) / 2.5)));
   const pts = [];
   for (let k = 0; k < N; k++) {
     let d = (total * k) / (N - 1), i = 0; while (i < segs.length - 1 && d > segs[i]) { d -= segs[i]; i++; }
-    const f = segs[i] ? Math.min(1, d / segs[i]) : 0, x = verts[i][0] + (verts[i + 1][0] - verts[i][0]) * f, y = verts[i][1] + (verts[i + 1][1] - verts[i][1]) * f;
-    pts.push({ x, y, ll: xyToLonLat(x, y) });
+    const f = segs[i] ? Math.min(1, d / segs[i]) : 0;
+    if (via) { const g = geoBetween(verts[i], verts[i + 1], f), xy = llToXY(g); pts.push({ x: xy[0], y: xy[1], ll: [((g[0] + 540) % 360 + 360) % 360 - 180, g[1]] }); }
+    else { const x = verts[i][0] + (verts[i + 1][0] - verts[i][0]) * f, y = verts[i][1] + (verts[i + 1][1] - verts[i][1]) * f; pts.push({ x, y, ll: xyToLonLat(x, y) }); }
   }
   const seq = ++profBusy;
   profMessage(S.profileWorking);
@@ -1419,7 +1440,7 @@ function renderProfile() {
   if (under) svg.appendChild(svgEl("rect", { x: m.l, y: Y(0), width: w, height: m.t + h - Y(0), fill: "url(#profWater)", class: "prof-water" }));
   const top = prof.pts.map((p, i) => (i ? "L" : "M") + X(p.d).toFixed(1) + " " + Y(p.z).toFixed(1)).join("");
   svg.appendChild(svgEl("path", { d: top + `L${(m.l + w).toFixed(1)} ${m.t + h}L${m.l} ${m.t + h}Z`, fill: "url(#profEarth)", class: "prof-land" }));
-  svg.appendChild(svgEl("path", { d: top, fill: "none", stroke: "#3a2412", "stroke-width": 2, "stroke-linejoin": "round", class: "prof-top" }));
+  svg.appendChild(svgEl("path", { d: top, fill: "none", stroke: "#3a2412", "stroke-width": 1, "stroke-linejoin": "round", class: "prof-top" }));
   if (under) {   // sea level, where the line goes below it
     svg.appendChild(svgEl("line", { x1: m.l, x2: m.l + w, y1: Y(0), y2: Y(0), stroke: "#0b4f8a", "stroke-width": 2, "stroke-dasharray": "7 5", class: "prof-sea" }));
     const atStart = prof.pts[0].z < prof.pts[prof.pts.length - 1].z;   // named at the end that is under water, clear of the land
@@ -1429,7 +1450,7 @@ function renderProfile() {
   for (const v of niceTicks(0, prof.total / unitDist, Math.max(3, Math.min(10, Math.floor(w / 110))))) {
     const x = X(v * unitDist);
     svg.appendChild(svgEl("line", { x1: x, x2: x, y1: m.t + h, y2: m.t + h + 5, stroke: "#4a4a4a", "stroke-width": 1 }));
-    svg.appendChild(svgEl("text", { x, y: m.t + h + 20, "text-anchor": v === 0 ? "start" : "middle", class: "prof-tick" }, profNum(v, 1) + (units === "imperial" ? (unitDist === 0.3048 ? " ft" : " mi") : (unitDist === 1 ? " m" : " km"))));
+    svg.appendChild(svgEl("text", { x, y: m.t + h + 20, "text-anchor": v === 0 ? "start" : (x > m.l + w - 34 ? "end" : "middle"), class: "prof-tick" }, profNum(v, 1) + (units === "imperial" ? (unitDist === 0.3048 ? " ft" : " mi") : (unitDist === 1 ? " m" : " km"))));
   }
   svg.appendChild(svgEl("rect", { x: m.l, y: m.t, width: w, height: h, fill: "none", stroke: "#8a8a8a", "stroke-width": 1 }));
   // the place the pointer (or the arrow keys) is at
@@ -1486,7 +1507,8 @@ onViews("pointer-move", (e) => {
   if (!profActive()) return;
   if (profDraft) {   // the line so far, and on to the pointer
     const p = view.toMap({ x: e.x, y: e.y }); if (!p) return;
-    const g = { type: "polyline", paths: [[...profDraft.map((c) => [c.x, c.y]), [p.x, p.y]]], spatialReference: p.spatialReference };
+    const g = isMerc(p.spatialReference) ? geodesicLine([...profDraft, p], 48).geometry   // as it will be: the shortest way round
+      : { type: "polyline", paths: [[...profDraft.map((c) => [c.x, c.y]), [p.x, p.y]]], spatialReference: p.spatialReference };
     if (profGraphics.draft && view.graphics.includes(profGraphics.draft)) profGraphics.draft.geometry = g; else profShow("draft", new Graphic({ geometry: g, symbol: { ...PROF_LINE, style: "short-dash" } }));
     return;
   }
@@ -1513,7 +1535,8 @@ function finishProfileDraft() {
   if (!profDraft) return;
   const pts = profDraft; profDraft = null; profShow("draft", null);
   if (pts.length < 2) { profMessage(S.profileHint); return; }
-  profileOf({ type: "polyline", paths: [pts.map((c) => [c.x, c.y])], spatialReference: pts[0].spatialReference });
+  if (!isMerc(pts[0].spatialReference)) { profileOf({ type: "polyline", paths: [pts.map((c) => [c.x, c.y])], spatialReference: pts[0].spatialReference }); return; }   // a map in another coordinate system: as drawn
+  const g = geodesicLine(pts, 96); profileOf(g.geometry, g.ll);
 }
 onViews("double-click", (e) => { if (!profActive()) return; e.stopPropagation(); if (profDraft) finishProfileDraft(); });
 onViews("key-down", (e) => { if (!profActive() || !profDraft) return; if (e.key === "Enter") { e.stopPropagation(); finishProfileDraft(); } else if (e.key === "Escape") { e.stopPropagation(); profDraft = null; profShow("draft", null); profMessage(S.profileHint); } });
@@ -3963,7 +3986,7 @@ function renderVersions() {
     ["Basemaps", BASEMAPS_VERSION, "MapMaker's basemap cards: the basemap group's maps in the group's own order, two to a row; in 3D, its 3D basemaps first."],
     ["Saved maps list (Open map, My map files)", RECENT_VERSION, "Maps saved on this device, newest first, kept in this browser. Chrome and Edge reopen the file itself; Safari and Firefox keep a copy of each saved map."],
     ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
-    ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line you draw or choose, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
+    ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). A line you draw takes the shortest way round the Earth between the places you click (a great circle), so on the flat map a long line is a curve; a line you choose on the map is followed as it is drawn. The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
     ["3D scenes", "1.0", "Web scenes from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],

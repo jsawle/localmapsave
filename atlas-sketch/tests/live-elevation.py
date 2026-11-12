@@ -63,6 +63,13 @@ def main():
             (x, y), (x1, y1), (x2, y2) = pt, a_, b_; L = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
             off = abs((x2 - x1) * (y1 - y) - (x1 - x) * (y2 - y1)) / L; along = ((x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)) / L / L
             return off < tol and -0.01 <= along <= 1.01, along
+        def on_line(pt, path, tol):   # is the point on a line of many points? and how far along (by its points)
+            best = (1e18, 0)
+            for i in range(len(path) - 1):
+                ok, along = on_segment(pt, path[i], path[i + 1], 1e18); f = min(1, max(0, along)); px = path[i][0] + (path[i + 1][0] - path[i][0]) * f; py = path[i][1] + (path[i + 1][1] - path[i][1]) * f
+                dd = ((pt[0] - px) ** 2 + (pt[1] - py) ** 2) ** 0.5
+                if dd < best[0]: best = (dd, (i + f) / (len(path) - 1))
+            return best[0] < tol, best[1]
         def axe(sel, what):
             if not a.axe: return
             page.add_script_tag(path=a.axe)
@@ -87,8 +94,13 @@ def main():
         draw([-8.6, 39.3], [-10.6, 39.3])
         check(charted(), "drawing a line (click, double-click) charts it")
         line = [g for g in page.evaluate(GFX) if g["type"] == "polyline"]
-        check(len(line) == 1 and len(line[0]["json"]["paths"][0]) == 2, "the line on the map has the two points clicked: " + json.dumps([len(g["json"]["paths"][0]) for g in line]))
-        A, B = line[0]["json"]["paths"][0][0], line[0]["json"]["paths"][0][-1]
+        PATH = line[0]["json"]["paths"][0] if line else []
+        A, B = PATH[0], PATH[-1]; M = PATH[len(PATH) // 2]
+        check(len(line) == 1 and len(PATH) > 50 and abs(A[1] - B[1]) < 3000, "the line on the map runs between the two places clicked, in many short pieces: %d points" % len(PATH))
+        # Both ends are at 39.3 N, 2 degrees of longitude apart. The middle of the great circle between them is at
+        # atan(tan(39.3) / cos(1)) = 39.3043 N, which is 0.0043 degrees, or 615 Web Mercator metres, north of the straight line.
+        bow = M[1] - (A[1] + B[1]) / 2
+        check(585 < bow < 645, "it is the shortest way round: its middle is north of the straight line by %d map metres" % bow)
         c = page.evaluate("""(() => { const q = s => document.querySelector('#profChart ' + s); const sea = q('.prof-sea'), lab = q('.prof-sea-label'), land = q('.prof-land'), water = q('.prof-water');
           const stops = [...document.querySelectorAll('#profEarth stop')].map(s => s.getAttribute('stop-color')); const g = document.getElementById('profEarth');
           const svg = q('svg').getBoundingClientRect(), host = document.getElementById('profChart').getBoundingClientRect();
@@ -118,7 +130,7 @@ def main():
         alongs = []
         for f in (0.3, 0.7):
             page.mouse.move(cb[0] + cb[2] * f, cb[1] + cb[3] / 2, steps=3); page.wait_for_timeout(500)
-            d = dot(); ok, along = on_segment([d["x"], d["y"]], A, B, 50) if d else (False, -1); alongs.append(along)
+            d = dot(); ok, along = on_line([d["x"], d["y"]], PATH, 30) if d else (False, -1); alongs.append(along)
             check(ok, "pointing %d%% of the way across the chart puts the dot on the line, %d%% of the way along it" % (f * 100, along * 100))
         check(abs(alongs[0] - 0.28) < 0.06 and abs(alongs[1] - 0.72) < 0.06 and alongs[0] > alongs[1] - 1 and alongs[0] != alongs[1], "the dot follows the pointer")
         tip = page.evaluate("(() => { const t = document.getElementById('profTip'); return t && !t.hidden ? t.textContent : ''; })()")
@@ -129,7 +141,7 @@ def main():
         page.focus("#profChart"); page.keyboard.press("Home"); page.wait_for_timeout(300)
         d0 = dot(); page.keyboard.press("ArrowRight"); page.keyboard.press("ArrowRight"); page.wait_for_timeout(300); d1 = dot()
         ar = page.evaluate("(() => { const h = document.getElementById('profChart'); return [h.getAttribute('role'), h.getAttribute('aria-valuenow'), h.getAttribute('aria-valuetext'), h.getAttribute('aria-valuemax')]; })()")
-        check(d0 and d1 and abs(d0["x"] - A[0]) < 50 and d1["x"] != d0["x"] and on_segment([d1["x"], d1["y"]], A, B, 50)[0], "Home and the arrow keys move the dot along the line")
+        check(d0 and d1 and abs(d0["x"] - A[0]) < 50 and d1["x"] != d0["x"] and on_line([d1["x"], d1["y"]], PATH, 30)[0], "Home and the arrow keys move the dot along the line")
         check(ar[0] == "slider" and int(ar[1]) > 0 and "along" in (ar[2] or "") and int(ar[3]) > 100, "the chart says where it is to a screen reader: " + json.dumps(ar))
         axe("#profilePanel", "the Elevation dock with a chart")
 
@@ -155,6 +167,20 @@ def main():
         page.mouse.move(s3[0], s3[1], steps=4); page.mouse.dblclick(s3[0], s3[1]); page.wait_for_timeout(1500)
         sk = page.evaluate("(() => " + V + ".map.layers.find(x => x.id === '__sketch').graphics.filter(g => g.geometry.type === 'polyline').map(g => g.geometry.toJSON().paths[0]).toArray())()")
         check(len(sk) == 1 and len(sk[0]) == 3, "a three-point line is sketched")
+        go(-40, 40, 3); page.click("#tool-profile"); page.wait_for_selector("#profChart .prof-land", timeout=60000); page.click("#profNew"); page.wait_for_selector("#profChart .prof-msg", timeout=10000)
+        draw([-74, 40.7], [-9.1, 38.7])   # New York to Lisbon
+        check(charted(), "a line across the Atlantic is charted")
+        ln = [g for g in page.evaluate(GFX) if g["type"] == "polyline"][0]["json"]["paths"][0]; top = max(q[1] for q in ln)
+        lat = math.degrees(2 * math.atan(math.exp(top / 6378137)) - math.pi / 2)
+        length = [x.textContent if hasattr(x, "textContent") else x for x in page.evaluate("[...document.querySelectorAll('#profStats .prof-stat')].map(x => x.textContent)")][0]
+        num = float(re.sub(r"[^\d.]", "", length)); km = num * 1.609344 if "mi" in length else num
+        # the great circle from New York to Lisbon is about 5,420 km and reaches about 45 N; the straight line on the map is about 5,560 km and stays below 41 N
+        check(44.5 < lat < 47.5 and 5330 < km < 5500, "it goes the great-circle way: up to %.1f N, %s" % (lat, length))
+        last = page.evaluate("(() => { const t = [...document.querySelectorAll('#profChart .prof-tick')].pop().getBoundingClientRect(), c = document.getElementById('profChart').getBoundingClientRect(); return [t.right, c.right]; })()")
+        check(last[0] <= last[1] + 0.5, "the last distance label is inside the chart: %d of %d" % (last[0], last[1]))
+        check(page.evaluate("document.querySelector('#profChart .prof-top').getAttribute('stroke-width')") == "1", "the surface line is 1px")
+        page.screenshot(path=str(shots / "elevation-atlantic.png"))
+        page.evaluate("document.querySelector('#profilePanel [data-close]').click()"); page.wait_for_timeout(800); go(-9.6, 39.0, 8)
         page.click("#tool-profile"); page.wait_for_selector("#profChart .prof-land", timeout=60000)
         check(len([g for g in page.evaluate(GFX) if g["type"] == "polyline"]) == 1, "opened again, the tool still has the last line and its chart")
         page.click("#profNew"); page.wait_for_selector("#profChart .prof-msg", timeout=10000); page.wait_for_timeout(800)
