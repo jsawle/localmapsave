@@ -65,7 +65,7 @@ test("SQL from elsewhere: read when it's a form the panel has, kept whole when i
   assert.deepEqual(F.parseWhere("magnitude>=7.4", fields).conditions, [C("Magnitude", "atLeast", "7.4")], "field names match whatever their case");
   assert.deepEqual(F.parseWhere('("Year" != 1960)', fields).conditions, [C("Year", "isNot", "1960")]);
   assert.deepEqual(F.parseWhere("Magnitude >= 7.4 AND Year > 2000", fields).conditions.map((c) => c.op), ["atLeast", "greater"]);
-  for (const sql of ["Magnitude IN (7, 8)", "UPPER(Place) LIKE '%CHILE%'", "(Magnitude >= 7 AND Year > 2000) OR Place = 'Chile'", "Depth > 5", "When > DATE '2020-01-01'",
+  for (const sql of ["UPPER(Place) LIKE '%CHILE%'", "(Magnitude >= 7 AND Year > 2000) OR Place = 'Chile'", "Depth > 5", "When > DATE '2020-01-01'",
     "Place LIKE '%a%b%'", "Place LIKE 'a_c'", "Magnitude >= 7.4 OR", "Place = 'unclosed", "((Magnitude >= 7)", "Year BETWEEN 1990 AND 2000 AND Magnitude > 7"]) {
     const r = F.parseWhere(sql, fields);
     assert.equal(r.base, sql, sql); assert.equal(r.conditions.length, 0, sql);
@@ -118,5 +118,45 @@ test("release: every module address carries the app version, and the filter has 
   for (const m of app.matchAll(/from "\.\/lib\/[\w-]+\.js\?v=([^"]+)"/g)) assert.equal(m[1], ver);
   assert.match(F.FILTER_VERSION, /^\d+\.\d+$/);
   assert.ok(app.includes("FILTER_VERSION"));
+});
+// Lists (Filter 1.2): "is one of" / "is not one of", written as IN / NOT IN
+test("a list is written as IN and read back", () => {
+  const c1 = { field: "Place", op: "isOneOf", value: "", value2: "", values: ["Lisbon", "St John's", "A, B"] };
+  assert.ok(F.conditionComplete(c1, fields));
+  const sql = F.buildWhere([c1], "all", fields);
+  assert.equal(sql, "Place IN ('Lisbon','St John''s','A, B')");
+  assert.deepEqual(F.parseWhere(sql, fields), { conditions: [c1], match: "all", base: "" });
+  const c2 = { ...c1, op: "isNotOneOf" };
+  assert.equal(F.buildWhere([c2], "all", fields), "Place NOT IN ('Lisbon','St John''s','A, B')");
+  assert.deepEqual(F.parseWhere("Place not in ( 'Lisbon' , 'St John''s','A, B' )", fields).conditions, [c2]);
+});
+test("a list needs a value, and has limits", () => {
+  assert.equal(F.conditionComplete({ field: "Place", op: "isOneOf", values: [] }, fields), false);
+  assert.equal(F.conditionComplete({ field: "Place", op: "isOneOf" }, fields), false);
+  assert.equal(F.conditionComplete({ field: "Place", op: "isOneOf", values: Array.from({ length: 251 }, (_, i) => "v" + i) }, fields), false);
+  assert.equal(F.conditionComplete({ field: "Magnitude", op: "isOneOf", values: ["1", "x"] }, fields), false);   // a number field's list is numbers
+  assert.ok(F.OPERATORS.text.includes("isOneOf") && F.OPERATORS.number.includes("isOneOf"));
+  const nl = { field: "Year", op: "isOneOf", value: "", value2: "", values: ["5", "4", "3", "2", "1"] };
+  assert.equal(F.buildWhere([nl], "all", fields), "Year IN (5,4,3,2,1)");
+  assert.deepEqual(F.parseWhere("Year IN (5,4,3,2,1)", fields).conditions, [nl]);
+});
+test("what isn't a list of quoted texts is not read as one", () => {
+  for (const sql of ["Place IN (SELECT x FROM y)", "Place IN ('a' 'b')", "Place IN ('a',)", "Place IN ()", "Magnitude IN (1,'b')", "Place IN (1,2)", "Place IN ('a') OR 1=1 --"]) {
+    const r = F.parseWhere(sql, fields);
+    assert.ok(r.conditions.length === 0 ? r.base === sql : r.conditions.every((x) => x.op !== "isOneOf" || F.buildWhere([x], "all", fields) !== sql || sql === "Place IN ('a')"), sql);
+  }
+  assert.equal(F.parseWhere("Place IN (SELECT x FROM y)", fields).base, "Place IN (SELECT x FROM y)");
+  assert.equal(F.parseWhere("Magnitude IN (1,'b')", fields).base, "Magnitude IN (1,'b')");
+});
+test("a map author's list filter, and a condition added to it, open as two conditions", () => {
+  const bf = [{ name: "Dates", type: "string" }, { name: "Battle", type: "string" }, { name: "Victor", type: "string" }];
+  const author = "Dates IN ('April 19, 1775','April 19, 1775 to March 17, 1776','August 27, 1776','August 8, 1775 to August 9, 1775','December 21, 1776 to December 23, 1776','December 26, 1776','December 31, 1775','December 8, 1776 to December 12, 1776','December 9, 1775','February 27, 1776','July 8, 1776 to July 10, 1776','June 17, 1775','June 28, 1776','June 28, 1776 to June 29, 1776','May 10, 1775','May 12, 1775','November 16, 1776','November 20, 1776','October 11, 1776','October 18, 1776','October 28, 1776')";
+  const a = F.parseWhere(author, bf);
+  assert.equal(a.base, ""); assert.equal(a.conditions.length, 1); assert.equal(a.conditions[0].op, "isOneOf"); assert.equal(a.conditions[0].values.length, 21);
+  assert.equal(a.conditions[0].values[1], "April 19, 1775 to March 17, 1776");
+  assert.equal(F.buildWhere(a.conditions, "all", bf), author);   // written back exactly as the author had it
+  const both = F.parseWhere("(" + author + ") AND (Battle = 'Crown Point')", bf);   // what beta.17 saved after a condition was added
+  assert.equal(both.base, ""); assert.equal(both.match, "all"); assert.deepEqual(both.conditions.map((x) => x.op), ["isOneOf", "is"]); assert.equal(both.conditions[1].value, "Crown Point");
+  assert.deepEqual(F.parseWhere("iglesia_ca NOT IN ('Mision','Mision cabecera','Mision capital')", [{ name: "iglesia_ca", type: "string" }]).conditions[0].op, "isNotOneOf");
 });
 console.log("All " + n + " filter tests passed.");

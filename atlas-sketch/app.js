@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.17";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.18";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.17";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.18";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.17";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.17";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.17";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.18";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.18";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.18";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.17";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.17";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.17";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.18";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.18";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.18";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.17";
+  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.18";
 
-const APP_VERSION = "5.0.0-beta.17";
+const APP_VERSION = "5.0.0-beta.18";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -2581,7 +2581,7 @@ function popupFieldNames(l) {
 const filterField = (name) => filterState.all.find((f) => f.name === name);
 function newCondition() {
   const f = filterState.fields[0], kind = fieldKind(f);
-  return { field: f.name, op: DEFAULT_OPERATOR[kind], value: "", value2: "" };
+  return { field: f.name, op: DEFAULT_OPERATOR[kind], value: "", value2: "", values: [] };
 }
 async function openFilter(l) {
   if (openPanelName === "filter") closePanels(false);
@@ -2655,11 +2655,12 @@ async function fillTextValues(c, box) {
     let list = st.values.get(c.field);
     if (!list) {
       const r = await l.queryFeatures({ where: st.base || "1=1", outFields: [c.field], returnDistinctValues: true, returnGeometry: false, orderByFields: [c.field], num: 250 });
-      list = [...new Set(r.features.map((g) => g.attributes[c.field]).filter((v) => typeof v === "string" && v !== ""))].slice(0, 250);
+      list = [...new Set(r.features.map((g) => g.attributes[c.field]).filter((v) => (typeof v === "string" && v !== "") || (typeof v === "number" && Number.isFinite(v))).map(String))].slice(0, 250);
       st.values.set(c.field, list);
     }
     if (filterState !== st || !box.isConnected) return;
-    for (const v of list) { if (v === c.value) continue; const it = document.createElement("calcite-combobox-item"); it.value = v; it.setAttribute("heading", v); it.setAttribute("text-label", v); box.appendChild(it); }
+    const have = new Set(isListOp(c.op) ? c.values || [] : [c.value]);
+    for (const v of list) { if (have.has(v)) continue; const it = document.createElement("calcite-combobox-item"); it.value = v; it.setAttribute("heading", v); it.setAttribute("text-label", v); box.appendChild(it); }
   } catch (e) { console.warn("Couldn't list the field's values", e); }
 }
 // The histogram of a number field with a slider on it, kept in step with the number box(es). These are the SDK's
@@ -2729,27 +2730,39 @@ function conditionCard(c, i) {
   const st = filterState, f = filterField(c.field), kind = fieldKind(f), n = i + 1, many = st.conditions.length > 1;
   const card = document.createElement("div"); card.className = "flt-cond"; card.setAttribute("role", "group"); card.dataset.i = String(i);
   const name = many ? t("filterConditionN", { n }) : S.filterCondition; card.setAttribute("aria-label", name);
+  // no heading: the field, the comparison and the value, with the bin beside the field (the group is still named for a screen reader)
   const head = document.createElement("div"); head.className = "flt-cond-head";
-  const hn = document.createElement("span"); hn.textContent = name; head.appendChild(hn);
   const rm = document.createElement("button"); rm.type = "button"; rm.className = "lt flt-rm"; rm.innerHTML = calIcon("trash"); rm.title = S.filterRemove; rm.setAttribute("aria-label", t("filterRemoveN", { n }));
   rm.addEventListener("click", () => { st.conditions.splice(i, 1); if (!st.conditions.length) st.conditions.push(newCondition()); renderFilter({ focus: Math.min(i, st.conditions.length - 1) }); applyFilterPreview(); });
-  head.appendChild(rm); card.appendChild(head);
+  card.appendChild(head);
   const redraw = (part) => { const fresh = conditionCard(c, i); card.replaceWith(fresh); const el = fresh.querySelector('[data-part="' + part + '"]'); if (el && el.setFocus) el.setFocus(); applyFilterPreview(); };
   const fs = calSelect(t("filterFieldLabel", { n }), st.fields.map((x) => [x.name, x.alias || x.name]), c.field, (v) => {
     const k2 = fieldKind(filterField(v));
-    c.field = v; c.value = ""; c.value2 = ""; if (!OPERATORS[k2].includes(c.op) || k2 !== kind) c.op = DEFAULT_OPERATOR[k2];
+    c.field = v; c.value = ""; c.value2 = ""; c.values = []; if (!OPERATORS[k2].includes(c.op) || k2 !== kind) c.op = DEFAULT_OPERATOR[k2];
     redraw("field");
   });
-  fs.dataset.part = "field"; card.appendChild(fs);
+  fs.dataset.part = "field"; head.append(fs, rm);
   const os = calSelect(t("filterOpLabel", { n }), OPERATORS[kind].map((op) => [op, S["filterOp_" + op]]), c.op, (v) => {
     const was = c.op; c.op = v;
-    if (kind === "text" && (was === "is" || was === "isNot") !== (v === "is" || v === "isNot")) c.value = "";
+    // between "is" and "is one of" what was chosen is kept: one value becomes a list of one, a list gives its first value
+    if (isListOp(v) && !isListOp(was)) { c.values = (was === "is" || was === "isNot") && c.value !== "" && c.value != null ? [String(c.value)] : []; c.value = ""; c.value2 = ""; }
+    else if (!isListOp(v) && isListOp(was)) { c.value = (v === "is" || v === "isNot") && c.values && c.values.length ? c.values[0] : ""; c.values = []; }
+    else if (kind === "text" && !isListOp(v) && (was === "is" || was === "isNot") !== (v === "is" || v === "isNot")) c.value = "";
     if (v !== "between") c.value2 = "";
     redraw("op");
   });
   os.dataset.part = "op"; card.appendChild(os);
   if (!needsValue(c.op)) return card;
-  if (kind === "number") {
+  if (isListOp(c.op)) {
+    // a list: every value chosen is a chip; more can be chosen from the field's values, or typed
+    const cb = document.createElement("calcite-combobox"); cb.setAttribute("label", t("filterValueLabel", { n })); cb.setAttribute("selection-mode", "multiple"); cb.setAttribute("allow-custom-values", "");
+    cb.setAttribute("selection-display", "fit"); cb.setAttribute("placeholder", S.filterChooseManyPh); cb.setAttribute("overlay-positioning", "fixed"); cb.dataset.part = "value";
+    for (const v of c.values || []) { const it = document.createElement("calcite-combobox-item"); it.value = v; it.setAttribute("heading", v); it.setAttribute("text-label", v); it.selected = true; cb.appendChild(it); }
+    cb.addEventListener("calciteComboboxChange", () => { const v = cb.value; c.values = (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(Boolean); note.textContent = fmt(S.filterListCount, { n: c.values.length }); scheduleFilterPreview(); });
+    card.appendChild(cb);
+    const note = document.createElement("p"); note.className = "flt-list-note"; note.textContent = fmt(S.filterListCount, { n: (c.values || []).length }); card.appendChild(note);
+    fillTextValues(c, cb);
+  } else if (kind === "number") {
     const inputs = [];
     let body = null;
     const box = (key, label) => { const el = calNumber(label, c[key], (v) => { c[key] = v; if (body && body.__setSlider) body.__setSlider(); scheduleFilterPreview(); }); el.dataset.part = key; inputs.push(el); return el; };
@@ -2783,7 +2796,7 @@ function renderFilter(opts) {
   const st = filterState; if (!st) return;
   destroyFilterSliders();
   $("filterLayer").textContent = st.layer.title || "";
-  $("filterBase").hidden = !st.base; $("filterBaseSql").textContent = st.base || "";
+  $("filterBase").hidden = !st.base;   // a filter the panel can't read stays on, and is said in a line (no SQL is shown)
   const many = st.conditions.length > 1;
   $("filterMatchRow").hidden = !many;
   if (many) $("filterMatchRow").replaceChildren(calSelect(S.filterMatch, [["all", S.filterMatchAll], ["any", S.filterMatchAny]], st.match, (v) => { st.match = v; applyFilterPreview(); }));
@@ -4203,7 +4216,7 @@ function renderVersions() {
     ["Time", "1.0", "The SDK's Time Bar on maps saved with time settings: play, step and a slider, set up from the map's own settings."],
     ["Older .mmap files (open only)", String(DOC_VERSION), "MapMakerLocalDocument versions 2 to 4, from earlier versions of this app, the local-save concept and Map Studio. (.mmap files saved as web maps by versions 1.2 to 1.6 open like .amap files.)"],
     ["CSV import", CSV_VERSION, "Comma, semicolon or tab files, decimal commas, column choice; styles incl. pie charts (2D only); live preview. 3.5: in 3D and in scenes the features lie on the ground."],
-    ["Filter (lab)", FILTER_VERSION, "A layer's Filter panel, laid out like Map Viewer's: conditions on number and text fields, a histogram with a slider, a count of what's shown. Built from Calcite components and the SDK's Histogram and Slider components; saved as the layer's definitionExpression."],
+    ["Filter (lab)", FILTER_VERSION, "A layer's Filter panel, laid out like Map Viewer's: conditions on number and text fields (including 'is one of' a list), a histogram with a slider, a count of what's shown. A filter the map's author set, a list included, opens as ordinary conditions that can be changed. Built from Calcite components and the SDK's Histogram and Slider components; saved as the layer's definitionExpression."],
     ["Sketch", SKETCH_VERSION, "Points, lines, areas, circles and text, with pop-ups, images, colour, size and rotation; move, reshape and delete."],
     [S.configLabel, String(cfg.configVersion || 1), cfgChain.join(".json, on ") + ".json (schema " + CONFIG_SCHEMA + ")" + (localeFile ? "; language file locales/" + localeFile.name + ".json " + (localeFile.version || "1.0") : "")],
     ["Configs and language files", CONFIG_VERSION, "A config lists only what differs from the app's defaults and can start from another config (extends). The app's wording in a language comes from one shared file per language."],

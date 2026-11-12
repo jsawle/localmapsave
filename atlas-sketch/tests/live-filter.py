@@ -13,7 +13,7 @@ match all / at least one; Apply marks the button; the saved map file holds the f
 definitionExpression and nothing outside the Web Map Specification; opening that file brings the conditions back;
 clearing a filter; the value list of a text field; a spreadsheet layer's filter saved in its feature collection.
 """
-import argparse, functools, glob, http.server, json, os, pathlib, sys, threading
+import argparse, functools, glob, http.server, json, os, pathlib, re, sys, threading
 from playwright.sync_api import sync_playwright
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -187,6 +187,59 @@ def main():
         open_filter()
         check([val("field"), val("op"), val("value")] == ["Plastic", "atLeast", "9"] and count_is("Showing 2 of 4 features"), "and it comes back when the file is opened: " + count())
         page.click("#filterCancel")
+        print("== a layer the map's author already filtered (1775-1776 Revolutionary Battles)")
+        BATTLES = "bda07736a1b9425ea19fdde282088bd6"
+        LYR = "document.querySelector('arcgis-map').view.map.allLayers.find(l => l.title === 'Revolutionary War Battles')"
+        drawn = lambda: page.evaluate("(async () => { const v = document.querySelector('arcgis-map').view, lv = await v.whenLayerView(" + LYR + "); return lv.queryFeatureCount(); })()")
+        def open_battles():
+            if not page.is_visible("#layersPanel"): page.click("#tool-layers")
+            page.wait_for_selector('#layersList [data-key$=":filter"]', timeout=30000)
+            page.evaluate("[...document.querySelectorAll('#layersList [data-key$=\":filter\"]')].find(b => b.getAttribute('aria-label').endsWith(': Revolutionary War Battles')).click()")
+            page.wait_for_selector("#filterPanel:not([hidden]) .flt-cond", timeout=30000); page.wait_for_timeout(3500)
+        def chips(card=0): return page.evaluate("(card) => { const c = document.querySelectorAll('#filterConds .flt-cond')[card].querySelector('[data-part=\"value\"]'); return [...c.querySelectorAll('calcite-combobox-item')].filter(i => i.selected).map(i => i.value); }", card)
+        def unselect(value, card=0):
+            page.evaluate("([value, card]) => { const c = document.querySelectorAll('#filterConds .flt-cond')[card].querySelector('[data-part=\"value\"]'); const it = [...c.querySelectorAll('calcite-combobox-item')].find(i => i.value === value); it.selected = !it.selected; c.dispatchEvent(new CustomEvent('calciteComboboxChange')); }", [value, card]); page.wait_for_timeout(1200)
+        page.goto(f"{base}/index.html?config=mapmaker&webmap={BATTLES}")
+        page.wait_for_function("(() => { const m = document.querySelector('arcgis-map'); return m && m.view && m.view.ready && m.view.map.loaded && !!" + LYR + "; })()", timeout=120000); page.wait_for_timeout(5000)
+        de0 = page.evaluate(LYR + ".definitionExpression")
+        open_battles()
+        check(page.is_hidden("#filterBase") and page.evaluate("!document.querySelector('#filterPanel code')") and "IN (" not in page.inner_text("#filterPanel"), "no block of code: the author's filter is not shown as SQL")
+        check(page.evaluate("document.querySelectorAll('#filterConds .flt-cond').length") == 1 and [val("field"), val("op")] == ["Dates", "isOneOf"] and len(chips()) == 21, "it opens as an ordinary condition: Dates of Battle is one of, with its 21 dates chosen")
+        check("Condition" not in page.inner_text("#filterConds") and page.evaluate("document.querySelector('#filterConds .flt-cond').getAttribute('aria-label')") == "Condition" and page.evaluate("!!document.querySelector('#filterConds .flt-cond-head .flt-rm')"), "the card has no 'Condition' heading (a screen reader still gets the name), and its bin is beside the field")
+        check("21 chosen" in page.inner_text("#filterConds"), "it says how many are chosen: " + page.inner_text("#filterConds .flt-list-note"))
+        fit = page.evaluate("(() => { const b = document.querySelector('#filterPanel .panel-body'), v = document.querySelector('#filterConds [data-part=\"value\"]').getBoundingClientRect(), p = b.getBoundingClientRect(); return v.bottom <= p.bottom && v.height < 140; })()")
+        check(fit, "the whole condition, value box included, is in view without scrolling")
+        total = page.evaluate("(async () => " + LYR + ".queryFeatureCount({ where: '1=1' }))()")
+        check(count_is("Showing 21 of %d features" % total) and drawn() == 21, "the count is of the whole layer: " + count())
+        if a.axe:
+            page.add_script_tag(path=a.axe); v = page.evaluate(AXE)
+            check(not v, "Filter panel with an author's list: no WCAG 2.1 A/AA violations (axe-core): " + "; ".join(v))
+        page.screenshot(path=str(shots / "filter-author-list.png"))
+        unselect("April 19, 1775"); unselect("August 27, 1776")
+        check(count_is("Showing 19 of %d" % total) and len(chips()) == 19 and "19 chosen" in page.inner_text("#filterConds"), "taking two dates out of the list changes the map straight away: " + count())
+        page.wait_for_timeout(1500); check(drawn() == 19, "19 battles drawn")
+        offered = page.evaluate("[...document.querySelectorAll('#filterConds [data-part=\"value\"] calcite-combobox-item')].length")
+        check(offered > 21, "dates the author left out can be added too: %d dates to choose from" % offered)
+        page.click("#filterAdd"); page.wait_for_timeout(800); select("field", "Victor", card=1); page.wait_for_timeout(2500)
+        VICTOR = "Side A Victory"
+        v1 = page.evaluate("[...document.querySelectorAll('#filterConds .flt-cond')[1].querySelectorAll('[data-part=\"value\"] calcite-combobox-item')].map(i => i.value)")
+        page.evaluate("([v]) => { const c = document.querySelectorAll('#filterConds .flt-cond')[1].querySelector('[data-part=\"value\"]'); [...c.querySelectorAll('calcite-combobox-item')].find(i => i.value === v).selected = true; c.dispatchEvent(new CustomEvent('calciteComboboxChange')); }", [VICTOR]); page.wait_for_timeout(2500)
+        both = count(); n_both = int(re.search(r"Showing (\d+) of", both).group(1))
+        check(0 < n_both < 19, "a second condition (Battle Victor is %s) narrows it: %s" % (VICTOR, both))
+        page.click("#filterApply"); page.wait_for_selector("#layersPanel:not([hidden])"); page.wait_for_timeout(2500)
+        de1 = page.evaluate(LYR + ".definitionExpression")
+        check(de1.startswith("(Dates IN (") and de1.endswith("AND (Victor = '%s')" % VICTOR) and "'April 19, 1775'," not in de1 and drawn() == n_both, "Apply saves both on the layer")
+        open_battles()
+        check(page.evaluate("document.querySelectorAll('#filterConds .flt-cond').length") == 2 and [val("op"), val("op", 1), val("value", 1)] == ["isOneOf", "is", VICTOR] and len(chips()) == 19 and page.is_hidden("#filterBase"), "opened again, both are there as conditions to change, not as code")
+        page.click("#filterClear"); page.wait_for_timeout(2500)
+        check(count_is("Showing all %d features" % total), "Clear all shows every battle in the layer: " + count())
+        page.click("#filterCancel"); page.wait_for_timeout(2500)
+        d = -1
+        for _ in range(10):   # the layer draws its own filter again, which takes a moment
+            d = drawn()
+            if d == n_both: break
+            page.wait_for_timeout(1500)
+        check(page.evaluate(LYR + ".definitionExpression") == de1 and d == n_both, "Cancel leaves the layer as it was: %d drawn" % d)
         check(not errors, "no uncaught errors: " + " | ".join(errors[:3]))
         browser.close()
     print(f"{checks[0] - len(failures)}/{checks[0]} checks passed")

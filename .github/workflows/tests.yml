@@ -25,5 +25,10 @@ jobs:
         run: node atlas-sketch/tests/scenes.test.mjs
       - name: Units tests
         run: node atlas-sketch/tests/units.test.mjs
+      - name: Config and language file tests
+        run: node atlas-sketch/tests/config.test.mjs
+      - name: The app's code parses as a module
+        # "node --check app.js" passes a .js file with a syntax error in it; checked as .mjs it does not
+        run: cp atlas-sketch/app.js "$RUNNER_TEMP/app.mjs" && node --check "$RUNNER_TEMP/app.mjs"
       - name: Lab copy parses
         run: node --check atlas-sketch/app.js
