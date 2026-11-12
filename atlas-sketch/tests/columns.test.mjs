@@ -14,6 +14,10 @@ ok(near(s.minHeight, s.maxHeight / 100, 0.001), "a zero is a thin disc, a hundre
 // the same spread in degrees at 60° north is half the ground distance
 const s60 = columnScale(def([pt(0, 60, 1), pt(0.008983, 60, 2)]));
 ok(near(s60.maxHeight, 500 / 6, 0.02), `at 60° north the same longitudes are half as far apart: tallest ${s60.maxHeight.toFixed(0)} m`);
+const sized = (size) => { const d = def([pt(0, 0, 0), pt(0.008983, 0, 10)]); d.renderer.symbol = { type: "esriSMS", size }; return columnScale(d); };
+ok(near(sized(24).width, 2 * sized(12).width, 0.001) && near(sized(6).width, sized(12).width / 2, 0.001) && sized(24).maxHeight === sized(12).maxHeight, "the Size slider sets the thickness (24 is twice 12, 6 half) and leaves the height");
+const uv = def([pt(0, 0, 0), pt(0.008983, 0, 10)], "v", "uniqueValue"); uv.renderer.defaultSymbol = { type: "esriSMS", size: 24 };
+ok(near(columnScale(uv).width, 2 * sized(12).width, 0.001), "and for a style coloured by type");
 s = columnScale(def([pt(0, 0, 3), pt(1, 1, 8)]));
 ok(s.minValue === 0 && s.maxValue === 8, "values 3 to 8 still start from zero (a bar chart's rule)");
 s = columnScale(def([pt(0, 0, 3), pt(1, 1, 8)], "w"));

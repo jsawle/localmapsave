@@ -666,7 +666,8 @@ export function buildRenderer(st) {
 /**
  * Columns in 3D (lab): the numbers for standing a column on each point, its height showing the size column.
  * Heights are real metres, so they are set from how far apart the points are: the tallest column is about a sixth of
- * the distance across the points, and a column is about a sixtieth of that distance wide. When no value is below zero
+ * the distance across the points, and a column is about a sixtieth of that distance wide (the Size slider makes it
+ * thinner or thicker). When no value is below zero
  * the height starts from zero, as a bar chart does, so a column twice as tall is a value twice as big (a zero is a thin
  * disc, a hundredth of the tallest, so the point can still be seen and clicked). With values
  * below zero the lowest value gets the shortest column instead.
@@ -684,7 +685,11 @@ export function columnScale(def) {
   const lat = webMercatorToLonLat((x0 + x1) / 2, (y0 + y1) / 2)[1];
   const across = Math.hypot(x1 - x0, y1 - y0) * Math.cos(lat * Math.PI / 180);
   const span = Math.min(4000000, Math.max(300, across || 0));   // one point, or points on top of each other: as if 300 m apart
-  const maxHeight = span / 6, width = span / 60;
+  // The Size slider (6 to 28, 12 to start) sets how thick the columns are: 12 is a sixtieth of the distance across the
+  // points, 24 twice that. Height is left alone: it is what shows the number.
+  const sym = def.renderer.symbol || def.renderer.defaultSymbol || {};
+  const size = Math.max(6, Math.min(28, Number(sym.size) || 12));
+  const maxHeight = span / 6, width = span / 60 * size / 12;
   const min = Math.min(...values), max = Math.max(...values);
   const fromZero = min >= 0;
   const lo = fromZero ? 0 : min, hi = max > lo ? max : lo + 1;
