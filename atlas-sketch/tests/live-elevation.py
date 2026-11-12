@@ -209,6 +209,32 @@ def main():
         page.select_option("#profLines", "0")
         check(charted() and len([g for g in page.evaluate(GFX) if g["type"] == "polyline" and len(g["json"]["paths"][0]) == 3]) == 1, "choosing the line from the list charts it too")
 
+        print("== a line across the 180 degree meridian")
+        page.mouse.move(mid[0], mid[1]); page.click("#profNew"); page.wait_for_selector("#profChart .prof-msg", timeout=10000)
+        go(180, 50, 3)
+        draw([140, 36], [210, 61])   # Japan to Alaska (150 W, which is 210 E on a map centred on the meridian)
+        check(charted(), "a line from Japan to Alaska is charted")
+        ln = [g for g in page.evaluate(GFX) if g["type"] == "polyline"][0]["json"]["paths"][0]
+        jump = max(abs(ln[i + 1][0] - ln[i][0]) for i in range(len(ln) - 1)); span = abs(ln[-1][0] - ln[0][0])
+        # 70 degrees of longitude is 7.8 million map metres; a line that went the wrong way round would span 290 degrees
+        check(jump < 400000 and 7.0e6 < span < 8.6e6, "the line is in one piece and goes the short way: longest step %d km, %d km end to end on the map" % (jump / 1000, span / 1000))
+        la1, la2, dl = math.radians(36), math.radians(61), math.radians(70)
+        gc = 6371.0088 * math.acos(math.sin(la1) * math.sin(la2) + math.cos(la1) * math.cos(la2) * math.cos(dl))
+        length = page.evaluate("[...document.querySelectorAll('#profStats .prof-stat')].map(x => x.textContent)")[0]
+        num = float(re.sub(r"[^\d.]", "", length)); km = num * 1.609344 if "mi" in length else num
+        check(abs(km - gc) / gc < 0.02, "its length is the great-circle distance: %s against %d km" % (length, gc))
+        st2 = page.evaluate("[...document.querySelectorAll('#profStats .prof-stat')].map(x => x.textContent)")
+        low = [x for x in st2 if x.startswith("Lowest")][0]; lowv = float(re.sub(r"[^\d.]", "", low)) * (0.3048 if "ft" in low else 1)
+        check(("-" in low or "\u2212" in low) and lowv > 3000 and page.evaluate("!!document.querySelector('#profChart .prof-sea')"), "the heights are the North Pacific's (deeper than 3,000 m), not gaps: " + low)
+        cb = page.evaluate("(() => { const b = document.getElementById('profChart').getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; })()")
+        ok_all = []
+        for f in (0.2, 0.5, 0.9):
+            page.mouse.move(cb[0] + cb[2] * f, cb[1] + cb[3] / 2, steps=3); page.wait_for_timeout(500); d = dot()
+            ok, along = on_line([d["x"], d["y"]], ln, 3000) if d else (False, -1); ok_all.append(ok and abs(along - f) < 0.08)
+        check(ok_all == [True, True, True], "the dot is on the line on both sides of the meridian: " + json.dumps(ok_all))
+        page.screenshot(path=str(shots / "elevation-meridian.png")); page.mouse.move(mid[0], mid[1])
+        page.click("#profNew"); page.wait_for_selector("#profChart .prof-msg", timeout=10000); go(-9.6, 39.0, 8); page.select_option("#profLines", "0"); charted()
+
         print("== a narrow screen")
         page.set_viewport_size({"width": 390, "height": 760}); page.wait_for_timeout(1500)
         n = page.evaluate("(() => { const c = document.getElementById('profChart').getBoundingClientRect(), s = document.querySelector('#profChart svg').getBoundingClientRect(), d = document.getElementById('profilePanel').getBoundingClientRect(); return { chart: c.width, svg: s.width, h: c.height, over: document.documentElement.scrollWidth > innerWidth, dockBottom: d.bottom, win: innerHeight }; })()")

@@ -66,7 +66,8 @@ def main():
         def drop(name, text):
             page.evaluate("""([name, text]) => { const dt = new DataTransfer(); dt.items.add(new File([text], name, { type: 'application/json' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); }""", [name, text])
         def bm_titles():
-            if not page.is_visible("#bookmarksPanel"): click("#tool-bookmarks")
+            # the element's own click, once: a pointer click that lands late and then a second click would close the panel again
+            if not page.is_visible("#bookmarksPanel"): page.evaluate("document.querySelector('#tool-bookmarks').click()")
             page.wait_for_selector("#bookmarksPanel:not([hidden])")
             return page.evaluate("[...document.querySelectorAll('#bmList .bm-title')].map(e => e.textContent)")
 

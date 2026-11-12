@@ -17,6 +17,7 @@ V = "document.querySelector('arcgis-map').view"
 SK = "document.querySelector('arcgis-sketch')"
 TEXTS = """(() => { const out = []; const root = document.querySelector('arcgis-map').shadowRoot; const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
   while ((n = w.nextNode())) { const t = (n.nodeValue || '').trim(); if (/\\d\\s?(km²|mi²|m²|ft²|km|mi|m|ft)(?![\\w²])/.test(t)) out.push(t); } return out; })()"""
+DEEP = """(sel) => { const out = []; const walk = (n) => { if (!n) return; if (n.nodeType === 3) { const t = n.nodeValue.trim(); if (t) out.push(t); return; } if (n.nodeType !== 1 && n.nodeType !== 11) return; if (n.nodeType === 1 && (n.tagName === 'STYLE' || n.tagName === 'SCRIPT')) return; if (n.shadowRoot) walk(n.shadowRoot); for (const c of n.childNodes) walk(c); }; walk(document.querySelector(sel)); return out.join(' '); }"""
 KNOWN = ("localhost", "js.arcgis.com", "arcgis.com", "arcgisonline.com", "esri.com")
 
 class Quiet(http.server.SimpleHTTPRequestHandler):
@@ -67,8 +68,9 @@ def main():
             return texts, sorted(set(u for t in texts for u in re.findall(r"\d\s?(km²|mi²|m²|ft²|km|mi|m|ft)(?![\w²])", t)))
         def measure_units(page):
             page.click("#tool-measure"); page.wait_for_selector("#measurePanel:not([hidden])", timeout=30000); page.click("#mDist"); page.wait_for_timeout(2500)
-            page.mouse.click(400, 300); page.wait_for_timeout(600); page.mouse.move(600, 320, steps=4); page.mouse.dblclick(600, 320); page.wait_for_timeout(2000)
-            t = page.inner_text("#measureBody"); return t.replace("\n", " "), sorted(set(re.findall(r"\d\s?(km|mi|m|ft)\b", t)))
+            page.mouse.move(300, 200); page.mouse.move(350, 250, steps=10); page.wait_for_timeout(2500); page.mouse.move(400, 300, steps=10); page.wait_for_timeout(800)   # the pointer rests on the map before the first click
+            page.mouse.click(400, 300); page.wait_for_timeout(700); page.mouse.move(600, 320, steps=6); page.wait_for_timeout(400); page.mouse.dblclick(600, 320); page.wait_for_timeout(2500)
+            t = page.evaluate(DEEP, "#measureBody"); return t, sorted(set(re.findall(r"\d\s?(km|mi|m|ft)\b", t)))
         def axe(page, sel, what):
             if not a.axe: return
             page.add_script_tag(path=a.axe)
@@ -88,7 +90,7 @@ def main():
 
         print("== the switch")
         page.click("#measurePanel .units-seg button[data-units='metric']"); page.wait_for_timeout(1500)
-        mt = page.inner_text("#measureBody").replace("\n", " "); mu = sorted(set(re.findall(r"\d\s?(km|mi|m|ft)\b", mt)))
+        mt = page.evaluate(DEEP, "#measureBody"); mu = sorted(set(re.findall(r"\d\s?(km|mi|m|ft)\b", mt)))
         check(mu and all(u in ("km", "m") for u in mu) and pressed(page, "measurePanel") == ["metric"], "choosing km changes the measurement already made: " + mt[:80])
         page.screenshot(path=str(shots / "units-switch-measure.png")); close(page, "measurePanel")
         texts, su = sketch_units(page)
