@@ -75,6 +75,11 @@ def main():
         js("#columns3dBox"); page.wait_for_timeout(2500)
         r = rend("csvPreview") or rend("__data_csvPreview")
         check(bool(r) and r["sym"] == "point-3d" and r["prim"] == "cylinder" and r["color"] == "#0079c1", "the preview is drawn as blue columns: " + json.dumps(r))
+        w12 = r["width"]; h12 = r["stops"][1][1]
+        page.evaluate("(() => { const s = document.querySelector('#dataSize'); s.value = 24; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); })()"); page.wait_for_timeout(2500)
+        r24 = rend("csvPreview") or rend("__data_csvPreview")
+        check(bool(r24) and abs(r24["width"] / w12 - 2) < 0.01 and r24["stops"][1][1] == h12, "the Size slider at 24 makes the columns twice as thick, the same height (%.0f m → %.0f m)" % (w12, r24["width"]))
+        page.evaluate("(() => { const s = document.querySelector('#dataSize'); s.value = 12; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); })()"); page.wait_for_timeout(2500)
         if a.axe:
             page.add_script_tag(path=a.axe); v = page.evaluate(AXE, "#dataPanel"); check(not v, "the panel with the choice: no WCAG 2.1 A/AA violations (axe-core): " + "; ".join(v))
         page.screenshot(path=str(shots / "columns-panel.png"))
