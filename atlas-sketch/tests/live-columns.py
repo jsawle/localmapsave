@@ -69,6 +69,10 @@ def main():
         print("== with it (config=lab), in 3D")
         start("lab"); to_3d()
         drop("litter.csv", CSV); wv("#dataPanel:not([hidden]) #dataSubmit"); page.wait_for_timeout(1500)
+        TILT = "document.querySelector('arcgis-scene').view.camera.tilt"
+        try: wf("document.querySelector('arcgis-scene').view.camera.tilt > 40 && Math.abs(document.querySelector('arcgis-scene').view.center.longitude + 117.16) < 0.05", timeout=60000)
+        except Exception: pass
+        tilt = page.evaluate(TILT); check(50 < tilt < 60, "the 3D view goes to the dropped points at an angle (tilt %.0f°)" % tilt)
         mark("3d + drop"); style("simple"); check(page.evaluate("!document.querySelector('#columns3dBox')"), "Locations has no columns choice (no number to show)")
         style("graduated"); check(page.evaluate("!!document.querySelector('#columns3dBox') && !document.querySelector('#columns3dBox').checked"), "By size offers 'Show as columns in 3D', off to start")
         page.evaluate("(() => { const s = document.querySelector('#fieldRows select'); s.value = [...s.options].find(o => o.textContent === 'Fast Food wrappers').value; s.dispatchEvent(new Event('change')); })()")
@@ -111,6 +115,19 @@ def main():
         dr = own["featureCollection"]["layers"][0]["layerDefinition"]["drawingInfo"]["renderer"]
         check(dr["type"] == "uniqueValue" and dr["defaultSymbol"]["type"] == "esriSMS", "the saved map holds the 2D style (no 3D symbols in a web map)")
         mark("after save"); to_3d(); r = rend("__data_"); check(bool(r) and r["prim"] == "cylinder", "back in 3D the columns return"); mark("end")
+        print("== Cancel puts the 3D view back")
+        js("#tool-open"); wv("#newMapBtn"); js("#newMapBtn"); page.wait_for_timeout(2500)
+        page.evaluate("(() => { const v = document.querySelector('arcgis-scene').view; const c = v.camera.clone(); c.position = { x: -117.16, y: 32.71, z: 3000, spatialReference: { wkid: 4326 } }; c.tilt = 0; c.heading = 0; return v.goTo(c, { animate: false }); })()"); page.wait_for_timeout(2500)
+        drop("litter.csv", CSV); wv("#dataPanel:not([hidden]) #dataSubmit")
+        try: wf(TILT + " > 40", timeout=60000)
+        except Exception: pass
+        t1 = page.evaluate(TILT); js("#dataCancel")
+        try: wf(TILT + " < 5", timeout=60000)
+        except Exception: pass
+        t2 = page.evaluate(TILT); check(t1 > 40 and t2 < 5, "tilted for the preview (%.0f°), straight down again after Cancel (%.0f°)" % (t1, t2))
+        page.evaluate("(() => { const v = document.querySelector('arcgis-scene').view; const c = v.camera.clone(); c.tilt = 30; return v.goTo(c, { animate: false }); })()"); page.wait_for_timeout(2500)
+        drop("litter.csv", CSV); wv("#dataPanel:not([hidden]) #dataSubmit"); page.wait_for_timeout(6000)
+        t3 = page.evaluate(TILT); check(25 < t3 < 35, "a tilt already set is kept (30° → %.0f°)" % t3); js("#dataCancel"); page.wait_for_timeout(1000)
         # Known before this feature: replacing the preview layer in the 3D view raises an error whose whole message is "n"
         # (it happens with columns never switched on). It is reported here, not counted against columns.
         known = [e for e in errors if e.split(" @")[0].strip() == "n"]; real = [e for e in errors if e not in known]
