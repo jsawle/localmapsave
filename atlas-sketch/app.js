@@ -2,23 +2,24 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.15";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.16";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.15";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.16";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.15";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.15";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.15";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.16";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.16";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.16";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.15";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.15";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.15";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.16";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.16";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.16";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.15";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.16";
 
-const APP_VERSION = "5.0.0-beta.15";
+const APP_VERSION = "5.0.0-beta.16";
 const COMPASS_VERSION = "1.1";
+const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
 const CONFIG_SCHEMA = 2;
@@ -1778,7 +1779,7 @@ async function setMode(m, opts) {
   if (coordWidget) coordWidget.view = view;
   if (legend) legend.view = view;
   if (m === "3d") endSwipe();   // Swipe is for 2D maps
-  if (table) table.widget.view = view;
+  if (table && table.widget) { if (table.kind === "chart") { try { const src = view.selectionManager && view.selectionManager.sources; if (src && !src.includes(table.layer)) src.add(table.layer); } catch (e) { /* no selection on this view */ } } table.widget.view = view; }
   if (!$("layersPanel").hidden) renderLayers({ keepFocus: true });
   updatePopupEnabled();
   watchBottom(0);
@@ -1932,7 +1933,7 @@ async function openWebMapItem(itemId, opts) {
       setTitle(item.title); markClean(); unbindFile();
       const vp = wm.initialViewProperties && wm.initialViewProperties.viewpoint;
       if (vp) goToSafe(vp, { animate: false });
-      if (!opts.quiet) toast(t("openedMap", { title: item.title }));
+      if (!opts.quiet) toast(t("openedMap", { title: item.title }) + chartNote(), chartNote() ? 8000 : undefined);
     }
     if (!$("bookmarksPanel").hidden) showBmList();
     if (!$("layersPanel").hidden) renderLayers();
@@ -1986,7 +1987,7 @@ async function openWebSceneItem(itemId, opts) {
     currentSource = { itemId, title: item.title, item, data, scene: true, restricted: !!portalUser && !!item.access && item.access !== "public" };
     bookmarks = slidesToBookmarks(ws); updateToolBadges();
     setTitle(item.title); markClean(); unbindFile();
-    if (!opts.quiet) toast(t("openedMap", { title: item.title }));
+    if (!opts.quiet) toast(t("openedMap", { title: item.title }) + chartNote(), chartNote() ? 8000 : undefined);
     if (!$("bookmarksPanel").hidden) showBmList();
     if (!$("layersPanel").hidden) renderLayers();
     if (catalogLoaded) refreshCatalogButtons();
@@ -2228,13 +2229,17 @@ async function toggleSwipe(l) {
 }
 function closeTable(restoreFocus) {
   if (!table) return;
-  const l = table.layer;
+  const l = table.layer, kind = table.kind || "table";
+  if (kind === "chart") {   // the chart's selection goes from the map with it
+    try { if (table.widget && table.widget.clearSelection) table.widget.clearSelection(); } catch (e) { /* none */ }
+    for (const v of [mapView, sceneView]) { try { const src = v && v.selectionManager && v.selectionManager.sources; if (src && src.includes(l)) src.remove(l); } catch (e) { /* none */ } }
+  }
   dropEl(table.widget);
   table = null;
-  $("tableDock").hidden = true; $("tableBody").innerHTML = "";
+  $("tableDock").hidden = true; $("tableBody").innerHTML = ""; $("tableDock").classList.remove("chart-dock"); $("chartPickWrap").hidden = true;
   if (openPanelName !== "profile") { $("app").classList.remove("docked", "tools-shown"); syncToolsToggles(); }
   setTimeout(layoutBottom, 0);
-  if (!$("layersPanel").hidden) renderLayers({ focusKey: restoreFocus ? keyOf(l) + ":table" : null, keepFocus: !restoreFocus });
+  if (!$("layersPanel").hidden) renderLayers({ focusKey: restoreFocus ? keyOf(l) + ":" + kind : null, keepFocus: !restoreFocus });
 }
 // The SDK's table has a progress bar with no name for a screen reader (WCAG 4.1.2, found by axe-core): it is given one.
 function nameTableProgress(el, tries = 0) {
@@ -2244,7 +2249,7 @@ function nameTableProgress(el, tries = 0) {
   if (el.isConnected && tries < 20) setTimeout(() => nameTableProgress(el, tries + 1), 300);
 }
 async function openTable(l) {
-  if (table && table.layer === l) { closeTable(true); return; }
+  if (table && table.layer === l && table.kind !== "chart") { closeTable(true); return; }
   if (openPanelName === "profile") { closePanels(false); openPanel("layers", { focus: false }); }
   if (table) closeTable(false);
   try {
@@ -2255,12 +2260,51 @@ async function openTable(l) {
     $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles();
     const w = await toolEl("arcgis-feature-table", c, { view, layer: l });
     nameTableProgress(w);
-    table = { widget: w, layer: l };
+    table = { widget: w, layer: l, kind: "table" };
     setTimeout(layoutBottom, 0);
   } catch (e) { console.error(e); toast(S.tableFailed); closeTable(false); return; }
   renderLayers({ keepFocus: true });
 }
 $("tableClose").addEventListener("click", () => closeTable(true));
+// Charts (1.0 in 5.0.0-beta.16): a chart the map's author set up on a layer in Map Viewer is drawn by the SDK's chart
+// component from that set-up, in the dock under the map (where the table goes; one or the other). The component's own
+// action bar has its tools: the legend, selecting, only what is in view, zoom, and saving the picture or the numbers.
+// The chart and the map share a selection: what is selected on the chart is highlighted on the map.
+const chartsOf = (l) => { try { const c = l && l.charts; return Array.isArray(c) ? c.filter((x) => x && x.series) : []; } catch (e) { return []; } };
+const chartTitle = (c, i) => { const x = c && c.title && c.title.content; return String((x && x.text) || (typeof c.title === "string" ? c.title : "") || t("chartN", { n: i + 1 })).trim(); };
+async function openChart(l, index) {
+  const charts = chartsOf(l);
+  if (!charts.length) return;
+  if (table && table.layer === l && table.kind === "chart" && index === undefined) { closeTable(true); return; }
+  if (openPanelName === "profile") { closePanels(false); openPanel("layers", { focus: false }); }
+  if (table) closeTable(false);
+  const i = Math.min(charts.length - 1, Math.max(0, index || 0));
+  try {
+    const c = document.createElement("div"); c.className = "table-host chart-host";
+    $("tableBody").replaceChildren(c);
+    $("tableH").textContent = t("chartOf", { title: l.title || "" });
+    const pick = $("chartPick"); pick.replaceChildren(...charts.map((ch, k) => new Option(chartTitle(ch, k), String(k)))); pick.value = String(i);
+    $("chartPickWrap").hidden = charts.length < 2;
+    $("tableDock").classList.add("chart-dock"); $("tableDock").hidden = false;
+    $("app").classList.add("docked"); $("app").classList.remove("tools-shown"); syncToolsToggles();
+    const el = document.createElement("arcgis-chart"); el.setAttribute("aria-label", chartTitle(charts[i], i));
+    const bar = document.createElement("arcgis-charts-action-bar"); bar.slot = "action-bar"; el.appendChild(bar);
+    c.appendChild(el);
+    await Promise.race([customElements.whenDefined("arcgis-chart"), new Promise((_, no) => setTimeout(() => no(new Error("arcgis-chart did not load")), 45000))]);
+    if (el.componentOnReady) await el.componentOnReady();
+    // the map's selection manager only takes selections for layers it has been told of
+    try { const src = view.selectionManager && view.selectionManager.sources; if (src && !src.includes(l)) src.add(l); } catch (e) { console.warn("Chart selection won't show on the map", e); }
+    Object.assign(el, { layer: l, view, model: charts[i], syncSelectionsBetweenChartAndLayerViewPolicy: "enabled" });   // what is selected on the chart is highlighted on the map
+    table = { widget: el, layer: l, kind: "chart", index: i };
+    setTimeout(layoutBottom, 0);
+  } catch (e) { console.error(e); toast(S.chartFailed); table = table || { widget: null, layer: l, kind: "chart" }; closeTable(false); return; }
+  renderLayers({ keepFocus: true });
+}
+$("chartPick").addEventListener("change", () => { if (table && table.kind === "chart") openChart(table.layer, Number($("chartPick").value)); });
+// a map that has charts says so when it opens, since they are found in Map layers
+function chartNote() {
+  try { const n = shownMap().allLayers.filter((l) => chartsOf(l).length > 0).length; return n ? " " + (n === 1 ? S.mapHasChart : t("mapHasCharts", { n })) : ""; } catch (e) { return ""; }
+}
 // Anything that ends with a layer gone (removed, a new map) also ends its swipe and table.
 function endLayerTools(l) {
   const within = (x) => x && (x === l || (isGroup(l) && l.allLayers && l.allLayers.includes(x)));
@@ -2349,7 +2393,8 @@ function layerRow(l, owner, depth, pos, count) {
     if (!group && LEGEND_TYPES.has(l.type)) tools.appendChild(toolButton(k + ":legend", calIcon("legend"), S.showLegend, title, () => { u.legend = !u.legend; renderLayers({ focusKey: k + ":legend" }); }, u.legend));
     tools.appendChild(toolButton(k + ":transp", calIcon("transparency"), S.adjustTransparency, title, () => { u.transp = !u.transp; renderLayers({ focusKey: k + ":transp" }); }, u.transp));
     if (!group && mode === "2d") tools.appendChild(toolButton(k + ":swipe", calIcon("compare"), S.swipe, title, () => toggleSwipe(l), !!(swipe && swipe.layer === l)));
-    if (!group && TABLE_TYPES.has(l.type)) tools.appendChild(toolButton(k + ":table", calIcon("table"), S.table, title, () => openTable(l), !!(table && table.layer === l)));
+    if (!group && TABLE_TYPES.has(l.type)) tools.appendChild(toolButton(k + ":table", calIcon("table"), S.table, title, () => openTable(l), !!(table && table.layer === l && table.kind !== "chart")));
+    if (!group && chartsOf(l).length) tools.appendChild(toolButton(k + ":chart", calIcon("graph-bar"), S.chart, title, () => openChart(l), !!(table && table.layer === l && table.kind === "chart")));
     if (filterable(l)) {   // Filter: show only the features that meet some conditions (the button is marked when the layer has a filter)
       const on = hasFilter(l), fb = toolButton(k + ":filter", calIcon("filter"), on ? S.filterOn : S.filter, title, () => openFilter(l));
       if (on) fb.classList.add("on");
@@ -4112,6 +4157,7 @@ function renderVersions() {
     ["Saved maps list (Open map, My map files)", RECENT_VERSION, "Maps saved on this device, newest first, kept in this browser. Chrome and Edge reopen the file itself; Safari and Firefox keep a copy of each saved map."],
     ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
     ["Units", UNITS_VERSION, "Kilometres and metres, or miles and feet, in Measure, Elevation and Sketch. With units set to auto the app starts in miles on a device whose time zone is in the United States and in kilometres elsewhere; if the time zone isn't known, the browser's language decides. Nothing is sent anywhere to work this out. The km / mi switch changes the units, and the choice is kept on this device."],
+    ["Charts", CHARTS_VERSION, "A chart set up on a layer in Map Viewer, drawn by the SDK's chart component under the map: Map layers, then the layer's Chart button. Selecting on the chart highlights those features on the map. The chart's own toolbar has its legend, selection, only what is in view, zoom and saving."],
     ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). A line you draw takes the shortest way round the Earth between the places you click (a great circle), so on the flat map a long line is a curve; a line you choose on the map is followed as it is drawn. The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
