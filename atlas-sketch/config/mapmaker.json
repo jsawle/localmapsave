@@ -43,6 +43,7 @@
     "basemapsIntro": "Select a basemap to refine the color of your map.",
     "colour": "Color",
     "ramp": "Colors",
+    "rampReverse": "Reverse colors",
     "colorBy": "Color points by",
     "styleNumericColorSize": "Color & size",
     "styleNumericColorSizeHint": "two numbers together, e.g. depth as color, magnitude as size",

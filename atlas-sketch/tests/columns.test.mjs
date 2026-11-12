@@ -1,5 +1,5 @@
 // Columns in 3D (lab): the column heights and width worked out from a spreadsheet layer.  node columns.test.mjs
-import { columnScale, lonLatToWebMercator } from "../lib/csv.js";
+import { columnScale, lonLatToWebMercator, stateFromLayerDef, buildLayerDef, DATA_STYLES, COLOR_RAMPS } from "../lib/csv.js";
 let n = 0, bad = 0;
 const ok = (c, m) => { n++; if (!c) { bad++; console.log("  FAIL " + m); } else console.log("  ok   " + m); };
 const pt = (lon, lat, v) => { const [x, y] = lonLatToWebMercator(lon, lat); return { geometry: { x, y }, attributes: { v, w: -v } }; };
@@ -31,4 +31,20 @@ ok(s.maxValue > s.minValue, "every value zero: no divide by zero");
 ok(columnScale({ renderer: { type: "simple" }, features: [pt(0, 0, 1)] }) === null, "a style with no size column: no columns");
 ok(columnScale(def([pt(0, 0, 1)], "_pieTotal", "pieChart")) === null, "a pie-chart layer: no columns");
 ok(columnScale(def([{ geometry: { x: 0, y: 0 }, attributes: { v: "a" } }])) === null, "no numbers in the column: no columns");
+// Reverse colours on a colour ramp (Color & size): written into the saved style and read back from it
+{
+  const fields = [{ name: "ObjectId", type: "esriFieldTypeOID" }, { name: "a", alias: "A", type: "esriFieldTypeDouble" }, { name: "b", alias: "B", type: "esriFieldTypeDouble" }];
+  const feats = [1, 2, 3, 4, 5].map((i) => { const f = pt(i / 100, 0, i); f.attributes = { ObjectId: i, a: i, b: i * 2 }; return f; });
+  const st = stateFromLayerDef({ title: "t", fields, features: feats, renderer: { type: "simple", symbol: { type: "esriSMS", size: 12 } } });
+  st.style = DATA_STYLES.find((x) => x.id === "numeric_color_size"); st.fieldChoices = { color: "a", size: "b", label: null, pie: null };
+  const green = COLOR_RAMPS.find((r) => r.id === "green").colors, stopsOf = (d) => d.renderer.visualVariables.find((v) => v.type === "colorInfo").stops;
+  st.symbolChoices.ramp = "green";
+  const plain = buildLayerDef(st, "x", "t"), back0 = stateFromLayerDef(plain);
+  ok(stopsOf(plain)[0].color.slice(0, 3).join() === green[0].join() && back0.symbolChoices.ramp === "green" && !back0.symbolChoices.rampReverse, "a ramp as it comes: low values pale, and read back as not reversed");
+  st.symbolChoices.rampReverse = true;
+  const rev = buildLayerDef(st, "x", "t"), sv = stopsOf(rev), back = stateFromLayerDef(rev);
+  ok(sv[0].color.slice(0, 3).join() === green[4].join() && sv[4].color.slice(0, 3).join() === green[0].join(), "Reverse colours: low values get the dark end, high the pale");
+  ok(sv.every((x, i) => i === 0 || x.value > sv[i - 1].value) && sv[0].label.startsWith("<") && sv[4].label.startsWith(">"), "the values and their labels still run low to high");
+  ok(back.symbolChoices.ramp === "green" && back.symbolChoices.rampReverse === true && back.style.id === "numeric_color_size", "read back from the saved style: Greens, reversed");
+}
 console.log(bad ? `${bad} of ${n} FAILED` : `All ${n} checks passed.`); process.exit(bad ? 1 : 0);

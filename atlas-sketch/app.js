@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.26";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.27";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.26";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.27";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.26";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.26";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.26";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.27";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.27";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.27";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.26";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.26";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.26";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.27";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.27";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.27";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.26";
+  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.27";
 
-const APP_VERSION = "5.0.0-beta.26";
+const APP_VERSION = "5.0.0-beta.27";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
   partnerLogos: [],
   theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", toolActive: "", toolActiveInk: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
   portalUrl: "https://www.arcgis.com",
-  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.26). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
+  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.27). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
   basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
   defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   startView: { center: [0, 20], zoom: 2 },
@@ -2178,7 +2178,7 @@ function buildDataLayer(ld) {
 // Columns in 3D (lab, features.columns3d): a spreadsheet layer sized by a number column can stand a column on each point
 // in the 3D view, its height showing the number. The layer's saved style stays the 2D one (By size and so on); the
 // columns are a way of drawing it in 3D, so 2D, the saved file and other apps are unchanged.
-const COLUMNS_VERSION = "0.2";   // 0.2: the Size slider sets how thick the columns are
+const COLUMNS_VERSION = "0.3";   // 0.2: the Size slider sets how thick the columns are. 0.3: the choice is offered in the 3D view only
 function columnSymbol(color, width) {
   const c = color && Number.isFinite(color.r) ? [color.r, color.g, color.b] : [0, 121, 193];
   return { type: "point-3d", symbolLayers: [{ type: "object", resource: { primitive: "cylinder" }, anchor: "bottom", width, depth: width, height: width, material: { color: c } }] };
@@ -3502,12 +3502,13 @@ function renderFieldRows() {
     wrap.append(lbl, sel);
   });
   if (addState.style.id === "pie_chart") wrap.appendChild(pieColumnsBox());
-  if (F.columns3d === true && F.threeD !== false && addState.style.fields.includes("size") && addState.style.id !== "pie_chart") {
+  // Offered in the 3D view only: in 2D it would change nothing on screen. A layer that has it keeps it while styled in 2D.
+  if (F.columns3d === true && mode === "3d" && addState.style.fields.includes("size") && addState.style.id !== "pie_chart") {
     const row = document.createElement("div"); row.className = "pie-col col3d";
     const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = "columns3dBox"; cb.checked = !!addState.columns3d;
     cb.setAttribute("aria-describedby", "columns3dHint");
     const lb = document.createElement("label"); lb.htmlFor = cb.id; lb.textContent = S.columns3d;
-    const hint = document.createElement("p"); hint.className = "hint"; hint.id = "columns3dHint"; hint.textContent = mode === "3d" ? S.columns3dHint : S.columns3dHint2d;
+    const hint = document.createElement("p"); hint.className = "hint"; hint.id = "columns3dHint"; hint.textContent = S.columns3dHint;
     cb.addEventListener("change", () => { addState.columns3d = cb.checked; renderSymbolBlocks(); });
     row.append(cb, lb); wrap.append(row, hint);
   }
@@ -3576,12 +3577,14 @@ function renderSymbolBlocks() {
   if (ramp) for (const r of COLOR_RAMPS) {
     const b = document.createElement("button"); b.type = "button"; b.className = "ramp-btn"; b.setAttribute("aria-label", r.name); b.title = r.name;
     b.setAttribute("aria-pressed", String(c.ramp === r.id));
-    b.style.background = "linear-gradient(90deg," + r.colors.map((col) => "rgb(" + col.join(",") + ")").join(",") + ")";
+    b.style.background = "linear-gradient(" + (c.rampReverse ? 270 : 90) + "deg," + r.colors.map((col) => "rgb(" + col.join(",") + ")").join(",") + ")";   // drawn low to high, as it will be used
     b.addEventListener("click", () => { c.ramp = r.id; renderSymbolBlocks(); }); rl.appendChild(b);
   }
+  $("rampRevRow").hidden = !ramp; $("rampReverse").checked = !!c.rampReverse;
   updateConfigSummary();
   updatePreview(false);
 }
+$("rampReverse").addEventListener("change", () => { if (addState) { addState.symbolChoices.rampReverse = $("rampReverse").checked; renderSymbolBlocks(); } });
 function updateConfigSummary() {
   const c = addState.fieldChoices, A = (n) => (n ? aliasOf(addState, n) : "—");
   const numColor = addState.style.id === "numeric_color_size";
