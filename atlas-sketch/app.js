@@ -2,20 +2,20 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.7";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.8";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.7";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.8";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.7";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.8";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.7";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.7";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.7";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.8";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.8";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.8";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.7";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.8";
 
-const APP_VERSION = "5.0.0-beta.7";
+const APP_VERSION = "5.0.0-beta.8";
 const COMPASS_VERSION = "1.1";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -259,7 +259,7 @@ const [EsriMap, WebMap, WebScene, Camera, GraphicsLayer, FeatureLayer, Graphic, 
   "@arcgis/core/identity/OAuthInfo.js", "@arcgis/core/portal/Portal.js", "@arcgis/core/request.js", "@arcgis/core/core/reactiveUtils.js",
   "@arcgis/core/symbols/SimpleMarkerSymbol.js", "@arcgis/core/symbols/SimpleLineSymbol.js", "@arcgis/core/symbols/SimpleFillSymbol.js", "@arcgis/core/symbols/TextSymbol.js"
 ]);
-// The SDK code for a tool is downloaded when the tool is first opened, not when the app starts (5.0.0-beta.7): on a slow
+// The SDK code for a tool is downloaded when the tool is first opened, not when the app starts (5.0.0-beta.8): on a slow
 // connection the map is there sooner, and a class that never measures never downloads Measure.
 let Legend, Measurement, CoordinateConversion, ElevationProfile, ElevationLayer, densifyOperator, WebStyleSymbol, cimSymbolUtils;
 const TOOL_CODE = {
@@ -291,7 +291,7 @@ async function restGet(path, query) {
 const graphicsLayer = new GraphicsLayer({ id: "__sketch", title: S.sketchLayer, elevationInfo: { mode: "on-the-ground" }, listMode: "hide" });
 const defaultBasemap = () => new Basemap({ portalItem: { id: cfg.defaultBasemap } });
 // A link that opens a map or scene starts without the default basemap: that map brings its own, and the default one
-// (its item, style and first tiles) would be downloaded only to be replaced (5.0.0-beta.7). It is put in if the open fails.
+// (its item, style and first tiles) would be downloaded only to be replaced (5.0.0-beta.8). It is put in if the open fails.
 const linkedScene = !authStash && F.threeD !== false && HEX32.test(params.get("webscene") || "") ? params.get("webscene") : null;
 const linkedMap = !authStash && !linkedScene && HEX32.test(params.get("webmap") || "") ? params.get("webmap") : null;
 const localMap = new EsriMap({ basemap: linkedScene || linkedMap ? null : defaultBasemap(), ground: "world-elevation", layers: [graphicsLayer] });
@@ -304,7 +304,7 @@ if (linkedScene || linkedMap) {
 function takePreloaded(itemId, Type) { const p = preloaded; preloaded = null; return p && p.id === itemId && p.map instanceof Type && p.map.loadStatus !== "failed" ? p.map : new Type({ portalItem: { id: itemId } }); }
 const startCenter = Array.isArray(cfg.startView.center) ? cfg.startView.center : [0, 20];
 // The views are made by the SDK's map and scene components (arcgis-map, arcgis-scene), the supported way from SDK 5 on;
-// the rest of the app works with the MapView / SceneView each one holds (5.0.0-beta.7).
+// the rest of the app works with the MapView / SceneView each one holds (5.0.0-beta.8).
 async function componentView(tag, hostId, props) {
   const el = document.createElement(tag); el.className = "view-el";
   Object.assign(el, props);
@@ -312,7 +312,36 @@ async function componentView(tag, hostId, props) {
   await customElements.whenDefined(tag);
   await el.viewOnReady();
   viewEls.set(el.view, el);
+  roundMeasurements(el);
   return el.view;
+}
+// Measurements with no decimal places (5.0.0-beta.8). The Sketch tools show lengths and areas to two decimal places
+// ("1,199.31 km") in their tooltips and segment labels, and the SDK has no setting for that: its value options choose
+// units only. Those texts are ordinary page text inside the view component, so they are rounded there, as they are
+// written: "1,199 km". Coordinates and angles are left alone. sketchDecimals in a config gives another number of
+// places, or null to leave the SDK's own.
+const MEASURE_PLACES = cfg.sketchDecimals === null ? null : Number.isInteger(cfg.sketchDecimals) && cfg.sketchDecimals >= 0 && cfg.sketchDecimals <= 6 ? cfg.sketchDecimals : 0;
+function roundMeasurements(el) {
+  if (MEASURE_PLACES === null || !el.shadowRoot || typeof MutationObserver === "undefined") return;
+  let locale; try { locale = intl.getLocale(); } catch (e) { locale = undefined; }
+  let parts; try { parts = new Intl.NumberFormat(locale).formatToParts(12345.6); } catch (e) { locale = undefined; parts = new Intl.NumberFormat().formatToParts(12345.6); }
+  const group = (parts.find((p) => p.type === "group") || {}).value || ",", decimal = (parts.find((p) => p.type === "decimal") || {}).value || ".";
+  const esc = (c) => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const UNIT = "(?:km²|mi²|m²|ft²|yd²|km2|mi2|m2|ft2|ha|ac|km|nmi|mi|yd|ft|cm|mm|in|m)";
+  const re = new RegExp("(\\d[\\d" + esc(group) + "\\u00a0\\u202f]*)" + esc(decimal) + "(\\d+)(\\s?" + UNIT + ")(?![\\w²])", "g");
+  const out = new Intl.NumberFormat(locale, { maximumFractionDigits: MEASURE_PLACES, minimumFractionDigits: 0 });
+  const fix = (node) => {
+    const text = node.nodeValue; if (!text || text.length > 80 || !/\d/.test(text)) return;
+    const next = text.replace(re, (m, whole, frac, unit) => { if (frac.length <= MEASURE_PLACES) return m; const n = Number(whole.replace(/\D/g, "") + "." + frac); return Number.isFinite(n) ? out.format(n) + unit : m; });
+    if (next !== text) node.nodeValue = next;
+  };
+  const sweep = (root) => {
+    if (root.nodeType === 3) { fix(root); return; }
+    if (root.nodeType !== 1 && root.nodeType !== 11) return;
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) fix(n);
+  };
+  new MutationObserver((list) => { for (const m of list) { if (m.type === "characterData") fix(m.target); else for (const n of m.addedNodes) sweep(n); } })
+    .observe(el.shadowRoot, { subtree: true, childList: true, characterData: true });
 }
 // A view's map is set on its component, which owns the view: set on the view alone, the component can put its own back.
 const viewEls = new Map();
@@ -634,7 +663,7 @@ const newUid = () => "f" + Date.now().toString(36) + Math.random().toString(36).
 const SKETCH_TOOLS = ["point", "polyline", "freehandPolyline", "polygon", "freehandPolygon", "rectangle", "circle", "text"];
 const sketch = document.createElement("arcgis-sketch");
 sketch.defaultGraphicsLayerDisabled = true;   // draw on the app's sketch layer only, never a layer of its own
-// It goes on the page (and its code is downloaded) when Sketch is first opened: see sketchToolsOn (5.0.0-beta.7).
+// It goes on the page (and its code is downloaded) when Sketch is first opened: see sketchToolsOn (5.0.0-beta.8).
 let sketchPlaced = null;
 const sketchOnPage = new Promise((res) => { sketchPlaced = res; });
 function placeSketch() { if (!sketch.isConnected) { $("sketchBar").appendChild(sketch); sketchPlaced(); } }
@@ -658,9 +687,15 @@ const sketchReady = (async () => {
   // Tooltips on from the start (5.0.0-beta.7): beside the pointer, the place while drawing a point, and a line's length
   // or an area's size as it is drawn. The toolbar's Settings can turn them off. A config can start with them off.
   if (cfg.sketchTooltips !== false) { try { if (sketch.tooltipOptions) sketch.tooltipOptions.enabled = true; else sketch.tooltipOptions = { enabled: true }; } catch (e) { console.warn("Tooltips not turned on", e); } }
+  // Also on from the start (5.0.0-beta.8), each with a config switch and each in the toolbar's Settings:
+  //  - segment labels: the length of each side while a line or an area is drawn or reshaped (sketchLabels)
+  //  - snapping: the pointer is pulled onto a nearby corner or edge of another sketch or of a spreadsheet layer's
+  //    features, and helps keep right angles and parallels within the shape being drawn (sketchSnapping)
+  if (cfg.sketchLabels !== false) { try { sketch.labelOptions.enabled = true; } catch (e) { console.warn("Labels not turned on", e); } }
+  if (cfg.sketchSnapping !== false) { try { const so = sketch.snappingOptions; so.enabled = true; so.selfEnabled = true; so.featureEnabled = true; syncSnapSources(); } catch (e) { console.warn("Snapping not turned on", e); } }
 })().catch((e) => console.error("Sketch couldn't start", e));
 
-// ---- Sketch styles (2.0 in 5.0.0-beta.7; 2.1 in beta.6: Map Viewer's sketch styles)
+// ---- Sketch styles (2.0 in 5.0.0-beta.8; 2.1 in beta.6: Map Viewer's sketch styles)
 // Point symbols: the plain circle, or a symbol from one of Esri's sketch styles: the web styles in the "Esri Sketch
 // Styles" group, which is where Map Viewer's Sketch gets its categories (Animals, Buildings, Pins...). A sketch keeps
 // the style's item id and the symbol's name ("web:<item id>/Fox"); the symbol is fetched once, then sized (and, for a
@@ -1061,9 +1096,20 @@ function endSketchOps() {
   try { if (sketch.createGraphic) sketch.cancel(); else sketch.complete(); } catch (e) { /* idle */ }
 }
 // The Sketch panel turns the toolbar on and off. Closed, clicking a sketch opens its pop-up instead of selecting it.
+// What sketches snap to: the sketch layer itself and the spreadsheet layers. (Not every layer of the opened map: finding
+// nearby features in a large layer at each move of the pointer is work a slow device would feel. The toolbar's
+// Settings lists the snapping layers.)
+function syncSnapSources() {
+  if (cfg.sketchSnapping === false || !sketch.snappingOptions) return;
+  const fs = sketch.snappingOptions.featureSources, want = [graphicsLayer, ...dataLayers];
+  try {
+    fs.removeMany(fs.filter((src) => !want.includes(src.layer)).toArray());
+    for (const layer of want) if (!fs.some((src) => src.layer === layer)) fs.add({ layer, enabled: true });
+  } catch (e) { console.warn("Snapping layers not set", e); }
+}
 let toolWatch = 0, toolSeen = null;
 function sketchToolsOn(on) {
-  if (on) { placeSketch(); showSketchView("main"); }
+  if (on) { placeSketch(); showSketchView("main"); sketchReady.then(syncSnapSources); }
   // the panel follows the tool chosen on the toolbar
   clearInterval(toolWatch); toolWatch = 0;
   if (on) toolWatch = setInterval(() => { const t = sketch.activeTool || null; if (t !== toolSeen) { toolSeen = t; populateSketchPanel(); } }, 250);
@@ -1343,7 +1389,7 @@ function tune3d(v) {
   calm(); reactiveUtils.watch(() => v.map, () => v.when().then(calm).catch(() => {}));   // a scene brings its own lighting
 }
 const TILT_3D = Math.max(0, Math.min(80, Number(cfg.threeDTilt) || 0));
-// Which views a map allows (5.0.0-beta.7):
+// Which views a map allows (5.0.0-beta.8):
 //  - a web scene is 3D only (sceneOnly): it can hold layers and a camera that have no 2D form
 //  - a web map tagged "atlas-2d-only" on its ArcGIS Online item is 2D only (twoDOnly): its author switched 3D off
 const TAG_2D_ONLY = "atlas-2d-only";
@@ -1525,7 +1571,7 @@ function applyParsedWebMap(parsed) {
   bookmarks = parsed.bookmarks; updateToolBadges();
   keepSketchOnTop();
 }
-// The item's details and its map JSON, as the SDK fetched them when it loaded the map. (Before 5.0.0-beta.7 the app
+// The item's details and its map JSON, as the SDK fetched them when it loaded the map. (Before 5.0.0-beta.8 the app
 // asked ArcGIS Online for both itself as well, so each was downloaded twice.) If the SDK doesn't hand them over, they are fetched.
 async function loadedItemJson(m, itemId) {
   const copy = (o) => (o && typeof o === "object" ? JSON.parse(JSON.stringify(o)) : null);
@@ -2663,7 +2709,7 @@ function createBrowser(o) {
 
 // ---------- Open map
 const openCollectionMap = (it) => (it.type === "Web Scene" ? openWebSceneItem(it.id, { title: it.title }) : openWebMapItem(it.id, { title: it.title }));
-// The collection's web maps and, where 3D is on, its web scenes (5.0.0-beta.7); a scene's card says 3D.
+// The collection's web maps and, where 3D is on, its web scenes (5.0.0-beta.8); a scene's card says 3D.
 const mapBrowser = createBrowser({ p: "om", query: F.threeD === false ? 'type:"Web Map"' : '(type:"Web Map" OR type:"Web Scene")', accept: () => true, kind: "maps", thumbOpens: true, descLabel: () => S.mapDescription,
   decorate(b, item) { b.textContent = S.openThisMap; b.setAttribute("aria-label", S.openThisMap + ": " + (item.title || "")); },
   share: F.share === false ? null : shareMapLink,
@@ -3728,6 +3774,7 @@ function renderVersions() {
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
     ["3D scenes", "1.0", "Web scenes from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],
     ["Loading", "1.0", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Elevation and Sketch is downloaded when the tool is first opened."],
+    ["Sketch measuring", "1.0", "While drawing: tooltips, the length of each side (segment labels) and snapping to other sketches and spreadsheet layers are on from the start; each can be turned off in the toolbar's Settings. Lengths and areas are shown with no decimal places."],
     ["Sketch panel", "3.1", "Laid out like Map Viewer's Sketch pane: what the tool in hand does, then what suits it. A point has recent symbols and a Change symbol view (category, search, symbols). A selected sketch has its name, Pop-up, Duplicate and Delete. One toolbar on the map."],
     ["Sketch styles", "2.2", "Points: symbols from 14 of Esri's sketch styles, the ones Map Viewer's Sketch offers. Lines: patterns and arrows. Areas, set up as in Map Viewer: fill colour and transparency, outline colour, transparency, width and pattern, or a styled fill (hatches, land use, pencil landscape; 2D only). Tooltips are on while drawing."],
     ["Sketch in 3D", "1.0", "The Sketch toolbar works in the 3D view and in scenes with the same tools. Sketches lie on the ground and are saved as flat shapes, so they are the same in 2D."],
