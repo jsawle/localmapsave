@@ -155,6 +155,7 @@
     "dropHere": "Suelta tu archivo para agregarlo al mapa",
     "dropWhat": "Suelta un archivo .csv para agregar datos o un archivo .amap para abrir un mapa guardado.",
     "pieIn3d": "Las capas de gráficos circulares solo se dibujan en 2D. Vuelve a 2D para verlas.",
+    "pieOnly2d": "Los gráficos circulares solo se dibujan en 2D. Cambia a 2D para usarlos.",
     "no3d": "La vista 3D no pudo iniciarse en este dispositivo.",
     "only3d": "Este es un mapa 3D, por lo que no se puede mostrar en 2D.",
     "only2d": "Este mapa está configurado solo en 2D.",

@@ -8,9 +8,9 @@ import argparse, functools, glob, http.server, json, os, pathlib, sys, threading
 from playwright.sync_api import sync_playwright
 
 HERE = pathlib.Path(__file__).resolve().parent; APP = HERE.parent
-CSV = ("Site,Latitude,Longitude,Area,Fast Food wrappers,Bottles\n"
-       "Market St,32.7115,-117.1601,Street,12,3\nIsland Ave,32.7098,-117.1585,Park,5,8\nJ St,32.7076,-117.1612,Street,9,1\n"
-       "K St,32.7066,-117.1590,Park,2,2\nG St,32.7127,-117.1570,Street,20,6\nHarbor Dr,32.7060,-117.1640,Park,0,4\n")
+CSV = ("Site,Latitude,Longitude,Area,Fast Food wrappers,Bottles,Cans\n"
+       "Market St,32.7115,-117.1601,Street,12,3,1\nIsland Ave,32.7098,-117.1585,Park,5,8,2\nJ St,32.7076,-117.1612,Street,9,1,3\n"
+       "K St,32.7066,-117.1590,Park,2,2,4\nG St,32.7127,-117.1570,Street,20,6,5\nHarbor Dr,32.7060,-117.1640,Park,0,4,6\n")
 AXE = "(sel) => axe.run(sel, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa'] }).then(r => r.violations.map(v => v.id + ': ' + v.nodes.map(n => n.target.join(' ')).slice(0,3).join(', ')))"
 LAYER = "(() => { const s = document.querySelector('arcgis-scene'), m = document.querySelector('arcgis-map'); const v = (s && !document.querySelector('#sceneDiv').hidden) ? s.view : m.view; return v.map.layers.toArray().filter(l => String(l.id).startsWith(PFX))[0]; })()"
 REND = "(() => { const l = " + LAYER + "; if (!l) return null; const r = l.renderer, sym = r.symbol || (r.uniqueValueInfos && r.uniqueValueInfos[0] && r.uniqueValueInfos[0].symbol) || {}; const sl = sym.symbolLayers && sym.symbolLayers.getItemAt(0); const h = (r.visualVariables || []).find(v => v.type === 'size' && v.axis === 'height'); return { type: r.type, sym: sym.type, prim: sl && sl.resource && sl.resource.primitive, width: sl && sl.width, color: sl && sl.material && sl.material.color && sl.material.color.toHex(), field: h && h.field, stops: h && h.stops && h.stops.map(s => [s.value, s.size]) }; })()"
@@ -59,6 +59,12 @@ def main():
         print("== without the switch (config=mapmaker)")
         start("mapmaker"); drop("litter.csv", CSV); wv("#dataPanel:not([hidden]) #dataSubmit"); page.wait_for_timeout(800); style("graduated")
         check(page.evaluate("!document.querySelector('#columns3dBox')"), "By size has no columns choice")
+        PIE = "(() => { const b = document.querySelectorAll('#styleList .style-card')[5]; return [b.disabled, b.title]; })()"
+        pie = page.evaluate(PIE); check(pie[0] is False, "in 2D Pie charts is offered")
+        js("#tg3d"); wf("document.querySelector('#tg3d').getAttribute('aria-pressed') === 'true'", timeout=180000); page.wait_for_timeout(1500)
+        pie = page.evaluate(PIE); check(pie[0] is True and "2D" in pie[1], "in 3D Pie charts is greyed out, with the reason: " + pie[1])
+        js("#tg2d"); wf("document.querySelector('#tg2d').getAttribute('aria-pressed') === 'true'"); page.wait_for_timeout(1000)
+        check(page.evaluate(PIE)[0] is False, "back in 2D, with the panel still open, it is offered again")
 
         print("== with it (config=lab), in 3D")
         start("lab"); to_3d()
