@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.22**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.23**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -8,11 +8,27 @@
 | `…/atlas-sketch/?config=mapmaker` | MapMaker's groups, units, colours and wording |
 | `…/atlas-sketch/?config=test` | The same as `mapmaker` (kept so earlier links still work) |
 | `…/atlas-sketch/?config=mapmaker-live` | The MapMaker config reading the **live** MapMaker group (`36443e9570294a1f883b5d2c5abfe6b5`), for comparing with what is live |
+| `…/atlas-sketch/?config=lab` | The MapMaker config with lab features switched on. Now: columns in 3D |
 | `…/atlas-sketch/?config=example-es` | Spanish-language version: a 37-line config plus the shared `locales/es.json` |
 
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Lab: a spreadsheet as columns in 3D (5.0.0-beta.23)
+
+Only with `?config=lab` (`features.columns3d`); the other configs are unchanged. A trial to see what it looks like.
+
+Points sized by a number are flat circles on the ground, and in a tilted 3D view their sizes can't be compared. With the switch on, the styles that size points (By size, Color & size, Type & size) get a tick box, **Show as columns in 3D**. Ticked, each point is a column in the 3D view and its height shows the number.
+
+- **Height.** From zero when no value is below zero, so a column twice as tall is a number twice as big; a zero is a thin disc so the point can still be seen and clicked. With values below zero the lowest value gets the shortest column.
+- **Scale.** Heights are real metres, set from how far apart the points are: the tallest column is about a sixth of the distance across the points and a column is a sixtieth of it wide. Six points across 1 km of a city give a tallest column of about 165 m.
+- **Legend** shows a tall and a short column with the top and bottom numbers.
+- **Colour** follows the style: one colour, a colour ramp, or a colour per type.
+- **2D is unchanged**, and so is the saved style: a web map can't hold 3D symbols, so the file has the 2D style. **The tick is not kept in a saved file yet**; a reopened map shows sized points until it is ticked again.
+- Not done: a column style for Locations (pins), labels checked against columns, many points (only tens tried), real devices.
+- Columns in 3D part 0.1. Tests: `tests/columns.test.mjs` (12, the scale) and `tests/live-columns.py` (13, in the browser).
+- Found while testing, not caused by this: replacing the Add data preview in the 3D view raises a script error whose message is just "n". It happens with columns off too. Not investigated.
 
 ## A 3D map's slides turn layers on and off (5.0.0-beta.22)
 

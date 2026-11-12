@@ -1,0 +1,5 @@
+{
+  "configVersion": 8,
+  "extends": "mapmaker",
+  "features": { "columns3d": true }
+}

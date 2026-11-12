@@ -552,6 +552,7 @@ export function stateFromLayerDef(def) {
     && (!choices.color || (styleId === "numeric_color_size" ? numeric : categorical).includes(choices.color))
     && (!choices.size || numeric.includes(choices.size))
     && (styleId !== "pie_chart" || choices.pie.length >= PIE_MIN);
+  st.columns3d = def.columns3d === true;
   st.style = fits ? style : pickAutoStyle(st);
   st.fieldChoices = fits ? choices : { ...pickAutoFields(st.style, st), label: choices.label };
   return st;
@@ -662,6 +663,33 @@ export function buildRenderer(st) {
     default: return { type: "simple", symbol: dataSymbol(st) };
   }
 }
+/**
+ * Columns in 3D (lab): the numbers for standing a column on each point, its height showing the size column.
+ * Heights are real metres, so they are set from how far apart the points are: the tallest column is about a sixth of
+ * the distance across the points, and a column is about a sixtieth of that distance wide. When no value is below zero
+ * the height starts from zero, as a bar chart does, so a column twice as tall is a value twice as big (a zero is a thin
+ * disc, a hundredth of the tallest, so the point can still be seen and clicked). With values
+ * below zero the lowest value gets the shortest column instead.
+ * Returns null when the style has no size column or the column has no numbers.
+ */
+export function columnScale(def) {
+  const vv = def && def.renderer && Array.isArray(def.renderer.visualVariables) ? def.renderer.visualVariables.find((v) => v && v.type === "sizeInfo") : null;
+  if (!vv || !vv.field || vv.field === "_pieTotal" || def.renderer.type === "pieChart") return null;
+  const feats = (def.features || []).filter((f) => f && f.geometry && Number.isFinite(f.geometry.x) && Number.isFinite(f.geometry.y));
+  const values = finiteValues(feats, vv.field);
+  if (!values.length) return null;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const f of feats) { x0 = Math.min(x0, f.geometry.x); x1 = Math.max(x1, f.geometry.x); y0 = Math.min(y0, f.geometry.y); y1 = Math.max(y1, f.geometry.y); }
+  // Web Mercator metres are stretched away from the equator: bring them back to ground metres at the points' latitude.
+  const lat = webMercatorToLonLat((x0 + x1) / 2, (y0 + y1) / 2)[1];
+  const across = Math.hypot(x1 - x0, y1 - y0) * Math.cos(lat * Math.PI / 180);
+  const span = Math.min(4000000, Math.max(300, across || 0));   // one point, or points on top of each other: as if 300 m apart
+  const maxHeight = span / 6, width = span / 60;
+  const min = Math.min(...values), max = Math.max(...values);
+  const fromZero = min >= 0;
+  const lo = fromZero ? 0 : min, hi = max > lo ? max : lo + 1;
+  return { field: vv.field, fromZero, minValue: lo, maxValue: hi, minHeight: fromZero ? maxHeight / 100 : maxHeight / 20, maxHeight, width };
+}
 export function buildLabelingInfo(labelField) {
   if (!labelField) return null;
   return [{
@@ -692,11 +720,13 @@ export function buildLayerDef(st, id, title) {
   const fieldInfos = st.fields
     .filter((f) => f.type !== "esriFieldTypeOID" && !st.coordNames.includes(f.name))
     .map((f) => ({ fieldName: f.name, label: f.alias || f.name, visible: true }));
-  return {
+  const def = {
     id, title: title || String(st.fileName || "My data").replace(/\.(csv|txt)$/i, "").replace(/_+/g, " ").trim() || "My data",
     geometryType: "point", objectIdField: "ObjectId", spatialReference: { wkid: 102100, latestWkid: 3857 },
     fields, renderer, labelingInfo: buildLabelingInfo(st.fieldChoices.label),
     popupInfo: { title: popupTitle(st), content: [{ type: "fields", fieldInfos }], fieldInfos },
     features: st.features
   };
+  if (st.columns3d && st.style.fields.includes("size") && st.style.id !== "pie_chart") def.columns3d = true;   // lab: columns in the 3D view
+  return def;
 }
