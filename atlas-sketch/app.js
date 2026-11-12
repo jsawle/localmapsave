@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.23";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.24";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.23";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.24";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.23";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.23";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.23";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.24";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.24";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.24";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.23";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.23";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.23";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.24";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.24";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.24";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.23";
+  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.24";
 
-const APP_VERSION = "5.0.0-beta.23";
+const APP_VERSION = "5.0.0-beta.24";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
   partnerLogos: [],
   theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", toolActive: "", toolActiveInk: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
   portalUrl: "https://www.arcgis.com",
-  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.23). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
+  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.24). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
   basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
   defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   startView: { center: [0, 20], zoom: 2 },
@@ -1785,6 +1785,7 @@ async function setMode(m, opts) {
   watchBottom(0);
   if (m === "3d" && dataLayers.some((l) => l.renderer && l.renderer.type === "pie-chart")) toast(S.pieIn3d);
   dataLayers.concat(previewLayer ? [previewLayer] : []).forEach(syncColumns);
+  if (addState && !$("dataPanel").hidden) { renderStyleList(); renderFieldRows(); }   // what the styles offer depends on the view
 }
 $("tg2d").addEventListener("click", () => setMode("2d"));
 $("tg3d").addEventListener("click", () => setMode("3d"));
@@ -3461,10 +3462,12 @@ function renderDataPanel() {
 function renderStyleList() {
   const wrap = $("styleList"); wrap.innerHTML = "";
   for (const style of DATA_STYLES) {
-    const ok = styleAvailable(style, addState);
+    // Pie charts only draw in 2D, so in the 3D view they aren't offered (a layer that is already pie charts keeps its choice).
+    const not3d = style.id === "pie_chart" && mode === "3d" && addState.style.id !== "pie_chart";
+    const ok = styleAvailable(style, addState) && !not3d;
     const b = document.createElement("button"); b.type = "button"; b.className = "style-card"; b.disabled = !ok;
     b.setAttribute("aria-pressed", String(addState.style.id === style.id));
-    b.title = ok ? S[STYLE_TEXT[style.id][1]] : S.styleNeeds;
+    b.title = ok ? S[STYLE_TEXT[style.id][1]] : (not3d && styleAvailable(style, addState) ? S.pieOnly2d : S.styleNeeds);
     b.innerHTML = '<span class="s-ico" aria-hidden="true">' + style.icon + '</span><span class="s-name"></span>';
     b.querySelector(".s-name").textContent = S[STYLE_TEXT[style.id][0]];
     if (ok) b.addEventListener("click", () => { addState.style = style; addState.fieldChoices = pickAutoFields(style, addState); renderStyleList(); renderFieldRows(); renderSymbolBlocks(); });

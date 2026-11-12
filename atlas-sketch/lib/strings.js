@@ -196,6 +196,7 @@ export const DEFAULT_STRINGS = {
   dropHere: "Drop your file to add it to the map",
   dropWhat: "Drop a .csv file to add data, or an .amap file to open a saved map.",
   pieIn3d: "Pie-chart layers only draw in 2D. Switch back to 2D to see them.",
+  pieOnly2d: "Pie charts only draw in 2D. Switch to 2D to use them.",
   no3d: "The 3D view couldn't start on this device.",
   only3d: "This is a 3D map, so it can't be shown in 2D.",
   only2d: "This map is set to 2D only.",
