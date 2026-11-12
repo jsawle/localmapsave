@@ -22,7 +22,7 @@
   "basemapGroup": "406646c98d0f4c608a9438d40ce2df9e",
   "defaultBasemap": "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   "startView": { "center": [-30, 35], "zoom": 3 },
-  "units": "imperial",
+  "units": "auto",
   "scalebar": "dual",
   "disclaimer": "Basemap and map layers may not reflect National Geographic's current map policy",
   "signIn": {

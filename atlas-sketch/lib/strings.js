@@ -321,6 +321,7 @@ export const DEFAULT_STRINGS = {
   profileWorking: "Finding the heights along the line…",
   profileFailed: "The heights couldn't be found for that line. Try again, or try another line.",
   profileNoSR: "This map uses a coordinate system the Elevation tool can't work in.",
+  units: "Units", unitsMetric: "km: kilometres and metres", unitsImperial: "mi: miles and feet",
   profileNew: "New line", profilePickLine: "Use a sketched line", profileLineN: "Line {n}",
   profileChartLabel: "Place along the line. The arrow keys move along it.",
   profileSeaLevel: "Sea level",

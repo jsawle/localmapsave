@@ -2,20 +2,21 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.11";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.12";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.11";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.12";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.11";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.12";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.12";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.11";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.11";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.11";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.12";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.12";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.12";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields } from "./lib/filter.js?v=5.0.0-beta.11";
+  filterFields } from "./lib/filter.js?v=5.0.0-beta.12";
 
-const APP_VERSION = "5.0.0-beta.11";
+const APP_VERSION = "5.0.0-beta.12";
 const COMPASS_VERSION = "1.1";
 const PROFILE_VERSION = "3.1";
 const SKETCH_VERSION = "2.2";   // 1.1: rotation only for text. 2.0: the SDK's Sketch component (Map Viewer's tools) replaces the app's own. 2.1: freehand segments. 2.2: keyboard route to the drawing tools
@@ -45,7 +46,8 @@ const DEFAULT_CONFIG = {
   startView: { center: [0, 20], zoom: 2 },
   threeDTilt: 60,          // degrees the camera tilts when switching to 3D, so the change is obvious (0 = stay looking straight down)
   threeDQuality: "auto",   // how much work the 3D view does: "auto" (low on a weak device, else medium), "low", "medium" or "high"
-  units: "metric",
+  units: "auto",            // "auto": miles and feet on a device set to a US time zone, kilometres and metres elsewhere (lib/units.js); or "metric" / "imperial"
+  unitsSwitch: true,        // the km / mi switch in Measure and Elevation; the choice is remembered on the device
   scalebar: "dual",
   disclaimer: "",
   signIn: { clientId: "", popup: true, headerButton: true, onboardingTitle: "", onboardingHtml: "" },
@@ -345,7 +347,7 @@ function roundMeasurements(el) {
 }
 // A view's map is set on its component, which owns the view: set on the view alone, the component can put its own back.
 const viewEls = new Map();
-function setViewMap(v, m) { const el = viewEls.get(v); if (el) el.map = m; if (v.map !== m) v.map = m; }
+function setViewMap(v, m) { const el = viewEls.get(v); if (el) el.map = m; if (v.map !== m) v.map = m; try { portalUnits(); } catch (e) { /* at start-up, before the units are worked out */ } }
 const mapView = await componentView("arcgis-map", "viewDiv", { map: localMap, center: startCenter, zoom: Number(cfg.startView.zoom) || 2 });
 let view = mapView, sceneView = null, mode = "2d";
 const viewHandlers = [];
@@ -691,6 +693,7 @@ const sketchReady = (async () => {
   //  - segment labels: the length of each side while a line or an area is drawn or reshaped (sketchLabels)
   //  - snapping: the pointer is pulled onto a nearby corner or edge of another sketch, and helps keep right angles
   //    and parallels within the shape being drawn (sketchSnapping)
+  sketchUnits();
   if (cfg.sketchLabels !== false) { try { sketch.labelOptions.enabled = true; } catch (e) { console.warn("Labels not turned on", e); } }
   if (cfg.sketchSnapping !== false) { try { const so = sketch.snappingOptions; so.enabled = true; so.selfEnabled = true; so.featureEnabled = true; syncSnapSources(); } catch (e) { console.warn("Snapping not turned on", e); } }
 })().catch((e) => console.error("Sketch couldn't start", e));
@@ -1252,7 +1255,42 @@ $("basemapsGrid").addEventListener("keydown", (e) => {
 });
 // The selected card follows the map's basemap, wherever it changes (another map opened, a file, a new map).
 reactiveUtils.watch(() => { const m = shownMap(), b = m && m.basemap; return b ? ((b.portalItem && b.portalItem.id) || "") + "|" + (b.title || "") : ""; }, syncGallerySelection);
-const units = cfg.units === "imperial" ? "imperial" : "metric";
+// Units (1.0 in 5.0.0-beta.12): kilometres and metres, or miles and feet, for Measure, Elevation and Sketch's
+// tooltips and side labels. Where they start is worked out in lib/units.js; the km / mi switch changes them.
+const UNITS_KEY = "atlas.units";
+const unitsFound = (() => {
+  let stored = null, timeZone, languages = [];
+  if (cfg.unitsSwitch !== false) { try { stored = localStorage.getItem(UNITS_KEY); } catch (e) { /* no storage */ } }
+  try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { /* not known */ }
+  try { languages = navigator.languages && navigator.languages.length ? [...navigator.languages] : [navigator.language]; } catch (e) { /* not known */ }
+  return resolveUnits({ param: (params.get("units") || "").toLowerCase(), stored, config: cfg.units, timeZone, languages });
+})();
+let units = unitsFound.units;
+// Sketch's side labels have no units setting of their own: the SDK takes them from the portal's units (its
+// documentation for SketchLabelOptions), of the map's item where there is one and of the default portal otherwise.
+function portalUnits() {
+  const pu = units === "imperial" ? "english" : "metric";
+  try { Portal.getDefault().units = pu; } catch (e) { /* no default portal */ }
+  for (const v of [mapView, sceneView]) { try { const it = v && v.map && v.map.portalItem; if (it && it.portal) it.portal.units = pu; } catch (e) { /* no item */ } }
+}
+function sketchUnits() {
+  portalUnits();
+  if (!sketch) return;
+  try { const u = { length: units, verticalLength: units, area: units }; sketch.valueOptions = { displayUnits: u, inputUnits: u }; } catch (e) { console.warn("Sketch units not set", e); }
+}
+function syncUnitsSwitches() {
+  document.querySelectorAll(".units-seg").forEach((g) => { g.hidden = cfg.unitsSwitch === false; g.querySelectorAll("button[data-units]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.units === units))); });
+}
+function setUnits(u, save) {
+  if (u !== "imperial" && u !== "metric") return;
+  units = u;
+  if (save) { try { localStorage.setItem(UNITS_KEY, u); } catch (e) { /* no storage: for this visit only */ } }
+  try { if (measurement) { measurement.linearUnit = u; measurement.areaUnit = u; } } catch (e) { console.warn("Measure units not set", e); }
+  sketchUnits(); syncUnitsSwitches();
+  if (prof && profActive()) renderProfile();
+}
+document.querySelectorAll(".units-seg button[data-units]").forEach((b) => b.addEventListener("click", () => setUnits(b.dataset.units, true)));
+syncUnitsSwitches();
 function ensureMeasure() { if (!measurement) measurement = new Measurement({ view, container: "measureBody", linearUnit: units, areaUnit: units }); else measurement.view = view; }
 function measurePressed(id) { ["mDist", "mArea", "mCoord"].forEach((b) => $(b).setAttribute("aria-pressed", String(b === id))); }
 function stopMeasuring() {
@@ -3986,6 +4024,7 @@ function renderVersions() {
     ["Basemaps", BASEMAPS_VERSION, "MapMaker's basemap cards: the basemap group's maps in the group's own order, two to a row; in 3D, its 3D basemaps first."],
     ["Saved maps list (Open map, My map files)", RECENT_VERSION, "Maps saved on this device, newest first, kept in this browser. Chrome and Edge reopen the file itself; Safari and Firefox keep a copy of each saved map."],
     ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
+    ["Units", UNITS_VERSION, "Kilometres and metres, or miles and feet, in Measure, Elevation and Sketch. With units set to auto the app starts in miles on a device whose time zone is in the United States and in kilometres elsewhere; if the time zone isn't known, the browser's language decides. Nothing is sent anywhere to work this out. The km / mi switch changes the units, and the choice is kept on this device."],
     ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). A line you draw takes the shortest way round the Earth between the places you click (a great circle), so on the flat map a long line is a curve; a line you choose on the map is followed as it is drawn. The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],

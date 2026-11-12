@@ -117,6 +117,16 @@
     .prof-acts{ flex:none; display:flex; align-items:center; gap:8px; }
     .prof-acts .field{ width:auto; max-width:220px; padding:6px 8px; }
     .prof-acts .btn{ white-space:nowrap; }
+    /* the km / mi switch (Measure, Elevation) */
+    .units-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .units-label{ font-size:14px; color:#3a3a3a; }
+    .units-seg{ display:inline-flex; border:1px solid #6a6a6a; border-radius:6px; overflow:hidden; }
+    .units-seg[hidden]{ display:none; }
+    .units-seg button{ min-width:44px; min-height:34px; padding:4px 12px; border:none; background:#fff; color:#1f1f1f; font:inherit; font-size:14px; font-weight:600; cursor:pointer; }
+    .units-seg button + button{ border-left:1px solid #6a6a6a; }
+    .units-seg button:hover{ background:#f3f3f3; }
+    .units-seg button[aria-pressed="true"]{ background:var(--brand); color:var(--brand-ink); }
+    .units-seg button:focus-visible{ outline:3px solid var(--focus, #005e95); outline-offset:-3px; }
     #app.docked .toolbar{ display:none; }
     #app.docked.tools-shown .toolbar{ display:flex; }
     .tools-toggle{ display:none; width:32px; height:32px; border:none; border-radius:0; background:#fff; color:#323232; cursor:pointer; align-items:center; justify-content:center; box-shadow:0 1px 2px rgba(0,0,0,.3); }
@@ -727,6 +737,7 @@
             <button class="btn" type="button" id="mCoord" aria-pressed="false" data-i18n="coordinates">Coordinates</button>
             <button class="btn" type="button" id="mClear" data-i18n="clear">Clear</button>
           </div>
+          <div class="units-row"><span class="units-label" aria-hidden="true" data-i18n="units">Units</span><div class="units-seg" role="group" data-i18n-aria="units" aria-label="Units"><button type="button" data-units="metric" aria-pressed="false" data-i18n-aria="unitsMetric" aria-label="km: kilometres and metres">km</button><button type="button" data-units="imperial" aria-pressed="false" data-i18n-aria="unitsImperial" aria-label="mi: miles and feet">mi</button></div></div>
           <p class="hint" data-i18n="measureHint">Choose a tool, then click on the map. Double-click to finish.</p>
           <div id="measureBody"></div>
           <div id="coordWrap" hidden><div id="coordBody"></div>
@@ -846,6 +857,7 @@
         <div class="prof-foot">
           <dl class="prof-stats" id="profStats"></dl>
           <div class="prof-acts">
+            <div class="units-seg" role="group" data-i18n-aria="units" aria-label="Units"><button type="button" data-units="metric" aria-pressed="false" data-i18n-aria="unitsMetric" aria-label="km: kilometres and metres">km</button><button type="button" data-units="imperial" aria-pressed="false" data-i18n-aria="unitsImperial" aria-label="mi: miles and feet">mi</button></div>
             <span id="profLinesWrap" hidden><label class="sr-only" for="profLines" data-i18n="profilePickLine">Use a sketched line</label><select class="field" id="profLines"></select></span>
             <button class="btn" type="button" id="profNew" data-i18n="profileNew" hidden>New line</button>
           </div>
@@ -983,6 +995,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.11"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.12"></script>
 </body>
 </html>
