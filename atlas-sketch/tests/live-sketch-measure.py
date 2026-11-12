@@ -5,7 +5,8 @@ Needs network access to js.arcgis.com and www.arcgis.com, and Python Playwright 
 
 Checks: tooltips, segment labels and snapping are on from the start; while a shape is drawn its sides are labelled
 and every length and area is shown with no decimal places; a line started a few pixels from a sketched point starts
-exactly on the point with snapping on (the SDK snaps within 5 pixels), and where the pointer was with snapping off; the same for a spreadsheet layer.
+exactly on the point with snapping on (the SDK snaps within 5 pixels), and where the pointer was with snapping off; a
+spreadsheet layer's points are not snapped to.
 """
 import argparse, functools, glob, http.server, json, os, pathlib, re, sys, threading
 from playwright.sync_api import sync_playwright
@@ -96,20 +97,20 @@ def main():
         check(ok and metres(line2, pt) > res * 2, "with snapping turned off, the same start stays where the pointer was (%.0f m from the point)" % metres(line2, pt))
         page.evaluate(SK + ".snappingOptions.enabled = true"); page.wait_for_timeout(400)
 
-        print("== snapping to a spreadsheet layer")
+        print("== sketches only: not a spreadsheet layer")
         page.evaluate("""([name, text]) => { const dt = new DataTransfer(); dt.items.add(new File([text], name, { type: 'text/csv' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); }""", ["one.csv", CSV])
         page.wait_for_selector("#dataPanel:not([hidden]) #dataSubmit", timeout=30000); page.wait_for_timeout(1500); page.click("#dataSubmit")
         page.wait_for_function("document.querySelector('#layersBadge').textContent === '1'", timeout=30000); page.wait_for_timeout(1500)
         page.evaluate("document.querySelector('arcgis-map').view.goTo({ center: [-40, 20], zoom: 3 }, { animate: false })"); page.wait_for_timeout(2500)
         page.click("#tool-sketch"); page.wait_for_function(SK + ".state === 'ready'", timeout=30000); page.wait_for_timeout(1500)
         src = page.evaluate(SK + ".snappingOptions.featureSources.map(x => String(x.layer.id).slice(0, 7)).toArray()")
-        check(src == ["__sketc", "__data_"], "the spreadsheet layer is a snapping layer too: " + json.dumps(src))
+        check(src == ["__sketc"], "with a spreadsheet layer on the map, the sketch layer is still the only snapping layer: " + json.dumps(src))
         feat = page.evaluate("(async () => { const v = document.querySelector('arcgis-map').view; const l = v.map.layers.find(x => String(x.id).startsWith('__data_')); const r = await l.queryFeatures({ where: '1=1', returnGeometry: true, outSpatialReference: v.spatialReference }); const g = r.features[0].geometry; return [g.x, g.y]; })()")
         fx = to_screen(feat); before = len(page.evaluate(SKETCHES))
         start("polyline"); hover_click(fx[0] - 3, fx[1] + 2); hover_click(fx[0] + 120, fx[1] + 90, double=True); ok = count(before + 1); finish()
         line3 = [s for s in page.evaluate(SKETCHES) if s["type"] == "polyline"][-1]["first"]
         res = page.evaluate("document.querySelector('arcgis-map').view.resolution")
-        check(ok and metres(line3, feat) < 1, "a line started 4 pixels from a spreadsheet point starts exactly on it (%.2f m apart; a pixel here is %.0f m)" % (metres(line3, feat), res))
+        check(ok and metres(line3, feat) > res * 2, "a line started 4 pixels from a spreadsheet point stays where the pointer was (%.0f m from it; a pixel here is %.0f m)" % (metres(line3, feat), res))
         check(not errors, "no script errors: " + " | ".join(errors[:3]))
         browser.close()
     print(f"{checks[0] - len(failures)}/{checks[0]} checks passed")
