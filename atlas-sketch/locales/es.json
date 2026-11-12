@@ -41,6 +41,7 @@
     "groupError": "No se pudieron cargar los mapas. Revisa la conexión e inténtalo de nuevo.",
     "loadMore": "Mostrar más",
     "openThisMap": "Abrir mapa",
+    "openThisScene": "Abrir escena 3D", "dimLabel": "Mostrar", "dimAll": "Todo", "dim2d": "Mapas 2D", "dim3d": "Escenas 3D", "scenesCount": "{n} escenas 3D", "scenesCountOne": "1 escena 3D",
     "details": "Detalles",
     "deviceLead": "Los mapas que guardas son archivos .amap. Guárdalos donde guardes tu trabajo: tu computadora, una unidad de la escuela o una memoria USB. No hace falta cuenta.",
     "savedMaps": "Mapas guardados",

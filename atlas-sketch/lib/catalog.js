@@ -1,6 +1,6 @@
 // Open map topics: the content group's categories used to browse its web maps.
 // Pure functions (no ArcGIS SDK), so they can be unit tested. Created by Jason Sawle.
-export const CATALOG_VERSION = "2.0";   // 2.0 = MapMaker's category tree, cards and pages; shared by Open map and Add layer
+export const CATALOG_VERSION = "2.1";   // 2.0 = MapMaker's category tree, cards and pages; shared by Open map and Add layer. 2.1: Open map can show only the 2D maps or only the 3D scenes
 export const MAX_INDEX = 1000;        // up to this many web maps are loaded once and filtered in the browser
 export const OTHER = "__other__";     // maps that sit in no topic of the group's category list
 export const ALL = "";

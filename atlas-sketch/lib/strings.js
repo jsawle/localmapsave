@@ -78,6 +78,7 @@ export const DEFAULT_STRINGS = {
   groupError: "Couldn't load the maps. Check your connection and try again.",
   loadMore: "Show more",
   openThisMap: "Open map",
+  openThisScene: "Open 3D scene", dimLabel: "Show", dimAll: "All", dim2d: "2D maps", dim3d: "3D scenes", scenesCount: "{n} 3D scenes", scenesCountOne: "1 3D scene",
   share: "Share",
   linkCopied: "Link to “{title}” copied. Paste it wherever you want to share the map.",
   linkCopyManually: "Copy this link to share the map:",
