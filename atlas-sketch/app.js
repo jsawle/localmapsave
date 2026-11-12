@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.21";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.22";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.21";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.22";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.21";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.21";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.21";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.22";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.22";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.22";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.21";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.21";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.21";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.22";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.22";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.22";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.21";
+  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.22";
 
-const APP_VERSION = "5.0.0-beta.21";
+const APP_VERSION = "5.0.0-beta.22";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
   partnerLogos: [],
   theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", toolActive: "", toolActiveInk: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
   portalUrl: "https://www.arcgis.com",
-  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.21). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
+  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.22). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
   basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
   defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   startView: { center: [0, 20], zoom: 2 },
@@ -1947,13 +1947,28 @@ async function openWebMapItem(itemId, opts) {
   }
 }
 // A web scene from the collection or a link (webscene=<id>). It opens in 3D and stays there: see sceneOnly.
-// Its slides become the bookmarks, each with its camera.
+// Its slides become the bookmarks, each with its camera and the layers it shows.
+// A slide lists the layers it shows (visibleLayers); every other layer of the scene is off in that slide. The record
+// covers the scene's own layers, those inside group layers too, so the sketch layer and anything added later are left as
+// they are. A slide with no list (null) changes no layers.
+function slideLayers(ws, sl) {
+  if (!sl.visibleLayers) return [];
+  const on = new Set(sl.visibleLayers.toArray().map((v) => v && v.id));
+  return layersDeep(ws).filter((l) => l !== graphicsLayer && l !== previewLayer).map((l) => ({ id: l.id, title: l.title || "", visible: on.has(l.id) }));
+}
+// The map's data layers, with those inside group layers. Not map.allLayers: that has the basemap and the ground as well.
+function layersDeep(m) {
+  const out = [];
+  const walk = (ls) => ls.forEach((l) => { out.push(l); if (l.type === "group" && l.layers) walk(l.layers); });
+  walk(m.layers);
+  return out;
+}
 function slidesToBookmarks(ws) {
   const out = [];
   const slides = ws.presentation && ws.presentation.slides ? ws.presentation.slides.toArray() : [];
   for (const sl of slides) {
     const cam = sl.viewpoint && sl.viewpoint.camera; if (!cam || !cam.position) continue;
-    const bm = { title: (sl.title && sl.title.text) || t("bookmarkDefault", { n: out.length + 1 }), viewpoint: { center: [cam.position.longitude, cam.position.latitude], zoom: 10 }, camera: cam.clone(), layers: [], thumb: null };
+    const bm = { title: (sl.title && sl.title.text) || t("bookmarkDefault", { n: out.length + 1 }), viewpoint: { center: [cam.position.longitude, cam.position.latitude], zoom: 10 }, camera: cam.clone(), layers: slideLayers(ws, sl), thumb: null };
     const th = sl.thumbnail && sl.thumbnail.url; if (typeof th === "string" && /^(https:|data:image\/)/i.test(th)) bm.thumb = th;
     out.push(bm);
   }
@@ -2852,7 +2867,10 @@ let bmEditIndex = -1;
 function layerSnapshot() { const s = []; eachToggleableLayer((l, id, title) => s.push({ id, title, visible: l.visible !== false })); return s; }
 function applyLayerSnapshot(snap) {
   if (!snap || !snap.length) return;
-  eachToggleableLayer((l, id, title) => { const rec = snap.find((r) => r.id === id) || snap.find((r) => r.title && r.title === title); if (rec) l.visible = !!rec.visible; });
+  const top = new Set();
+  eachToggleableLayer((l, id, title) => { top.add(l); const rec = snap.find((r) => r.id === id) || snap.find((r) => r.title && r.title === title); if (rec) l.visible = !!rec.visible; });
+  // layers inside a group layer: only a scene's slides record these, by id
+  layersDeep(activeMap()).forEach((l) => { if (top.has(l) || l === graphicsLayer || l === previewLayer) return; const rec = snap.find((r) => r.id === l.id); if (rec) l.visible = !!rec.visible; });
   if (!$("layersPanel").hidden) renderLayers();
 }
 function applyBookmark(bm) {
@@ -4237,7 +4255,7 @@ function renderVersions() {
     ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). A line you draw takes the shortest way round the Earth between the places you click (a great circle), so on the flat map a long line is a curve; a line you choose on the map is followed as it is drawn. The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
     ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides."],
-    ["3D maps", "1.0", "3D maps (ArcGIS web scenes) from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks. A web map whose item has the tag atlas-2d-only stays in 2D."],
+    ["3D maps", "1.1", "3D maps (ArcGIS web scenes) from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks, and a bookmark turns layers on and off as its slide does (not the slide's basemap or lighting). A web map whose item has the tag atlas-2d-only stays in 2D."],
     ["Loading", "1.1", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Swipe, the table, Elevation and Sketch is downloaded when the tool is first opened. All of these are the SDK's components (or the app's own code), not its widgets, which SDK 6 removes."],
     ["Sketch measuring", "1.1", "While drawing: tooltips, the length of each side (segment labels) and snapping to other sketches are on from the start; each can be turned off in the toolbar's Settings. Lengths and areas are shown with no decimal places."],
     ["Sketch panel", "3.2", "Laid out like Map Viewer's Sketch pane: what the tool in hand does, then what suits it. The plain circle or plain fill is always first among the recent symbols, and a styled fill says how to get back to colours and an outline. A point has recent symbols and a Change symbol view (category, search, symbols). A selected sketch has its name, Pop-up, Duplicate and Delete. One toolbar on the map."],
