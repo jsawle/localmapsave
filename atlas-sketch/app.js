@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.18";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.19";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.18";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.19";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.18";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.18";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.18";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.19";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.19";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.19";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.18";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.18";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.18";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.19";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.19";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.19";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.18";
+  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.19";
 
-const APP_VERSION = "5.0.0-beta.18";
+const APP_VERSION = "5.0.0-beta.19";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -2937,7 +2937,7 @@ let searchTimer = 0, descSeq = 0;
 function createBrowser(o) {
   // o: { p (id prefix), query, accept(item), kind ("maps" | "layers"), descLabel, thumbOpens, decorate(button, item), run(item, button) }
   const el = (x) => $(o.p + x);
-  const st = { ready: null, loaded: false, tree: [], entries: null, counts: null, other: 0, mode: "index", topic: ALL, page: 1, expanded: new Set(), token: 0 };
+  const st = { ready: null, loaded: false, tree: [], entries: null, counts: null, other: 0, mode: "index", topic: ALL, page: 1, expanded: new Set(), token: 0, dim: "all", dims: null };
   const unitText = (n) => (n === 1 ? S[o.kind + "CountOne"] : t(o.kind + "Count", { n }));
   const countFor = (key) => (!st.counts ? null : !key ? st.entries.length : key === OTHER ? st.other : st.counts.get(key) || 0);
   const topicName = (key) => (!key ? "" : key === OTHER ? S.otherCategory : (findTopic(st.tree, key) || {}).title || "");
@@ -3005,7 +3005,8 @@ function createBrowser(o) {
     const top = document.createElement("div"); top.className = "cat-card-top";
     const txt = document.createElement("div"); txt.className = "cat-card-text";
     const h = document.createElement("h4"); h.className = "cat-card-title"; h.textContent = item.title || S.untitled;
-    if (item.type === "Web Scene") { const bd = document.createElement("span"); bd.className = "cat-3d"; bd.textContent = S.view3d; bd.title = S.sceneCard; const sr = document.createElement("span"); sr.className = "sr-only"; sr.textContent = " (" + S.sceneCard + ")"; h.append(" ", bd, sr); }
+    const scene = item.type === "Web Scene";
+    if (scene) { li.classList.add("is-scene"); const sr = document.createElement("span"); sr.className = "sr-only"; sr.textContent = " (" + S.sceneCard + ")"; h.append(sr); }
     const sn = document.createElement("p"); sn.className = "cat-card-snippet"; sn.textContent = item.snippet || "";
     const act = document.createElement("button"); act.type = "button"; act.className = "cat-act"; act._item = item;
     o.decorate(act, item);
@@ -3020,6 +3021,7 @@ function createBrowser(o) {
     const th = document.createElement("div"); th.className = "cat-thumb" + (o.thumbOpens ? " open" : ""); th.setAttribute("aria-hidden", "true");
     const tu = thumbUrl(item); if (tu) th.style.backgroundImage = "url('" + tu.replace(/'/g, "%27") + "')";
     if (o.thumbOpens) th.addEventListener("click", () => o.run(item, act));
+    if (scene) { const bd = document.createElement("span"); bd.className = "cat-3d"; bd.innerHTML = calIcon("cube"); bd.append(S.view3d); th.appendChild(bd); }   // marked on its picture, where the eye goes first
     top.append(txt, th);
     const id = "desc" + (++descSeq);
     const db = document.createElement("button"); db.type = "button"; db.className = "cat-desc-btn"; db.setAttribute("aria-expanded", "false"); db.setAttribute("aria-controls", id);
@@ -3052,11 +3054,41 @@ function createBrowser(o) {
     el("Status").textContent = text ? (topic ? t("matchOfIn", { n, count: unitText(total), topic }) : t("matchOf", { n, count: unitText(total) }))
       : topic ? t("inTopic", { count: unitText(n), topic }) : unitText(n);
   }
+  // 2D maps and 3D scenes (Collection browser 2.1): where the collection has scenes, a row above the list chooses all of
+  // them, the 2D maps or the 3D scenes. It works with the category chosen and with the search, and says how many of each.
+  const DIMS = [["all", "dimAll"], ["2d", "dim2d"], ["3d", "dim3d"]];
+  const isSceneEntry = (e) => e.item.type === "Web Scene";
+  function renderDims(list) {
+    const any = o.kind === "maps" && st.mode !== "server" && (st.entries || []).some(isSceneEntry);
+    if (!any) { if (st.dims) st.dims.hidden = true; st.dim = "all"; return; }
+    if (!st.dims) {
+      const g = st.dims = document.createElement("div"); g.className = "cat-dims"; g.setAttribute("role", "group"); g.setAttribute("aria-label", S.dimLabel);
+      for (const [key] of DIMS) { const b = document.createElement("button"); b.type = "button"; b.dataset.dim = key; b.addEventListener("click", () => { st.dim = key; st.page = 1; renderList(false); }); g.appendChild(b); }
+      el("Status").before(g);
+    }
+    const n3 = list.filter(isSceneEntry).length, n = { all: list.length, "2d": list.length - n3, "3d": n3 };
+    st.dims.hidden = false;
+    for (const b of st.dims.children) {
+      const key = b.dataset.dim, label = S[DIMS.find((d) => d[0] === key)[1]];
+      b.replaceChildren(); if (key === "3d") b.insertAdjacentHTML("beforeend", calIcon("cube"));
+      const nm = document.createElement("span"); nm.textContent = label; const ct = document.createElement("span"); ct.className = "cat-dim-n"; ct.textContent = String(n[key]);
+      b.append(nm, " ", ct); b.setAttribute("aria-pressed", String(st.dim === key));   // its name is what it shows: the words and the number
+    }
+  }
   function renderList(focusList) {
     if (!st.loaded) return;
-    if (st.mode === "server") { serverPage(focusList); return; }
+    if (st.mode === "server") { renderDims([]); serverPage(focusList); return; }
     const text = el("Search").value.trim();
-    const list = filterEntries(st.entries, st.tree, st.topic, text, cfg.locale);
+    let list = filterEntries(st.entries, st.tree, st.topic, text, cfg.locale);
+    renderDims(list);
+    if (st.dim !== "all") {
+      list = list.filter((e) => isSceneEntry(e) === (st.dim === "3d"));
+      const pg = Math.max(1, Math.ceil(list.length / PAGE_SIZE)); if (st.page > pg) st.page = pg;
+      paint(list.slice((st.page - 1) * PAGE_SIZE, st.page * PAGE_SIZE).map((e) => e.item), list.length, pg, text, focusList);
+      const count = st.dim === "3d" ? (list.length === 1 ? S.scenesCountOne : t("scenesCount", { n: list.length })) : unitText(list.length), topic = topicName(st.topic);
+      el("Status").textContent = topic ? t("inTopic", { count, topic }) : count;
+      return;
+    }
     const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
     if (st.page > pages) st.page = pages;
     paint(list.slice((st.page - 1) * PAGE_SIZE, st.page * PAGE_SIZE).map((e) => e.item), list.length, pages, text, focusList);
@@ -3132,7 +3164,7 @@ function createBrowser(o) {
 const openCollectionMap = (it) => (it.type === "Web Scene" ? openWebSceneItem(it.id, { title: it.title }) : openWebMapItem(it.id, { title: it.title }));
 // The collection's web maps and, where 3D is on, its web scenes (5.0.0-beta.9); a scene's card says 3D.
 const mapBrowser = createBrowser({ p: "om", query: F.threeD === false ? 'type:"Web Map"' : '(type:"Web Map" OR type:"Web Scene")', accept: () => true, kind: "maps", thumbOpens: true, descLabel: () => S.mapDescription,
-  decorate(b, item) { b.textContent = S.openThisMap; b.setAttribute("aria-label", S.openThisMap + ": " + (item.title || "")); },
+  decorate(b, item) { const w = item.type === "Web Scene" ? S.openThisScene : S.openThisMap; b.textContent = w; b.setAttribute("aria-label", w + ": " + (item.title || "")); },
   share: F.share === false ? null : shareMapLink,
   run(item) { openCollectionMap(item); } });
 // The link Share copies: this app (and these settings) opening that map. Nothing about the person is in it.
@@ -4198,7 +4230,7 @@ function renderVersions() {
     [cfg.appName + " (app)", APP_VERSION, "White-label build of the MapMaker app: every MapMaker tool, local save, CSV data, ArcGIS Online sign-in. Created by Jason Sawle."],
     ["Basemaps", BASEMAPS_VERSION, "MapMaker's basemap cards: the basemap group's maps in the group's own order, two to a row; in 3D, its 3D basemaps first."],
     ["Saved maps list (Open map, My map files)", RECENT_VERSION, "Maps saved on this device, newest first, kept in this browser. Chrome and Edge reopen the file itself; Safari and Firefox keep a copy of each saved map."],
-    ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages."],
+    ["Collection browser (Open map, Add layer)", CATALOG_VERSION, "MapMaker's category tree from the group's categories, with counts, search within a category, cards with descriptions, and pages. Where the collection has 3D scenes, a row above the maps shows all, the 2D maps or the 3D scenes, with how many of each; a scene's card is marked 3D on its picture."],
     ["Units", UNITS_VERSION, "Kilometres and metres, or miles and feet, in Measure, Elevation and Sketch. With units set to auto the app starts in miles on a device whose time zone is in the United States and in kilometres elsewhere; if the time zone isn't known, the browser's language decides. Nothing is sent anywhere to work this out. The km / mi switch changes the units, and the choice is kept on this device."],
     ["Docks", "1.0", "The chart, the table and Elevation open in a dock under the map. Drag the bar along the dock's top, or use the arrow keys on it, to make it taller or shorter; double-click the bar for the usual height. The height is kept for each kind of dock while the app is open."],
     ["Charts", CHARTS_VERSION, "A chart set up on a layer in Map Viewer, drawn by the SDK's chart component under the map: Map layers, then the layer's Chart button. Selecting on the chart highlights those features on the map. The chart's own toolbar has its legend, selection, only what is in view, zoom and saving."],

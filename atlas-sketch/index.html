@@ -151,7 +151,19 @@
     .seg button:hover{ background:#f3f3f3; }
     .seg button[aria-pressed="true"]{ background:var(--tool-active); color:var(--tool-active-ink); }
     .seg button[aria-disabled="true"]{ color:#6a6a6a; cursor:not-allowed; background:#f3f3f3; }
-    .cat-3d{ display:inline-block; font-size:11px; font-weight:700; line-height:1; padding:3px 6px; border-radius:4px; background:#1d3b5c; color:#fff; vertical-align:middle; }
+    /* a 3D scene's card: marked on the corner of its picture */
+    .cat-thumb{ position:relative; }
+    .cat-3d{ position:absolute; left:6px; top:6px; display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:700; line-height:1; padding:4px 7px; border-radius:4px; background:#1d3b5c; color:#fff; box-shadow:0 0 0 2px rgba(255,255,255,.85); }
+    /* Open map: all, the 2D maps, or the 3D scenes */
+    .cat-dims{ display:inline-flex; margin:0 0 10px; border:1px solid #6a6a6a; border-radius:6px; overflow:hidden; }
+    .cat-dims[hidden]{ display:none; }
+    .cat-dims button{ display:inline-flex; align-items:center; gap:6px; min-height:38px; padding:6px 14px; border:none; background:#fff; color:#1f1f1f; font:inherit; font-size:15px; cursor:pointer; }
+    .cat-dims button + button{ border-left:1px solid #6a6a6a; }
+    .cat-dims button:hover{ background:#f3f3f3; }
+    .cat-dims button[aria-pressed="true"]{ background:var(--brand); color:var(--brand-ink); font-weight:600; }
+    .cat-dims button:focus-visible{ outline:3px solid var(--focus, #005e95); outline-offset:-3px; }
+    .cat-dim-n{ font-size:13px; padding:1px 7px; border-radius:10px; background:#e9eef2; color:#1f1f1f; }
+    .cat-dims button[aria-pressed="true"] .cat-dim-n{ background:rgba(255,255,255,.92); color:#1f1f1f; }
 
     /* ---------- Side panels ---------- */
     .panel{ position:absolute; top:15px; right:6px; width:360px; max-height:calc(100% - var(--tb-h) - var(--attr-h, 16px) - 51px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--line2); border-radius:6px; box-shadow:0 2px 16px rgba(0,0,0,.2); z-index:25; }
@@ -1031,6 +1043,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.18"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.19"></script>
 </body>
 </html>
