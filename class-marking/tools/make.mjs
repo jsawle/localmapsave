@@ -1,11 +1,11 @@
 // Builds the two test assignments: the teacher's answer map, a class of hand-ins written as the student
 // personas in jsawle/lessons review/personas.md, a few awkward files, the key and the expected results.
-// Every hand-in is a real .amap, built with Atlas's own writer (atlas-sketch/lib/doc.js).
+// Every hand-in is a real .amap, built with Atlas's own writer (a copy of Atlas 5.0's lib/doc.js, in ../lib/doc.js).
 // Run: node class-marking/tools/make.mjs   (repeatable: the same files every time)
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { sketchToOperationalLayers, cleanSketchAttributes, lonLatToXY, LOCK_PROP } from "../../atlas-sketch/lib/doc.js";
+import { sketchToOperationalLayers, cleanSketchAttributes, lonLatToXY, LOCK_PROP } from "../lib/doc.js";
 import { chainRoute, simplify, seeded, jitter, km } from "./geo.mjs";
 import { readHandIn, assess, CHECKS_VERSION } from "./checks.mjs";
 

@@ -1,3 +1,6 @@
+// A copy of Atlas 5.0's saved-map reader and writer (lib/doc.js from jsawle/AtlasLab at 5.0.0-beta.30).
+// Class map review used to load it from ../atlas-sketch/, which moved to its own repository. A copy here means a change
+// to 5.0's file format can't break this app without notice; update it by hand when 5.0's format changes.
 // Saved maps are ArcGIS web maps: the same JSON (Web Map Specification) whether saved to an .amap file on the
 // device or to ArcGIS Online. This file writes and reads that JSON, and still reads the older .mmap documents.
 // Pure functions only (no ArcGIS SDK), so they can be unit-tested in Node.

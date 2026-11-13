@@ -2,7 +2,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { WEBMAP_WRITER_VERSION } from "../../atlas-sketch/lib/doc.js";
+import { WEBMAP_WRITER_VERSION } from "../lib/doc.js";
 import { readHandIn, assess, mentions } from "./checks.mjs";
 import { namesFor, keyFromAnswerMap, studentFromFile, classCsv } from "./keys.mjs";
 
