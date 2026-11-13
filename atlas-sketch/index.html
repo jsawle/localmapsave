@@ -216,6 +216,7 @@
     .sketch-bar{ position:absolute; top:15px; right:374px; bottom:calc(var(--tb-h) + var(--attr-h, 16px) + 12px); z-index:21; display:flex; flex-direction:column; align-items:flex-end; pointer-events:none; }
     .sketch-bar[hidden]{ display:none; }
     .sketch-bar > arcgis-sketch{ pointer-events:auto; max-height:100%; overflow-y:auto; box-shadow:0 2px 10px rgba(0,0,0,.2); border-radius:4px; }
+    .sk-layer{ margin:0 0 12px; }
     .sk-hint{ margin:0 0 10px; padding:9px 11px; border:1px solid #007ac2; border-radius:4px; background:#f3f9fd; color:#1b3a57; font-size:14px; }
     .sk-hint:empty{ display:none; }
     .sk-jump{ position:absolute; left:-9999px; }   /* keyboard: one Tab from the panel's heading to the drawing tools; shown when it has focus */
@@ -791,6 +792,7 @@
         <div class="panel-head"><h2 id="sketchH" tabindex="-1" data-i18n="sketch">Sketch</h2><button class="x-btn" type="button" data-close data-i18n-aria="close">&times;</button></div>
         <div class="panel-body">
           <div id="skMain">
+            <div class="sk-layer" id="skLayerRow" hidden><label class="label" for="skLayerPick" data-i18n="drawingOn">Drawing on</label><select class="field" id="skLayerPick"></select></div>
             <p class="sk-hint" id="sketchHint" role="status"></p>
             <button class="btn sk-jump" type="button" id="sketchToolsJump" data-i18n="sketchToolsJump">Go to the drawing tools</button>
             <h3 class="sk-kind" id="skKind" hidden></h3>
@@ -969,6 +971,7 @@
       <div class="tabs" role="tablist" id="addTabs">
         <button class="tab" role="tab" type="button" id="tabLayers" aria-selected="true" aria-controls="paneLayers"></button>
         <button class="tab" role="tab" type="button" id="tabOwnData" aria-selected="false" aria-controls="paneOwnData" data-i18n="yourData" data-feature="csv">Your own data</button>
+        <button class="tab" role="tab" type="button" id="tabSketchLayer" aria-selected="false" aria-controls="paneSketchLayer" data-i18n="newSketchLayer" hidden>New sketch layer</button>
       </div>
       <div id="paneLayers" class="pane-fill" role="tabpanel" aria-labelledby="tabLayers">
         <div class="cat" id="alBrowser">
@@ -995,6 +998,12 @@
         <p class="note" data-i18n="yourDataHint">Drop a CSV file with latitude and longitude columns anywhere on the map, or choose one.</p>
         <button class="btn primary" type="button" id="csvPick" data-i18n="chooseCsv">Choose a CSV file…</button>
       </div></div>
+      <div id="paneSketchLayer" role="tabpanel" aria-labelledby="tabSketchLayer" hidden><form class="open-body" id="sketchLayerForm">
+        <p class="note" data-i18n="newSketchLayerHint">A layer of your own to sketch on. Give it a name, then draw.</p>
+        <label class="label" for="sketchLayerName" data-i18n="layerName">Layer name</label>
+        <input class="field" id="sketchLayerName" type="text" maxlength="200" autocomplete="off" />
+        <p style="margin-top:14px"><button class="btn primary" type="submit" id="sketchLayerCreate" data-i18n="createSketchLayer">Create and start sketching</button></p>
+      </form></div>
     </div>
   </div>
 
@@ -1045,6 +1054,6 @@
 
   <div id="printSheet" aria-hidden="true"></div>
 
-  <script type="module" src="./app.js?v=5.0.0-beta.30"></script>
+  <script type="module" src="./app.js?v=5.0.0-beta.31"></script>
 </body>
 </html>

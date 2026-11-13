@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.30";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.31";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, VIEW_3D_PROP, saved3dCamera, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.30";
+  WEBSCENE_SPEC_VERSION, SKETCH_LAYER_PREFIX, isSketchKey, TWO_D_ONLY_PROP, VIEW_3D_PROP, saved3dCamera, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.31";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.30";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.30";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.30";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.31";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.31";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.31";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.30";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.30";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.30";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.31";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.31";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.31";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.30";
+  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.31";
 
-const APP_VERSION = "5.0.0-beta.30";
+const APP_VERSION = "5.0.0-beta.31";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
   partnerLogos: [],
   theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", toolActive: "", toolActiveInk: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
   portalUrl: "https://www.arcgis.com",
-  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.30). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
+  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.31). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
   basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
   defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   startView: { center: [0, 20], zoom: 2 },
@@ -301,6 +301,17 @@ const defaultBasemap = () => new Basemap({ portalItem: { id: cfg.defaultBasemap 
 // (its item, style and first tiles) would be downloaded only to be replaced (5.0.0-beta.9). It is put in if the open fails.
 const linkedScene = !authStash && F.threeD !== false && HEX32.test(params.get("webscene") || "") ? params.get("webscene") : null;
 const linkedMap = !authStash && !linkedScene && HEX32.test(params.get("webmap") || "") ? params.get("webmap") : null;
+// Sketch layers. The first ("My sketches") always exists and is the one a first sketch goes on; it is listed in Map
+// layers once it has a sketch. Further ones are made by the person (Add layer, or the Sketch panel), keep their own
+// name, and are listed even when empty. One of them is the layer being drawn on (activeSketch).
+const sketchLayers = [graphicsLayer];
+let activeSketch = graphicsLayer;
+let pinnedSketch = [graphicsLayer];   // the sketch layers at the top of the map: they stay above a layer that is added
+const isSketch = (l) => sketchLayers.includes(l);
+const sketchKeyOfLayer = (l) => (l === graphicsLayer ? "" : String(l.id).slice(SKETCH_LAYER_PREFIX.length));
+const sketchLayerByKey = (key) => (key ? sketchLayers.find((l) => l !== graphicsLayer && sketchKeyOfLayer(l) === key) : graphicsLayer) || null;
+const sketchCount = () => sketchLayers.reduce((n, l) => n + l.graphics.length, 0);
+const sketchListed = (l) => isSketch(l) && (l !== graphicsLayer || l.graphics.length > 0);
 const localMap = new EsriMap({ basemap: linkedScene || linkedMap ? null : defaultBasemap(), ground: "world-elevation", layers: [graphicsLayer] });
 // The linked map starts downloading now, while the view and the rest of the app are still being set up.
 let preloaded = null;
@@ -689,7 +700,7 @@ const sketchReady = (async () => {
   await customElements.whenDefined("arcgis-sketch");
   if (sketch.componentOnReady) await sketch.componentOnReady();
   Object.assign(sketch, {
-    defaultGraphicsLayerDisabled: true, layer: graphicsLayer, view, autoDestroyDisabled: true,
+    defaultGraphicsLayerDisabled: true, layer: activeSketch, view, autoDestroyDisabled: true,
     availableCreateTools: SKETCH_TOOLS, showCreateToolsText: true, showCreateToolsFreehandPolyline: true, showCreateToolsFreehandPolygon: true, hideCreateToolsMultipoint: true,
     layout: window.matchMedia && window.matchMedia("(max-width: 760px)").matches ? "horizontal" : "vertical",   // down the right of the map, beside the panel, as in Map Viewer (a phone keeps it across the top)
     scale: sketchScale(),                 // smaller buttons on a short screen, so every tool shows without the "more" menu
@@ -836,23 +847,95 @@ function addSketchGraphic(gj) {
   g.attributes = { ...gj.attributes };
   applyStyle(g);
   g.popupTemplate = popupTemplate();
-  graphicsLayer.add(g);
+  (sketchLayerByKey(isSketchKey(gj.layer) ? gj.layer : "") || graphicsLayer).add(g);
   return g;
 }
 // Duplicate (and undo of a delete) bring graphics back with their attributes: give a copy its own id.
-graphicsLayer.graphics.on("change", (e) => {
-  for (const g of e.added || []) {
-    const a = g.attributes;
-    if (!a || !a.uid) continue;
-    if (graphicsLayer.graphics.some((o) => o !== g && o.attributes && o.attributes.uid === a.uid)) g.attributes = { ...a, uid: newUid() };
-    if (!g.popupTemplate) g.popupTemplate = popupTemplate();
+// More than one sketch layer (lab: features.sketchLayers). Off, the app has its one sketch layer, as before; a saved
+// map that holds several still opens with them all.
+const SKETCH_LAYERS_ON = F.sketchLayers === true;
+const SKETCH_LAYERS_VERSION = "1.0";
+const NEW_SKETCH_LAYER = "__new";
+// "Drawing on" in the Sketch panel: shown when the feature is on, or when the map already has more than one sketch layer.
+function syncSketchLayerPicker() {
+  const row = $("skLayerRow"), sel = $("skLayerPick");
+  if (!row || !sel) return;
+  row.hidden = !(SKETCH_LAYERS_ON || sketchLayers.length > 1);
+  sel.innerHTML = "";
+  for (const l of sketchLayers) { const o = document.createElement("option"); o.value = l.id; o.textContent = l.title || l.id; sel.appendChild(o); }
+  if (SKETCH_LAYERS_ON) { const o = document.createElement("option"); o.value = NEW_SKETCH_LAYER; o.textContent = S.newSketchLayerMore; sel.appendChild(o); }
+  sel.value = activeSketch.id;
+}
+function createSketchLayer(name) {
+  const l = newSketchLayer(name);
+  setActiveSketch(l); markDirty();
+  sketchReady.then(syncSnapSources);
+  if (!$("layersPanel").hidden) renderLayers();
+  toast(t("sketchLayerMade", { title: l.title }));
+  return l;
+}
+$("skLayerPick").addEventListener("change", () => {
+  const v = $("skLayerPick").value;
+  if (v === NEW_SKETCH_LAYER) {
+    const name = window.prompt(S.layerName, nextSketchLayerName());
+    if (name == null || !name.trim()) { syncSketchLayerPicker(); return; }
+    createSketchLayer(name); $("skLayerPick").focus();
+    return;
   }
-  // The last sketch gone: the layer leaves Map layers, so it goes back to shown and solid. Otherwise the next sketch
-  // would be drawn on a layer that is switched off, with no row to switch it on again.
-  const has = graphicsLayer.graphics.length > 0;
-  if (!has) { graphicsLayer.visible = true; graphicsLayer.opacity = 1; if (swipe && swipe.layer === graphicsLayer) endLayerTools(graphicsLayer); }
-  if (has !== sketchRowShown && !$("layersPanel").hidden) renderLayers({ keepFocus: true });
+  setActiveSketch(sketchLayers.find((l) => l.id === v) || graphicsLayer);
 });
+syncSketchLayerPicker();
+function watchSketchLayer(layer) {
+  layer.graphics.on("change", (e) => {
+    for (const g of e.added || []) {
+      const a = g.attributes;
+      if (!a || !a.uid) continue;
+      if (sketchLayers.some((sl) => sl.graphics.some((o) => o !== g && o.attributes && o.attributes.uid === a.uid))) g.attributes = { ...a, uid: newUid() };
+      if (!g.popupTemplate) g.popupTemplate = popupTemplate();
+    }
+    if (layer !== graphicsLayer) return;
+    // The first layer's last sketch gone: it leaves Map layers, so it goes back to shown and solid. Otherwise the next
+    // sketch would be drawn on a layer that is switched off, with no row to switch it on again.
+    const has = graphicsLayer.graphics.length > 0;
+    if (!has) { graphicsLayer.visible = true; graphicsLayer.opacity = 1; if (swipe && swipe.layer === graphicsLayer) endLayerTools(graphicsLayer); }
+    if (has !== sketchRowShown && !$("layersPanel").hidden) renderLayers({ keepFocus: true });
+  });
+}
+watchSketchLayer(graphicsLayer);
+function newSketchKey() { let k; do { k = "L" + Math.random().toString(36).slice(2, 8).padEnd(6, "0"); } while (sketchLayerByKey(k)); return k; }
+/** A further sketch layer, on top of the map. */
+function newSketchLayer(title, key) {
+  key = isSketchKey(key) && !sketchLayerByKey(key) ? key : newSketchKey();
+  const l = new GraphicsLayer({ id: SKETCH_LAYER_PREFIX + key, title: String(title || "").trim().slice(0, 200) || nextSketchLayerName(), elevationInfo: { mode: "on-the-ground" }, listMode: "hide" });
+  watchSketchLayer(l); sketchLayers.push(l);
+  activeMap().add(l); updatePinned();
+  return l;
+}
+function nextSketchLayerName() {
+  const names = new Set(sketchLayers.map((l) => l.title));
+  for (let n = sketchLayers.length + 1; ; n++) { const name = t("sketchLayerN", { n }); if (!names.has(name)) return name; }
+}
+/** The layer the Sketch tools draw on, and whose sketches a click selects. */
+function setActiveSketch(l) {
+  if (!isSketch(l)) l = graphicsLayer;
+  if (l !== activeSketch) { endSketchOps(); setSelection([]); activeSketch = l; sketchReady.then(() => { sketch.layer = activeSketch; }); }
+  syncSketchLayerPicker();
+}
+function removeSketchLayer(l) {
+  if (l === graphicsLayer || !isSketch(l)) return;
+  if (activeSketch === l) setActiveSketch(graphicsLayer);
+  endLayerTools(l);
+  sketchLayers.splice(sketchLayers.indexOf(l), 1);
+  removeFromMaps(l); updatePinned();
+  syncSketchLayerPicker(); sketchReady.then(syncSnapSources);
+}
+// The sketch layers at the very top of the map, bottom first. A layer added later goes under them (keepSketchOnTop);
+// a sketch layer that has been moved below another layer is not among them and stays where it was put.
+function updatePinned() {
+  const arr = activeMap().layers.toArray(); pinnedSketch = [];
+  for (let i = arr.length - 1; i >= 0 && (isSketch(arr[i]) || arr[i] === previewLayer); i--) if (isSketch(arr[i])) pinnedSketch.unshift(arr[i]);
+}
+
 
 function popupFieldsEnabled(on) {
   for (const id of ["imgPick", "fTitle", "fDesc"]) $(id).disabled = !on;
@@ -1022,7 +1105,7 @@ async function ensureSymbolSet() {
   pressOne("symbolGrid", "shape", currentShape());
 }
 function setSelection(graphics) {
-  selectedGraphics = (graphics || []).filter((g) => g && g.layer === graphicsLayer);
+  selectedGraphics = (graphics || []).filter((g) => g && isSketch(g.layer));
   selectedFeature = selectedGraphics.length === 1 ? selectedGraphics[0] : null;
   populateSketchPanel();
 }
@@ -1167,7 +1250,7 @@ function endSketchOps() {
 // ("sketchSnapTo": "sketches-and-data"). The opened map's own layers are never snapping layers by default.
 function syncSnapSources() {
   if (cfg.sketchSnapping === false || !sketch.snappingOptions) return;
-  const fs = sketch.snappingOptions.featureSources, want = cfg.sketchSnapTo === "sketches-and-data" ? [graphicsLayer, ...dataLayers] : [graphicsLayer];
+  const fs = sketch.snappingOptions.featureSources, want = cfg.sketchSnapTo === "sketches-and-data" ? [...sketchLayers, ...dataLayers] : [...sketchLayers];
   try {
     fs.removeMany(fs.filter((src) => !want.includes(src.layer)).toArray());
     for (const layer of want) if (!fs.some((src) => src.layer === layer)) fs.add({ layer, enabled: true });
@@ -1450,7 +1533,7 @@ function stopProfile() {
 function clearProfile() { prof = null; profAt = -1; profDraft = null; for (const k of ["line", "dot", "draft"]) profShow(k, null); $("profLines").value = ""; profMessage(S.profileHint); $("profStats").replaceChildren(); $("profNew").hidden = true; }
 function profMessage(text) { $("profChart").replaceChildren(); const p = document.createElement("p"); p.className = "prof-msg"; p.textContent = text; $("profChart").appendChild(p); $("profStatus").textContent = text; }
 // the lines that can be chosen without the pointer: the sketched lines, by name
-function sketchLines() { return graphicsLayer.graphics.filter((g) => g.geometry && g.geometry.type === "polyline").toArray(); }
+function sketchLines() { return sketchLayers.flatMap((l) => l.graphics.filter((g) => g.geometry && g.geometry.type === "polyline").toArray()); }
 function fillProfileLines() {
   const sel = $("profLines"), lines = sketchLines();
   sel.replaceChildren(new Option(S.profilePickLine, ""));
@@ -1812,8 +1895,12 @@ $("tg3d").addEventListener("click", () => setMode("3d"));
 function setActiveMap(m) {
   const old = view.map;
   endLayerTools(null);
-  if (old && old !== m) { try { old.remove(graphicsLayer); } catch (e) { /* not there */ } }
-  if (!m.layers.includes(graphicsLayer)) m.add(graphicsLayer);
+  // the sketch layers go with the person from map to map, on top, in the order they were in
+  const inOld = old && old !== m ? old.layers.toArray().filter(isSketch) : [];
+  const carry = inOld.concat(sketchLayers.filter((l) => !inOld.includes(l)));
+  if (old && old !== m) carry.forEach((l) => { try { old.remove(l); } catch (e) { /* not there */ } });
+  carry.forEach((l) => { if (!m.layers.includes(l)) m.add(l); });
+  pinnedSketch = m.layers.toArray().filter(isSketch);
   // a web scene is shown by the 3D view only; the 2D view goes back to the plain starting map meanwhile
   sceneOnly = isScene(m); twoDOnly = false;
   setViewMap(mapView, sceneOnly ? localMap : m);
@@ -1877,7 +1964,14 @@ function updateToolBadges() {
   $("bookmarksDot").hidden = !k;
   $("bookmarksDotSr").textContent = k ? ", " + (k === 1 ? S.bookmarksCountOne : t("bookmarksCount", { n: k })) : "";
 }
-function keepSketchOnTop() { const m = activeMap(); try { m.reorder(graphicsLayer, m.layers.length - 1); } catch (e) { /* ok */ } }
+function keepSketchOnTop() { const m = activeMap(); for (const l of pinnedSketch) { if (m.layers.includes(l)) { try { m.reorder(l, m.layers.length - 1); } catch (e) { /* ok */ } } } }
+// Put the map's layers in a saved order (ids, bottom first). Layers the order doesn't name keep their places above.
+function applyLayerOrder(ids) {
+  if (!Array.isArray(ids) || !ids.length) return;
+  const m = activeMap(), named = ids.map((id) => m.layers.find((l) => l.id === id)).filter((l) => l && l !== previewLayer);
+  [...new Set(named)].forEach((l, i) => { try { m.reorder(l, i); } catch (e) { /* ok */ } });
+  updatePinned();
+}
 function removeFromMaps(l) { for (const m of new Set([localMap, mapView.map, sceneView && sceneView.map])) { if (m) { try { m.remove(l); } catch (e) { /* not there */ } } } }
 function resetWorkspace() {
   if (openPanelName === "filter") closePanels(false);
@@ -1885,7 +1979,10 @@ function resetWorkspace() {
   endLayerTools(null);
   dataLayers.splice(0).forEach(removeFromMaps);
   [...portalLayers.values()].forEach(removeFromMaps); portalLayers.clear();
-  endSketchOps(); graphicsLayer.removeAll(); graphicsLayer.visible = true; graphicsLayer.opacity = 1; setSelection([]);
+  endSketchOps(); setSelection([]);
+  sketchLayers.slice(1).forEach(removeSketchLayer);   // back to the one sketch layer, empty
+  graphicsLayer.removeAll(); graphicsLayer.visible = true; graphicsLayer.opacity = 1; graphicsLayer.title = S.sketchLayer;
+  setActiveSketch(graphicsLayer); pinnedSketch = [graphicsLayer]; keepSketchOnTop();
   bookmarks = []; updateToolBadges();
   currentSource = null; currentAgolItem = null;
   if (!$("bookmarksPanel").hidden) showBmList();
@@ -1893,7 +1990,7 @@ function resetWorkspace() {
   if (catalogLoaded) refreshCatalogButtons();
 }
 function sourceLayers() {
-  const own = new Set([graphicsLayer, previewLayer, ...dataLayers, ...portalLayers.values()]);
+  const own = new Set([...sketchLayers, previewLayer, ...dataLayers, ...portalLayers.values()]);
   return activeMap().layers.toArray().filter((l) => !own.has(l));
 }
 function basemapFrom(ref) { return typeof ref === "string" && ref.startsWith("item:") ? new Basemap({ portalItem: { id: ref.slice(5) } }) : ref; }
@@ -1902,9 +1999,8 @@ function basemapRef() { const b = activeMap().basemap; return b && b.portalItem 
 // This app's own layers (sketches, spreadsheets) come back editable; layers it added from the collection are
 // recognised by their "__item_<id>" layer id so they can be removed again.
 function applyParsedWebMap(parsed) {
+  restoreSketchLayers(parsed.sketchLayers, parsed.sketchVisible, parsed.sketchOpacity);
   for (const gj of parsed.graphics) addSketchGraphic(gj);
-  graphicsLayer.visible = parsed.sketchVisible !== false;
-  graphicsLayer.opacity = typeof parsed.sketchOpacity === "number" ? parsed.sketchOpacity : 1;
   for (const def of parsed.layers) { try { addDataLayer(def, { silent: true }); } catch (e) { console.warn("Skipped a data layer", e); } }
   const ops = (currentSource && currentSource.data && currentSource.data.operationalLayers) || [];
   activeMap().layers.forEach((l) => {
@@ -1918,6 +2014,20 @@ function applyParsedWebMap(parsed) {
   if (currentSource && currentSource.data) currentSource.data = { ...currentSource.data, operationalLayers: ops.filter((o) => !String(o.id || "").startsWith(ITEM_LAYER_PREFIX)) };
   bookmarks = parsed.bookmarks; updateToolBadges();
   keepSketchOnTop();
+  applyLayerOrder(parsed.order);
+}
+// The sketch layers a saved map or document says it has: the first one's settings, and each further layer made again.
+function restoreSketchLayers(metas, firstVisible, firstOpacity) {
+  graphicsLayer.visible = firstVisible !== false;
+  graphicsLayer.opacity = typeof firstOpacity === "number" ? firstOpacity : 1;
+  for (const m of Array.isArray(metas) ? metas : []) {
+    if (!m) continue;
+    const l = m.key === "" ? graphicsLayer : (isSketchKey(m.key) ? (sketchLayerByKey(m.key) || newSketchLayer(m.title || nextSketchLayerName(), m.key)) : null);
+    if (!l) continue;
+    if (m.title) l.title = m.title;
+    l.visible = m.visible !== false; l.opacity = typeof m.opacity === "number" ? m.opacity : 1;
+  }
+  syncSketchLayerPicker();
 }
 // The item's details and its map JSON, as the SDK fetched them when it loaded the map. (Before 5.0.0-beta.9 the app
 // asked ArcGIS Online for both itself as well, so each was downloaded twice.) If the SDK doesn't hand them over, they are fetched.
@@ -1975,7 +2085,7 @@ async function openWebMapItem(itemId, opts) {
 function slideLayers(ws, sl) {
   if (!sl.visibleLayers) return [];
   const on = new Set(sl.visibleLayers.toArray().map((v) => v && v.id));
-  return layersDeep(ws).filter((l) => l !== graphicsLayer && l !== previewLayer).map((l) => ({ id: l.id, title: l.title || "", visible: on.has(l.id) }));
+  return layersDeep(ws).filter((l) => !isSketch(l) && l !== previewLayer).map((l) => ({ id: l.id, title: l.title || "", visible: on.has(l.id) }));
 }
 // The map's data layers, with those inside group layers. Not map.allLayers: that has the basemap and the ground as well.
 function layersDeep(m) {
@@ -1997,7 +2107,7 @@ function slidesToBookmarks(ws) {
 }
 async function showScene(ws) {
   const prev = activeMap();
-  if (prev && prev !== ws) { try { prev.remove(graphicsLayer); } catch (e) { /* not there */ } }
+  if (prev && prev !== ws) sketchLayers.forEach((l) => { try { prev.remove(l); } catch (e) { /* not there */ } });
   twoDOnly = false;
   await setMode("3d", { map: ws, force: true, keepCamera: true });
   if (mode !== "3d") throw new Error("3D view not available");
@@ -2059,7 +2169,7 @@ async function openWebSceneFile(raw, fileName) {
     if (catalogLoaded) refreshCatalogButtons();
     if (legend) legend.view = view;
     markClean();
-    const n = graphicsLayer.graphics.length + parsed.layers.reduce((x, l) => x + l.features.length, 0);
+    const n = sketchCount() + parsed.layers.reduce((x, l) => x + l.features.length, 0);
     toast(t("openedFile", { title: title || S.untitled, n }));
     if (parsed.skipped) setTimeout(() => toast(t("skippedOnOpen", { n: parsed.skipped }), 5000), 3500);
     return true;
@@ -2096,7 +2206,7 @@ async function openWebMapFile(raw, fileName) {
     if (catalogLoaded) refreshCatalogButtons();
     if (legend) legend.view = view;
     markClean();
-    const n = graphicsLayer.graphics.length + parsed.layers.reduce((x, l) => x + l.features.length, 0);
+    const n = sketchCount() + parsed.layers.reduce((x, l) => x + l.features.length, 0);
     toast(t("openedFile", { title: title || S.untitled, n }));
     if (parsed.skipped) setTimeout(() => toast(t("skippedOnOpen", { n: parsed.skipped }), 5000), 3500);
     const by = parsed.webmap.authoringApp, ver = parsed.webmap.authoringAppVersion;
@@ -2233,11 +2343,10 @@ function addDataLayer(def, opts) {
 
 // ============================================================ Map layers panel
 function eachToggleableLayer(fn) {
-  fn(graphicsLayer, "__sketch", S.sketchLayer);
-  activeMap().layers.toArray().slice().reverse().forEach((l) => { if (l !== graphicsLayer && l !== previewLayer) fn(l, l.id, l.title || l.id); });
+  activeMap().layers.toArray().slice().reverse().forEach((l) => { if (l !== previewLayer) fn(l, l.id, l.title || l.id); });
 }
 function zoomToLayer(l) {
-  if (l === graphicsLayer) { const g = graphicsLayer.graphics.toArray(); if (g.length) goToSafe(g); else toast(S.noSketches); return; }
+  if (isSketch(l)) { const g = l.graphics.toArray(); if (g.length) goToSafe(g); else toast(S.noSketches); return; }
   if (l.queryExtent) { l.when().then(() => l.queryExtent()).then((r) => { if (r && r.extent) goToSafe(r.extent.expand(1.2)); }).catch(() => {}); return; }
   if (l.fullExtent) goToSafe(l.fullExtent);
 }
@@ -2263,11 +2372,12 @@ function outOfScale(l) {
   const min = l.minScale || 0, max = l.maxScale || 0;
   return (min > 0 && s > min) || (max > 0 && s < max);
 }
-function hasLabels(l) { const li = l.labelingInfo; return l !== graphicsLayer && !!li && li.length > 0; }
+function hasLabels(l) { const li = l.labelingInfo; return !isSketch(l) && !!li && li.length > 0; }
 // The layers listed at one level, top first (as drawn), and the collection that holds them.
 function siblingsOf(owner) {
   const coll = owner === "map" ? activeMap().layers : owner.layers;
-  return coll.toArray().filter((x) => x !== graphicsLayer && x !== previewLayer && x.listMode !== "hide").reverse();
+  // sketch layers are listed with the others, in their place in the drawing order (the first one only once it has a sketch)
+  return coll.toArray().filter((x) => x !== previewLayer && (isSketch(x) ? sketchListed(x) : x.listMode !== "hide")).reverse();
 }
 function ownerColl(owner) { return owner === "map" ? activeMap() : owner; }
 function moveLayer(l, owner, to) {
@@ -2275,7 +2385,7 @@ function moveLayer(l, owner, to) {
   if (from < 0 || to < 0 || to >= sibs.length || to === from) return;
   const coll = ownerColl(owner), target = coll.layers.indexOf(sibs[to]);
   try { coll.reorder(l, target); } catch (e) { console.error(e); return; }
-  if (owner === "map") keepSketchOnTop();
+  if (owner === "map") updatePinned();
   markDirty();
   renderLayers({ focusKey: keyOf(l) + ":move" });
   $("layersLive").textContent = t("layerMoved", { title: l.title || "", n: to + 1, total: sibs.length });
@@ -2436,11 +2546,12 @@ function toolButton(key, icon, label, title, onClick, pressed) {
   return b;
 }
 function layerRow(l, owner, depth, pos, count) {
-  const title = l === graphicsLayer ? S.sketchLayer : (l.title || l.id), k = keyOf(l), u = uiOf(l), group = isGroup(l);
-  const li = document.createElement("li"); li.className = "li lyr" + (depth ? " sub" : "") + (l === graphicsLayer ? " fixed" : ""); li.dataset.key = k;
+  const title = l.title || l.id, k = keyOf(l), u = uiOf(l), group = isGroup(l), sk = isSketch(l);
+  const li = document.createElement("li"); li.className = "li lyr" + (depth ? " sub" : ""); li.dataset.key = k;
+  if (sk) li.dataset.sketch = sketchKeyOfLayer(l) || "first";
   const head = document.createElement("div"); head.className = "lyr-head";
-  // drag handle: drag it, or use the arrow keys on it, to change the drawing order (the sketch layer always stays on top)
-  if (l !== graphicsLayer && count > 1) {
+  // drag handle: drag it, or use the arrow keys on it, to change the drawing order (sketch layers move like the others)
+  if (count > 1) {
     const h = document.createElement("button"); h.type = "button"; h.className = "lyr-drag"; h.dataset.key = k + ":move";
     h.innerHTML = calIcon("drag"); h.setAttribute("aria-label", t("moveLayer", { title })); h.setAttribute("aria-describedby", "layersMoveHint");
     h.title = S.moveLayerTip;
@@ -2478,7 +2589,7 @@ function layerRow(l, owner, depth, pos, count) {
   head.appendChild(tg);
   head.appendChild(cb);
   const setState = () => {
-    const oos = l !== graphicsLayer && outOfScale(l);
+    const oos = !sk && outOfScale(l);
     tt.classList.toggle("off", l.visible === false || oos);
     sc.hidden = !oos; if (!oos) note.hidden = true;
   };
@@ -2490,12 +2601,14 @@ function layerRow(l, owner, depth, pos, count) {
   tools.setAttribute("role", "group"); tools.setAttribute("aria-label", t("layerTools", { title }));
   const extra = document.createElement("div"); extra.className = "lyr-extra";
   tools.appendChild(toolButton(k + ":zoom", calIcon("layer-zoom-to"), S.zoomTo, title, () => zoomToLayer(l)));
-  if (l === graphicsLayer) {   // the sketch layer: transparency, compare (2D) and remove, as other layers have
+  if (sk) {   // a sketch layer: transparency, compare (2D), rename and remove
     tools.appendChild(toolButton(k + ":transp", calIcon("transparency"), S.adjustTransparency, title, () => { u.transp = !u.transp; renderLayers({ focusKey: k + ":transp" }); }, u.transp));
     if (mode === "2d") tools.appendChild(toolButton(k + ":swipe", calIcon("compare"), S.swipe, title, () => toggleSwipe(l), !!(swipe && swipe.layer === l)));
-    tools.appendChild(toolButton(k + ":remove", calIcon("trash"), S.removeSketches, title, removeSketches));
+    if (SKETCH_LAYERS_ON) tools.appendChild(toolButton(k + ":rename", calIcon("pencil"), S.renameLayer, title, () => renameSketchLayer(l)));
+    // the first layer can't be removed, only emptied; a further one goes, with its sketches
+    tools.appendChild(toolButton(k + ":remove", calIcon("trash"), l === graphicsLayer ? S.removeSketches : S.removeLayer, title, () => removeSketches(l)));
   }
-  if (l !== graphicsLayer) {
+  if (!sk) {
     if (!group && LEGEND_TYPES.has(l.type)) tools.appendChild(toolButton(k + ":legend", calIcon("legend"), S.showLegend, title, () => { u.legend = !u.legend; renderLayers({ focusKey: k + ":legend" }); }, u.legend));
     tools.appendChild(toolButton(k + ":transp", calIcon("transparency"), S.adjustTransparency, title, () => { u.transp = !u.transp; renderLayers({ focusKey: k + ":transp" }); }, u.transp));
     if (!group && mode === "2d") tools.appendChild(toolButton(k + ":swipe", calIcon("compare"), S.swipe, title, () => toggleSwipe(l), !!(swipe && swipe.layer === l)));
@@ -2520,7 +2633,7 @@ function layerRow(l, owner, depth, pos, count) {
   }
   li.appendChild(tools);
   if (!u.collapsed) {
-    if (u.legend && !group && l !== graphicsLayer) {
+    if (u.legend && !group && !sk) {
       const box = document.createElement("div"); box.className = "lyr-legend";
       extra.appendChild(box);
       const row = { el: null, gone: false, destroy() { this.gone = true; dropEl(this.el); } }; rowWidgets.push(row);
@@ -2539,7 +2652,7 @@ function layerRow(l, owner, depth, pos, count) {
       row.append(lo, r, hi);
       extra.appendChild(row);
     }
-    if (u.info && l !== graphicsLayer) { const box = document.createElement("div"); box.className = "lyr-info"; extra.appendChild(box); fillLayerInfo(l, box); }
+    if (u.info && !sk) { const box = document.createElement("div"); box.className = "lyr-info"; extra.appendChild(box); fillLayerInfo(l, box); }
     if (extra.childNodes.length) li.appendChild(extra);
   }
   if (group && u.open) {
@@ -2554,17 +2667,35 @@ function layerRow(l, owner, depth, pos, count) {
 // the list can include a spreadsheet the person added, which isn't anywhere else until the map is saved.
 // Remove on the sketch layer deletes every sketch. Sketches can't be added again as a layer from the collection can,
 // so it asks first.
-function removeSketches() {
-  const n = graphicsLayer.graphics.length;
-  if (!n || !window.confirm(t("removeSketchesConfirm", { n }))) return;
-  endSketchOps(); setSelection([]);
-  graphicsLayer.removeAll();
+// What a save records about the sketch layers: the first one (its name only if renamed), then each further one.
+function sketchLayersMeta() {
+  return sketchLayers.map((l) => ({ key: sketchKeyOfLayer(l), title: l === graphicsLayer && l.title === S.sketchLayer ? null : (l.title || null), visible: l.visible !== false, opacity: typeof l.opacity === "number" ? l.opacity : 1 }));
+}
+// The map's layers as drawn, bottom first, sketch layers among them.
+function layerOrderIds() {
+  return activeMap().layers.toArray().filter((l) => l !== previewLayer).map((l) => l.id);
+}
+function removeSketches(l) {
+  l = isSketch(l) ? l : graphicsLayer;
+  const n = l.graphics.length, first = l === graphicsLayer, title = l.title || "";
+  if (first && !n) return;
+  if (n && !window.confirm(first ? t("removeSketchesConfirm", { n }) : t("removeSketchLayerConfirm", { title, n }))) return;
+  if (activeSketch === l) { endSketchOps(); setSelection([]); }
+  if (first) l.removeAll(); else removeSketchLayer(l);
   markDirty(); updateToolBadges();
-  toast(t("removedSketches", { n }));
+  toast(first ? t("removedSketches", { n }) : t("removedLayer", { title }));
   if (!$("layersPanel").hidden) { renderLayers(); const h = $("layersH"); if (h) h.focus(); }
 }
+function renameSketchLayer(l) {
+  const name = window.prompt(S.renameLayerPrompt, l.title || "");
+  if (name == null) return;
+  const clean = name.trim().slice(0, 200);
+  if (!clean || clean === l.title) return;
+  l.title = clean; markDirty(); syncSketchLayerPicker();
+  renderLayers({ focusKey: keyOf(l) + ":rename" });
+}
 function removeAllLayers() {
-  const list = siblingsOf("map");
+  const list = siblingsOf("map").filter((l) => !isSketch(l));   // sketches stay
   if (!list.length || !window.confirm(t("removeAllConfirm", { n: list.length }))) return;
   for (const l of list) {
     endLayerTools(l);
@@ -2624,7 +2755,7 @@ function startDrag(e, l, owner, li) {
 function updateScaleStates() { rowRefs.forEach((f) => f()); }
 let sketchRowShown = false;
 function renderLayers(opts) {
-  { const ra = $("layersRemoveAll"); if (ra) ra.hidden = F.removeAllLayers === false || !siblingsOf("map").length; }
+  { const ra = $("layersRemoveAll"); if (ra) ra.hidden = F.removeAllLayers === false || !siblingsOf("map").some((l) => !isSketch(l)); }
   opts = opts || {};
   const list = $("layersList");
   const ae = document.activeElement;
@@ -2635,9 +2766,8 @@ function renderLayers(opts) {
   const top = siblingsOf("map");
   // The sketch layer is listed once something has been sketched: a map with no sketches has no sketch layer to show.
   sketchRowShown = graphicsLayer.graphics.length > 0;
-  if (sketchRowShown) list.appendChild(layerRow(graphicsLayer, "map", 0, -1, 0));
   top.forEach((l, i) => list.appendChild(layerRow(l, "map", 0, i, top.length)));
-  if (!top.length && !graphicsLayer.graphics.length) { const p = document.createElement("li"); p.className = "empty"; p.textContent = S.noLayers; list.appendChild(p); }
+  if (!top.length) { const p = document.createElement("li"); p.className = "empty"; p.textContent = S.noLayers; list.appendChild(p); }
   if (focusKey) { const el = list.querySelector('[data-key="' + focusKey + '"]'); if (el) el.focus(); }
   // labels show only once a layer has loaded its label classes: list again when the ones still loading are ready
   const pending = top.filter((l) => !l.loaded && l.when && !l.__lyrWaited);
@@ -2658,7 +2788,7 @@ function renderLayers(opts) {
 const FILTER_ON = F.filter !== false;
 let filterState = null;
 const filterOrigin = new WeakMap();   // the filter each layer had when its panel was first opened ("" for none)
-const filterable = (l) => FILTER_ON && !!l && !isGroup(l) && l !== previewLayer && l !== graphicsLayer && TABLE_TYPES.has(l.type) && "definitionExpression" in l;
+const filterable = (l) => FILTER_ON && !!l && !isGroup(l) && l !== previewLayer && !isSketch(l) && TABLE_TYPES.has(l.type) && "definitionExpression" in l;
 const filterText = (l) => (typeof l.definitionExpression === "string" ? l.definitionExpression.trim() : "");
 const hasFilter = (l) => { const s = filterText(l); return !!s && !/^1\s*=\s*1$/.test(s); };
 const fmtNum = (n) => { try { return Number(n).toLocaleString(cfg.locale || "en"); } catch (e) { return String(n); } };
@@ -2945,7 +3075,7 @@ function applyLayerSnapshot(snap) {
   const top = new Set();
   eachToggleableLayer((l, id, title) => { top.add(l); const rec = snap.find((r) => r.id === id) || snap.find((r) => r.title && r.title === title); if (rec) l.visible = !!rec.visible; });
   // layers inside a group layer: only a scene's slides record these, by id
-  layersDeep(activeMap()).forEach((l) => { if (top.has(l) || l === graphicsLayer || l === previewLayer) return; const rec = snap.find((r) => r.id === l.id); if (rec) l.visible = !!rec.visible; });
+  layersDeep(activeMap()).forEach((l) => { if (top.has(l) || isSketch(l) || l === previewLayer) return; const rec = snap.find((r) => r.id === l.id); if (rec) l.visible = !!rec.visible; });
   if (!$("layersPanel").hidden) renderLayers();
 }
 function applyBookmark(bm) {
@@ -3346,7 +3476,20 @@ const addBrowser = createBrowser({ p: "al", query: '-type:"Web Map"', accept: (i
     refreshCatalogButtons(); b.focus();
   } });
 function refreshCatalogButtons() { addBrowser.refreshActions(); }
-const switchAddTab = setupTabs([["tabLayers", "paneLayers"], ["tabOwnData", "paneOwnData"]], (tabId) => { if (tabId === "tabLayers") { addBrowser.start(); catalogLoaded = true; } });
+$("tabSketchLayer").hidden = !SKETCH_LAYERS_ON;
+const switchAddTab = setupTabs([["tabLayers", "paneLayers"], ["tabOwnData", "paneOwnData"], ["tabSketchLayer", "paneSketchLayer"]], (tabId) => {
+  if (tabId === "tabLayers") { addBrowser.start(); catalogLoaded = true; }
+  if (tabId === "tabSketchLayer") { $("sketchLayerName").value = nextSketchLayerName(); }
+});
+// Add layer > New sketch layer: make it, then open Sketch, drawing on it.
+$("sketchLayerForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!SKETCH_LAYERS_ON) return;
+  const name = $("sketchLayerName").value;
+  closeModal("addModal");
+  createSketchLayer(name);
+  if (openPanelName !== "sketch") $("tool-sketch").click();
+});
 function openAddModal(tabId) { closePanels(false); openModal("addModal"); switchAddTab(tabId || "tabLayers"); }
 $("tool-add").addEventListener("click", () => leaveData(() => openAddModal("tabLayers")));
 
@@ -3782,7 +3925,8 @@ function buildDocument() {
     layerStates: currentSource ? sourceLayers().map((l) => ({ id: l.id, title: l.title, visible: l.visible !== false, opacity: l.opacity })) : [],
     portalLayers: [...portalLayers.values()].map((l) => ({ ...l.__item, visible: l.visible !== false, opacity: l.opacity })),
     sketchVisible: graphicsLayer.visible !== false, sketchOpacity: graphicsLayer.opacity,
-    graphics: graphicsLayer.graphics.toArray().map((g) => { straighten(g); return { geometry: flatGeometryJson(g.geometry), attributes: { ...g.attributes } }; }),
+    sketchLayers: sketchLayersMeta(), order: layerOrderIds(),
+    graphics: sketchLayers.flatMap((sl) => sl.graphics.toArray().map((g) => { straighten(g); const j = { geometry: flatGeometryJson(g.geometry), attributes: { ...g.attributes } }; if (sl !== graphicsLayer) j.layer = sketchKeyOfLayer(sl); return j; })),
     layers: dataLayers.map((fl) => ({ ...fl._srcDef, visible: fl.visible !== false, opacity: fl.opacity, showLabels: fl.labelsVisible !== false, definitionExpression: hasFilter(fl) ? filterText(fl) : undefined }))
   };
   if (bookmarks.length) doc.bookmarks = bookmarks.map((b) => ({ title: b.title, viewpoint: b.viewpoint, layers: b.layers || [], thumb: b.thumb || null, camera: b.camera ? b.camera.toJSON() : null }));
@@ -3801,10 +3945,10 @@ async function loadDocument(doc) {
   if (sourceOk) for (const st of doc.layerStates || []) { const l = activeMap().layers.find((x) => x.id === st.id); if (l) { l.visible = st.visible; l.opacity = st.opacity; } }
   for (const p of doc.portalLayers || []) await addPortalLayer(p, { silent: true, visible: p.visible, opacity: p.opacity });
   for (const ld of doc.layers || []) { try { addDataLayer(ld, { silent: true }); } catch (e) { console.warn("Skipped a data layer", e); } }
+  restoreSketchLayers(doc.sketchLayers, doc.sketchVisible, doc.sketchOpacity);
   for (const gj of doc.graphics || []) { try { addSketchGraphic(gj); } catch (e) { console.warn("Skipped a sketch", e); } }
-  graphicsLayer.visible = doc.sketchVisible !== false;
-  graphicsLayer.opacity = typeof doc.sketchOpacity === "number" ? doc.sketchOpacity : 1;
   keepSketchOnTop();
+  applyLayerOrder(doc.order);
   bookmarks = doc.bookmarks || []; updateToolBadges();
   setTitle(doc.title);
   if (doc.mode === "3d" && F.threeD !== false) {
@@ -3818,7 +3962,7 @@ async function loadDocument(doc) {
   if (!$("bookmarksPanel").hidden) showBmList();
   if (catalogLoaded) refreshCatalogButtons();
   markClean();
-  const n = graphicsLayer.graphics.length + (doc.layers || []).reduce((a, l) => a + l.features.length, 0);
+  const n = sketchCount() + (doc.layers || []).reduce((a, l) => a + l.features.length, 0);
   toast(t("openedFile", { title: currentTitle(), n }));
 }
 async function openDocText(text, fileName) {
@@ -3863,7 +4007,7 @@ async function buildWebMapJson(toFile) {
     extent: ext ? ext.toJSON() : null, scale: mode === "2d" ? mapView.scale : null, rotation: mode === "2d" ? mapView.rotation || 0 : 0,
     appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false, sketchOpacity: graphicsLayer.opacity, widgets: timeWidgetsJson(),
     sketchIcon: (a) => { const v = vectorSymbol(styleOf(a)); try { return v ? v.toJSON() : null; } catch (e) { return null; } },   // the vector symbol itself, as Map Viewer saves it
-    order: activeMap().layers.toArray().filter((l) => l !== graphicsLayer && l !== previewLayer).map((l) => l.id) };
+    order: layerOrderIds() };
   // A web scene is saved as a web scene (3.0): its ground, lighting and kind of scene, the camera, and the bookmarks as slides.
   if (sceneOnly) return docToWebScene(doc, { ...ctx, camera: sceneView && sceneView.camera ? sceneView.camera.toJSON() : null, scene: (currentSource && currentSource.data) || null });
   const wm = docToWebMap(doc, ctx);
@@ -4064,7 +4208,7 @@ $("printTile").addEventListener("click", async () => {
     const h1 = document.createElement("h1"); h1.textContent = currentTitle();
     const img = document.createElement("img"); img.src = shot.dataUrl; img.alt = currentTitle();
     const meta = document.createElement("div"); meta.className = "meta";
-    const shown = []; eachToggleableLayer((l, id, title) => { if (l.visible !== false && (l !== graphicsLayer || graphicsLayer.graphics.length)) shown.push(title); });
+    const shown = []; eachToggleableLayer((l, id, title) => { if (l.visible !== false && (!isSketch(l) || l.graphics.length)) shown.push(title); });
     const credits = [...document.querySelectorAll(".esri-attribution__sources")].map((e) => e.textContent.trim()).filter(Boolean)[0] || "";
     const lines = [S.printLayers + ": " + (shown.join(", ") || "—"), credits ? S.printCredits + ": " + credits : "",
       cfg.disclaimer || "", cfg.appName + " · " + new Date().toLocaleDateString(cfg.locale || undefined)];
@@ -4346,7 +4490,8 @@ function renderVersions() {
     ["Charts", CHARTS_VERSION, "A chart set up on a layer in Map Viewer, drawn by the SDK's chart component under the map: Map layers, then the layer's Chart button. Selecting on the chart highlights those features on the map. The chart's own toolbar has its legend, selection, only what is in view, zoom and saving."],
     ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). A line you draw takes the shortest way round the Earth between the places you click (a great circle), so on the flat map a long line is a curve; a line you choose on the map is followed as it is drawn. The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
-    ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides. 3.4: a map saved to a file while in 3D opens in 3D again, seen from the same place. 3.5: the sketch layer's transparency."],
+    ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides. 3.4: a map saved to a file while in 3D opens in 3D again, seen from the same place. 3.5: the sketch layer's transparency. 3.6: more than one sketch layer, and sketch layers anywhere in the layer order."],
+    ["Sketch layers (lab)", SKETCH_LAYERS_VERSION, "A sketch layer is listed in Map layers once it has a sketch, can be moved in the drawing order like any other layer, and has transparency, swipe and remove. Where a config turns it on (features.sketchLayers): more sketch layers can be made from Add layer or the Sketch panel, each with its own name; Sketch says which one it is drawing on. A saved map that has several opens with them in any config."],
     ["3D maps", "1.1", "3D maps (ArcGIS web scenes) from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks, and a bookmark turns layers on and off as its slide does (not the slide's basemap or lighting). A web map whose item has the tag atlas-2d-only stays in 2D."],
     ["Loading", "1.1", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Swipe, the table, Elevation and Sketch is downloaded when the tool is first opened. All of these are the SDK's components (or the app's own code), not its widgets, which SDK 6 removes."],
     ["Sketch measuring", "1.1", "While drawing: tooltips, the length of each side (segment labels) and snapping to other sketches are on from the start; each can be turned off in the toolbar's Settings. Lengths and areas are shown with no decimal places."],
