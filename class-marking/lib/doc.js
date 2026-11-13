@@ -1,4 +1,4 @@
-// A copy of Atlas 5.0's saved-map reader and writer (lib/doc.js from jsawle/AtlasLab at 5.0.0-beta.30).
+// A copy of Atlas 5.0's saved-map reader and writer (lib/doc.js from jsawle/AtlasLab at 5.0.0-beta.32, saved-map format 3.6).
 // Class map review used to load it from ../atlas-sketch/, which moved to its own repository. A copy here means a change
 // to 5.0's file format can't break this app without notice; update it by hand when 5.0's format changes.
 // Saved maps are ArcGIS web maps: the same JSON (Web Map Specification) whether saved to an .amap file on the
@@ -7,7 +7,7 @@
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "3.4";        // 3.4: a map saved while in 3D reopens in 3D ("atlas3d": its camera); a spreadsheet layer keeps Columns in 3D ("atlasColumns3d"). 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill). 3.2: areas have a fill colour, outline transparency and width, and can take a styled fill
+export const WEBMAP_WRITER_VERSION = "3.6";        // 3.6: more than one sketch layer ("atlasSketchLayer" on each of its layers), and sketch layers anywhere in the layer order. 3.5: the sketch layer's transparency. 3.4: a map saved while in 3D reopens in 3D ("atlas3d": its camera); a spreadsheet layer keeps Columns in 3D ("atlasColumns3d"). 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill). 3.2: areas have a fill colour, outline transparency and width, and can take a styled fill
 export const WEBMAP_SPEC_VERSION = "2.31";
 export const WEBSCENE_SPEC_VERSION = "1.40";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
@@ -203,7 +203,9 @@ export function sanitizeDoc(raw) {
     if (budget.left <= 0) { skipped++; continue; }
     const geometry = cleanGeometry(gj && gj.geometry);
     if (!geometry) { skipped++; continue; }
-    graphics.push({ geometry, attributes: cleanSketchAttributes(gj.attributes, geometry, gj.symbol) }); budget.left--;
+    const gr = { geometry, attributes: cleanSketchAttributes(gj.attributes, geometry, gj.symbol) };
+    if (isSketchKey(gj.layer)) gr.layer = gj.layer;   // which sketch layer it is on (none: the first)
+    graphics.push(gr); budget.left--;
   }
   const layers = [];
   for (const ld of Array.isArray(raw.layers) ? raw.layers : []) { const c = cleanDataLayer(ld, budget); if (c && c.features.length) layers.push(c); else skipped++; }
@@ -220,6 +222,9 @@ export function sanitizeDoc(raw) {
     portalLayers: (Array.isArray(raw.portalLayers) ? raw.portalLayers : []).slice(0, 50).filter((p) => p && HEX32.test(p.itemId || ""))
       .map((p) => ({ itemId: p.itemId, type: str(p.type, 60), title: str(p.title, 200), visible: p.visible !== false, opacity: clamp(p.opacity, 0, 1, 1) })),
     sketchVisible: raw.sketchVisible !== false,
+    sketchOpacity: finite(raw.sketchOpacity) ? Math.max(0, Math.min(1, raw.sketchOpacity)) : 1,
+    sketchLayers: cleanSketchLayers(raw.sketchLayers),
+    order: (Array.isArray(raw.order) ? raw.order : []).filter((x) => typeof x === "string" && x.length <= 120).slice(0, 400),
     graphics, layers,
     bookmarks: cleanBookmarks(raw.bookmarks)
   };
@@ -293,14 +298,19 @@ function styleKey(kind, a) {
 /** Sketch graphics -> up to four feature-collection layers (points, lines, areas, text). */
 // texts that look the same share one label class
 const textStyleKey = (a) => [a.color, a.size, a.font || "", a.bold === 0 ? 0 : 1, a.italic ? 1 : 0, a.haloColor || "#ffffff", a.haloSize == null ? 1.5 : a.haloSize].join("|");
-export function sketchToOperationalLayers(graphics, title, visible, icon) {
+export function sketchToOperationalLayers(graphics, title, visible, icon, opacity, key, named) {
+  const op01 = finite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1;
+  key = isSketchKey(key) ? key : "";
+  // the key and name of a further sketch layer; the first layer's name only when it has been renamed
+  const mark = key || named ? { [SKETCH_LAYER_PROP]: key ? { id: key, title: title || "Sketches" } : { title: title || "Sketches" } } : {};
   const groups = { point: [], polyline: [], polygon: [], text: [] };
   for (const g of graphics) { const k = g.attributes.kind === "text" ? "text" : geometryKind(g.geometry); groups[k].push(g); }
   const names = { point: "points", polyline: "lines", polygon: "areas", text: "text" };
   const out = [];
   for (const k of Object.keys(groups)) {
     const list = groups[k];
-    if (!list.length) continue;
+    // a further sketch layer with nothing on it is kept, as an empty layer of points
+    if (!list.length && !(key && k === "point" && !graphics.length)) continue;
     const gkind = k === "text" ? "point" : k;
     const feats = list.map((g, i) => {
       const a = g.attributes;
@@ -331,8 +341,8 @@ export function sketchToOperationalLayers(graphics, title, visible, icon) {
         uniqueValueInfos: [...seen.entries()].map(([key, a]) => ({ value: key, label: "", symbol: sketchSymbol(gkind, a, icon) })) };
     }
     out.push({
-      id: SKETCH_LAYER_PREFIX + names[k], title: (title || "Sketches") + (k === "point" ? "" : " (" + names[k] + ")"),
-      layerType: "ArcGISFeatureLayer", visibility: visible !== false, opacity: 1, showLegend: false, showLabels: k === "text",
+      id: SKETCH_LAYER_PREFIX + (key ? key + "_" : "") + names[k], title: (title || "Sketches") + (k === "point" ? "" : " (" + names[k] + ")"),
+      layerType: "ArcGISFeatureLayer", visibility: visible !== false, opacity: op01, showLegend: false, showLabels: k === "text", ...mark,
       featureCollection: { showLegend: false, layers: [{ layerDefinition, featureSet: { geometryType: ESRI_GEOM[gkind], features: feats }, nextObjectId: feats.length + 1,
         popupInfo: sketchPopupInfo(list.some((g) => g.attributes.imageUrl)) }] }
     });
@@ -345,11 +355,12 @@ export function operationalLayersToSketch(opLayers, budget) {
   const graphics = [];
   for (const op of opLayers) {
     if (!op || typeof op.id !== "string" || !op.id.startsWith(SKETCH_LAYER_PREFIX)) continue;
+    const key = sketchKeyOf(op);
     for (const lyr of (op.featureCollection && op.featureCollection.layers) || []) {
       for (const f of (lyr.featureSet && lyr.featureSet.features) || []) {
         if (budget.left <= 0) break;
         const geometry = cleanGeometry(f && f.geometry);
-        if (geometry) { graphics.push({ geometry, attributes: cleanSketchAttributes(f.attributes, geometry) }); budget.left--; }
+        if (geometry) { const gr = { geometry, attributes: cleanSketchAttributes(f.attributes, geometry) }; if (key) gr.layer = key; graphics.push(gr); budget.left--; }
       }
     }
   }
@@ -451,17 +462,27 @@ export function cleanTimeWidgets(widgets) {
 }
 export function docToWebMap(doc, ctx) {
   const dataOps = (doc.layers || []).map((ld) => dataDefToOperationalLayer(ld, ld.visible, ld.opacity));
-  const sketchOps = sketchToOperationalLayers(doc.graphics || [], ctx.sketchTitle, ctx.sketchVisible, ctx.sketchIcon);
-  let ops = []
+  // The sketch layers: doc.sketchLayers says which there are; without it, one (as before 3.6).
+  const metas = cleanSketchLayers(doc.sketchLayers);
+  if (!metas.some((m) => m.key === "")) metas.unshift({ key: "", title: null, visible: ctx.sketchVisible !== false, opacity: ctx.sketchOpacity });
+  const known = new Set(metas.map((m) => m.key));
+  const onLayer = (g) => (isSketchKey(g.layer) && known.has(g.layer) ? g.layer : "");
+  const sketchUnits = metas.map((m) => ({ id: sketchLayerId(m.key), sketch: true,
+    ops: sketchToOperationalLayers((doc.graphics || []).filter((g) => onLayer(g) === m.key), m.title || ctx.sketchTitle, m.visible, ctx.sketchIcon, m.opacity, m.key, !!m.title && m.title !== ctx.sketchTitle) }))
+    .filter((u) => u.ops.length);
+  const sketchOps = [].concat(...sketchUnits.map((u) => u.ops));
+  let units = []
     .concat((ctx.sourceLayers || []).filter((op) => !isOwnLayerJson(op)))
     .concat(ctx.portalLayers || [])
-    .concat(dataOps);
-  // ctx.order: the layer ids as drawn on the map, bottom first (Map layers can reorder them); sketches stay on top
-  if (Array.isArray(ctx.order) && ctx.order.length) {
-    const rank = new Map(ctx.order.map((id, i) => [id, i]));
-    ops = ops.map((op, i) => [op, rank.has(op.id) ? rank.get(op.id) : ctx.order.length + i]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
-  }
-  const operationalLayers = ops.concat(sketchOps);
+    .concat(dataOps).map((op) => ({ id: op.id, ops: [op] }))
+    .concat(sketchUnits);
+  // ctx.order: the layer ids as drawn on the map, bottom first (Map layers can reorder them, sketch layers too).
+  // A layer the order doesn't name keeps its place after those it does; a sketch layer it doesn't name goes on top.
+  const order = Array.isArray(ctx.order) ? ctx.order : [];
+  const rank = new Map(order.map((id, i) => [id, i]));
+  units = units.map((u, i) => [u, rank.has(u.id) ? rank.get(u.id) : (u.sketch ? 1e9 : order.length + i), i]).sort((a, b) => (a[1] - b[1]) || (a[2] - b[2])).map((x) => x[0]);
+  const operationalLayers = [].concat(...units.map((u) => u.ops));
+
   const wm = {
     operationalLayers,
     baseMap: ctx.baseMap && Array.isArray(ctx.baseMap.baseMapLayers) ? ctx.baseMap : { baseMapLayers: [], title: "Basemap" },
@@ -484,13 +505,7 @@ export function docToWebMap(doc, ctx) {
       wm.presentation = { slides: bms.map((b, i) => {
         const slide = { title: { text: b.title }, extent: wm.bookmarks[i].extent };
         if (b.layers && b.layers.length) {
-          const vis = [];
-          for (const r of b.layers) {
-            if (!r.visible) continue;
-            if (r.id === SKETCH_GRAPHICS_ID) vis.push(...sketchIds);
-            else if (ids.has(r.id)) vis.push(r.id);
-          }
-          slide.visibleLayers = [...new Set(vis)].map((id) => ({ id }));
+          slide.visibleLayers = slideVisibleIds(b.layers, operationalLayers);
         }
         return slide;
       }) };
@@ -505,6 +520,67 @@ export function docToWebMap(doc, ctx) {
 // whatever the file is called or wherever it's copied. The mark is the one property in a saved map that the Web Map
 // Specification doesn't define; other ArcGIS apps ignore it. Anyone editing the file's text can remove it.
 export const COLUMNS_3D_PROP = "atlasColumns3d";   // on a spreadsheet layer: drawn as columns in the 3D view (lab)
+// More than one sketch layer. The first ("My sketches") is saved as before: __sketch_points, __sketch_lines, … A further
+// one has a key ("L" and some letters and digits), its layers are __sketch_<key>_points, … and each carries the key and
+// the layer's name in a property of this app's, so they come back as one layer. An app that doesn't know the property
+// (Map Viewer, the marking app) still sees ordinary sketch layers.
+export const SKETCH_LAYER_PROP = "atlasSketchLayer";
+const SKETCH_KEY = /^L[a-z0-9]{4,12}$/;
+export const isSketchKey = (k) => typeof k === "string" && SKETCH_KEY.test(k);
+export const sketchKeyOf = (op) => { const p = op && op[SKETCH_LAYER_PROP]; return p && typeof p === "object" && isSketchKey(p.id) ? p.id : ""; };
+export const sketchLayerId = (key) => (key ? SKETCH_LAYER_PREFIX + key : SKETCH_GRAPHICS_ID);
+const sketchTitleOf = (op) => { const p = op && op[SKETCH_LAYER_PROP]; return p && typeof p === "object" ? str(p.title, 200) || null : null; };
+/** The sketch layers a saved map holds, in the order they are in the file (bottom first): [{ key, title, visible, opacity, ids }]. */
+export function sketchLayersIn(sketchOps) {
+  const out = [];
+  for (const op of sketchOps || []) {
+    const key = sketchKeyOf(op);
+    let m = out.find((x) => x.key === key);
+    if (!m) { m = { key, title: null, visible: false, opacity: null, ids: [] }; out.push(m); }
+    m.ids.push(op.id);
+    if (!m.title) m.title = sketchTitleOf(op);
+    if (op.visibility !== false) m.visible = true;
+    if (m.opacity == null && finite(op.opacity)) m.opacity = Math.max(0, Math.min(1, op.opacity));
+  }
+  for (const m of out) if (m.opacity == null) m.opacity = 1;
+  return out;
+}
+function cleanSketchLayers(list) {
+  const out = [];
+  for (const m of (Array.isArray(list) ? list : []).slice(0, 50)) {
+    if (!m || typeof m !== "object") continue;
+    const key = m.key === "" ? "" : (isSketchKey(m.key) ? m.key : null);
+    if (key == null || out.some((x) => x.key === key)) continue;
+    out.push({ key, title: str(m.title, 200) || null, visible: m.visible !== false, opacity: clamp(m.opacity, 0, 1, 1) });
+  }
+  return out;
+}
+/** For a bookmark's layer list: the saved layers of each sketch layer, by the id the layer has while editing. */
+function sketchOpsByLayer(ops) {
+  const m = new Map();
+  for (const o of ops || []) {
+    if (!o || typeof o.id !== "string" || !o.id.startsWith(SKETCH_LAYER_PREFIX)) continue;
+    const id = sketchLayerId(sketchKeyOf(o));
+    if (!m.has(id)) m.set(id, []);
+    m.get(id).push(o.id);
+  }
+  return m;
+}
+/** A bookmark's layers on/off -> the ids a slide lists as visible. A sketch layer the bookmark doesn't mention stays on. */
+function slideVisibleIds(recs, ops) {
+  const ids = new Set(ops.map((o) => o.id)), bySketch = sketchOpsByLayer(ops), vis = [], said = new Set();
+  for (const r of recs) {
+    if (bySketch.has(r.id)) { said.add(r.id); if (r.visible) vis.push(...bySketch.get(r.id)); }
+    else if (r.visible && ids.has(r.id)) vis.push(r.id);
+  }
+  for (const [id, list] of bySketch) if (!said.has(id)) vis.push(...list);
+  return [...new Set(vis)].map((id) => ({ id }));
+}
+/** The sketch layer's opacity in a saved map: its sketch layers share one (the first with a number), 1 when none says. */
+export function sketchOpacityOf(sketchOps) {
+  const o = (sketchOps || []).find((x) => x && finite(x.opacity));
+  return o ? Math.max(0, Math.min(1, o.opacity)) : 1;
+}
 export const LOCK_PROP = "atlasLocked";
 export function isLockedMap(raw) { return !!raw && typeof raw === "object" && !Array.isArray(raw) && raw[LOCK_PROP] === true; }
 export function isLockedText(text) { try { return isLockedMap(JSON.parse(text)); } catch (e) { return false; } }
@@ -611,7 +687,12 @@ export function readWebMap(raw, opts) {
     if (d && d.features.length) layers.push(d); else skipped++;
   }
   const sketchOps = own.filter((o) => o.id.startsWith(SKETCH_LAYER_PREFIX));
-  const sketchVisible = !sketchOps.length || sketchOps.some((o) => o.visibility !== false);
+  const sketchLayers = sketchLayersIn(sketchOps), first = sketchLayers.find((m) => m.key === "");
+  const sketchVisible = first ? first.visible : true;
+  const sketchOpacity = first ? first.opacity : 1;
+  // the layers in the order the file has them, bottom first, each sketch layer once (by the id it has while editing)
+  const order = [];
+  for (const o of ops) { const id = o && typeof o.id === "string" ? (o.id.startsWith(SKETCH_LAYER_PREFIX) ? sketchLayerId(sketchKeyOf(o)) : o.id) : null; if (id && !order.includes(id)) order.push(id); }
   const foreign = [];
   for (const op of foreignIn) {
     const c = trusted ? op : cleanForeignLayer(op, budget, 0, !!(opts && opts.scene));
@@ -649,14 +730,14 @@ export function readWebMap(raw, opts) {
       if (!s || !Array.isArray(s.visibleLayers)) return bm;
       const on = new Set(s.visibleLayers.filter((v) => v && typeof v.id === "string").map((v) => v.id));
       const recs = opIds.map((id) => ({ id, title: "", visible: on.has(id) }));
-      if (sketchOps.length) recs.push({ id: SKETCH_GRAPHICS_ID, title: "", visible: sketchOps.some((o) => on.has(o.id)) });
+      for (const m of sketchLayers) recs.push({ id: sketchLayerId(m.key), title: "", visible: m.ids.some((id) => on.has(id)) });
       return { ...bm, layers: recs };
     });
   }
   const totalIn = own.filter((o) => o.id.startsWith(DATA_LAYER_PREFIX)).reduce((n, o) => n + (((o.featureCollection || {}).layers || [])[0]?.featureSet?.features?.length || 0), 0);
   const totalOut = layers.reduce((n, l) => n + l.features.length, 0);
   if (totalIn > totalOut) skipped += totalIn - totalOut;
-  return { ok: true, webmap, graphics, layers, bookmarks, sketchVisible, skipped };
+  return { ok: true, webmap, graphics, layers, bookmarks, sketchVisible, sketchOpacity, sketchLayers: sketchLayers.map(({ ids, ...m }) => m), order, skipped };
 }
 
 
@@ -715,9 +796,7 @@ export function docToWebScene(doc, ctx) {
     const slide = { id: "slide-" + (i + 1), title: { text: str(b.title, 200) || "Bookmark" }, viewpoint: { camera: c } };
     if (typeof b.thumb === "string" && DATA_IMAGE.test(b.thumb) && b.thumb.length < 400000) slide.thumbnail = { url: b.thumb };
     if (b.layers && b.layers.length) {
-      const vis = [];
-      for (const r of b.layers) { if (!r.visible) continue; if (r.id === SKETCH_GRAPHICS_ID) vis.push(...sketchIds); else if (ids.has(r.id)) vis.push(r.id); }
-      slide.visibleLayers = [...new Set(vis)].map((id) => ({ id }));
+      slide.visibleLayers = slideVisibleIds(b.layers, ws.operationalLayers);
     }
     slides.push(slide);
   });
@@ -762,7 +841,7 @@ export function readWebScene(raw) {
     if (Array.isArray(s.visibleLayers)) {
       const on = new Set(s.visibleLayers.filter((v) => v && typeof v.id === "string").map((v) => v.id));
       bm.layers = opIds.map((id) => ({ id, title: "", visible: on.has(id) }));
-      if (sketchOps.length) bm.layers.push({ id: SKETCH_GRAPHICS_ID, title: "", visible: sketchOps.some((o) => on.has(o.id)) });
+      for (const m of sketchLayersIn(sketchOps)) bm.layers.push({ id: sketchLayerId(m.key), title: "", visible: m.ids.some((id) => on.has(id)) });
     }
     bookmarks.push(bm);
   }
