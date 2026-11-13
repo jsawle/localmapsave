@@ -2,17 +2,17 @@
 // ArcGIS Maps SDK for JavaScript 5.1. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.14.8";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=1.14.9";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
-  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=1.14.8";
+  isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText } from "./lib/doc.js?v=1.14.9";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.14.8";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=1.14.9";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=1.14.8";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.14.8";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.14.8";
+  filterEntries, pageList } from "./lib/catalog.js?v=1.14.9";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=1.14.9";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=1.14.9";
 
-const APP_VERSION = "1.14.8";
+const APP_VERSION = "1.14.9";
 const COMPASS_VERSION = "1.0";
 const PROFILE_VERSION = "2.0";
 const SKETCH_VERSION = "1.1";   // 1.1: rotation only for text (the only sketch it turns)
@@ -1574,12 +1574,24 @@ function getTopicTree() {
   return topicTreePromise;
 }
 const cleanQuery = (s) => String(s || "").replace(/["':()\\[\]{}^~*?]/g, " ").replace(/\s+/g, " ").trim();
-function thumbUrl(item) {
-  if (!item || !item.thumbnail) return "";
-  let u = `${PORTAL}/sharing/rest/content/items/${item.id}/info/${item.thumbnail}`;
-  if (item.access && item.access !== "public") { const c = IdentityManager.findCredential(PORTAL + "/sharing"); if (c && c.token) u += "?token=" + encodeURIComponent(c.token); }
-  return u;
+// A card's picture (1.14.9, the same fix as Atlas 5.0.0-beta.38). A private item's needs the sign-in token: it used to go on
+// the end of the address, written into the page. It now travels in a request header and the picture is shown from a blob
+// address that holds no token. Signing out forgets the pictures.
+const thumbBlobs = new Map();   // item id and thumbnail name -> a promise of the blob address (or null)
+function setThumb(el, item) {
+  if (!el || !item || !item.thumbnail) return;
+  const u = `${PORTAL}/sharing/rest/content/items/${item.id}/info/${item.thumbnail}`;
+  const show = (url) => { el.style.backgroundImage = "url('" + url.replace(/'/g, "%27") + "')"; };
+  if (!item.access || item.access === "public") { show(u); return; }
+  const c = IdentityManager.findCredential(PORTAL + "/sharing");
+  if (!c || !c.token) return;
+  const key = item.id + "/" + item.thumbnail;
+  if (!thumbBlobs.has(key)) thumbBlobs.set(key, fetch(u, { headers: { "X-Esri-Authorization": "Bearer " + c.token }, credentials: "omit", referrerPolicy: "no-referrer" })
+    .then((r) => (r.ok && /^image\//i.test(r.headers.get("content-type") || "") ? r.blob() : null)).then((b) => (b ? URL.createObjectURL(b) : null)).catch(() => null));
+  const pr = thumbBlobs.get(key);
+  pr.then((url) => { if (url && thumbBlobs.get(key) === pr) show(url); });
 }
+function forgetThumbs() { for (const pr of thumbBlobs.values()) pr.then((url) => { if (url) URL.revokeObjectURL(url); }); thumbBlobs.clear(); }
 
 // ============================================================ Collection browser (Open map and Add layer)
 // After MapMaker's Add layer dialog: search, a Categories tree (the content group's categories, with chevrons for
@@ -1668,7 +1680,7 @@ function createBrowser(o) {
     act.addEventListener("click", () => o.run(item, act));
     txt.append(h, sn, act);
     const th = document.createElement("div"); th.className = "cat-thumb" + (o.thumbOpens ? " open" : ""); th.setAttribute("aria-hidden", "true");
-    const tu = thumbUrl(item); if (tu) th.style.backgroundImage = "url('" + tu.replace(/'/g, "%27") + "')";
+    setThumb(th, item);
     if (o.thumbOpens) th.addEventListener("click", () => o.run(item, act));
     top.append(txt, th);
     const id = "desc" + (++descSeq);
@@ -1788,7 +1800,7 @@ const agolState = { start: 1, loading: false };
 function mapCard(item, onOpen) {     // My ArcGIS Online maps
   const li = document.createElement("li"); li.className = "map-card";
   const th = document.createElement("div"); th.className = "card-thumb"; th.setAttribute("aria-hidden", "true");
-  const tu = thumbUrl(item); if (tu) th.style.backgroundImage = "url('" + tu.replace(/'/g, "%27") + "')";
+  setThumb(th, item);
   th.addEventListener("click", () => onOpen(item));
   const body = document.createElement("div"); body.className = "card-body";
   const h = document.createElement("h4"); h.className = "card-title"; h.textContent = item.title || S.untitled;
@@ -2684,7 +2696,7 @@ document.addEventListener("click", (e) => { if (!$("userMenu").hidden && !$("use
 $("myMapsBtn").addEventListener("click", () => { closeUserMenu(false); openOpenModal("tabArcgis"); });
 $("signOutBtn").addEventListener("click", () => {
   closeUserMenu(false);
-  IdentityManager.destroyCredentials();
+  IdentityManager.destroyCredentials(); forgetThumbs();
   portalUser = null; currentAgolItem = null;
   renderUser();
   if (!$("tabArcgis").hidden) switchTab("tabGroup");
