@@ -2,22 +2,22 @@
 // ArcGIS Maps SDK for JavaScript 5.2. Everything a distributor changes lives in config/<name>.json.
 // Created by Jason Sawle.
 import { CSV_VERSION, PALETTE_HEX, PALETTE_RGB, COLOR_RAMPS, DATA_STYLES, SHAPES, readCsv, buildLayerData, styleAvailable,
-  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.29";
+  pickAutoStyle, pickAutoFields, aliasOf, buildLayerDef, stateFromLayerDef, columnScale, pieFields, PIE_MIN, PIE_MAX } from "./lib/csv.js?v=5.0.0-beta.30";
 import { DOC_TYPE, DOC_VERSION, WEBMAP_WRITER_VERSION, WEBMAP_SPEC_VERSION, AUTHORING_APP, ITEM_LAYER_PREFIX, DATA_LAYER_PREFIX, sanitizeDoc, docToWebMap,
   isOwnLayerJson, looksLikeWebMap, readWebMap, xyToLonLat, LOCK_PROP, isLockedText, SHAPE_NAME, ARROWS, TEXT_FONTS, textFont,
-  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, VIEW_3D_PROP, saved3dCamera, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.29";
+  WEBSCENE_SPEC_VERSION, TWO_D_ONLY_PROP, VIEW_3D_PROP, saved3dCamera, looksLikeWebScene, docToWebScene, readWebScene } from "./lib/doc.js?v=5.0.0-beta.30";
 // Each ?v= is the app version, so a new release never runs beside a cached older module (tests/run.mjs checks they match).
-import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.29";
-import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.29";
-import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.29";
+import { UNITS_VERSION, resolveUnits } from "./lib/units.js?v=5.0.0-beta.30";
+import { DEFAULT_STRINGS } from "./lib/strings.js?v=5.0.0-beta.30";
+import { CONFIG_VERSION, mergeConfig, loadConfig, buildStrings } from "./lib/config.js?v=5.0.0-beta.30";
 import { CATALOG_VERSION, MAX_INDEX, OTHER, ALL, buildTopicTree, findTopic, topicTrail, indexItems, countTopics,
-  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.29";
-import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.29";
-import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.29";
+  filterEntries, pageList } from "./lib/catalog.js?v=5.0.0-beta.30";
+import { BASEMAPS_VERSION, groupSort, basemapItems, thumbnailUrl, selectedId, needsDataTitles, gridMove } from "./lib/basemaps.js?v=5.0.0-beta.30";
+import { RECENT_VERSION, makeEntry, openRecentStore } from "./lib/recent.js?v=5.0.0-beta.30";
 import { FILTER_VERSION, MAX_CONDITIONS, OPERATORS, DEFAULT_OPERATOR, fieldKind, needsValue, rangeTypeFor, conditionComplete, buildWhere, parseWhere,
-  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.29";
+  filterFields, isListOp } from "./lib/filter.js?v=5.0.0-beta.30";
 
-const APP_VERSION = "5.0.0-beta.29";
+const APP_VERSION = "5.0.0-beta.30";
 const COMPASS_VERSION = "1.1";
 const CHARTS_VERSION = "1.0";
 const PROFILE_VERSION = "3.1";
@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
   partnerLogos: [],
   theme: { brand: "#0b5c8e", brandInk: "", brandSoft: "", toolActive: "", toolActiveInk: "", header: "#ffffff", headerInk: "", headerLine: "#e1e1e1", pill: "#000000", pillInk: "", font: "" },
   portalUrl: "https://www.arcgis.com",
-  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.29). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
+  contentGroup: "c3ac404ac811494ea6fa116abc0cf39b",   // "Schools Living Atlas – 5.0 test" (GIS 4 Schools), while 5.0 is a pilot (5.0.0-beta.30). The live MapMaker group is 36443e9570294a1f883b5d2c5abfe6b5: config/mapmaker-live.json
   basemapGroup: "406646c98d0f4c608a9438d40ce2df9e",
   defaultBasemap: "a82ff7ce1c3a493f9d82aa89f5a1ddcf",
   startView: { center: [0, 20], zoom: 2 },
@@ -847,6 +847,11 @@ graphicsLayer.graphics.on("change", (e) => {
     if (graphicsLayer.graphics.some((o) => o !== g && o.attributes && o.attributes.uid === a.uid)) g.attributes = { ...a, uid: newUid() };
     if (!g.popupTemplate) g.popupTemplate = popupTemplate();
   }
+  // The last sketch gone: the layer leaves Map layers, so it goes back to shown and solid. Otherwise the next sketch
+  // would be drawn on a layer that is switched off, with no row to switch it on again.
+  const has = graphicsLayer.graphics.length > 0;
+  if (!has) { graphicsLayer.visible = true; graphicsLayer.opacity = 1; if (swipe && swipe.layer === graphicsLayer) endLayerTools(graphicsLayer); }
+  if (has !== sketchRowShown && !$("layersPanel").hidden) renderLayers({ keepFocus: true });
 });
 
 function popupFieldsEnabled(on) {
@@ -1880,7 +1885,7 @@ function resetWorkspace() {
   endLayerTools(null);
   dataLayers.splice(0).forEach(removeFromMaps);
   [...portalLayers.values()].forEach(removeFromMaps); portalLayers.clear();
-  endSketchOps(); graphicsLayer.removeAll(); graphicsLayer.visible = true; setSelection([]);
+  endSketchOps(); graphicsLayer.removeAll(); graphicsLayer.visible = true; graphicsLayer.opacity = 1; setSelection([]);
   bookmarks = []; updateToolBadges();
   currentSource = null; currentAgolItem = null;
   if (!$("bookmarksPanel").hidden) showBmList();
@@ -1899,6 +1904,7 @@ function basemapRef() { const b = activeMap().basemap; return b && b.portalItem 
 function applyParsedWebMap(parsed) {
   for (const gj of parsed.graphics) addSketchGraphic(gj);
   graphicsLayer.visible = parsed.sketchVisible !== false;
+  graphicsLayer.opacity = typeof parsed.sketchOpacity === "number" ? parsed.sketchOpacity : 1;
   for (const def of parsed.layers) { try { addDataLayer(def, { silent: true }); } catch (e) { console.warn("Skipped a data layer", e); } }
   const ops = (currentSource && currentSource.data && currentSource.data.operationalLayers) || [];
   activeMap().layers.forEach((l) => {
@@ -2484,6 +2490,11 @@ function layerRow(l, owner, depth, pos, count) {
   tools.setAttribute("role", "group"); tools.setAttribute("aria-label", t("layerTools", { title }));
   const extra = document.createElement("div"); extra.className = "lyr-extra";
   tools.appendChild(toolButton(k + ":zoom", calIcon("layer-zoom-to"), S.zoomTo, title, () => zoomToLayer(l)));
+  if (l === graphicsLayer) {   // the sketch layer: transparency, compare (2D) and remove, as other layers have
+    tools.appendChild(toolButton(k + ":transp", calIcon("transparency"), S.adjustTransparency, title, () => { u.transp = !u.transp; renderLayers({ focusKey: k + ":transp" }); }, u.transp));
+    if (mode === "2d") tools.appendChild(toolButton(k + ":swipe", calIcon("compare"), S.swipe, title, () => toggleSwipe(l), !!(swipe && swipe.layer === l)));
+    tools.appendChild(toolButton(k + ":remove", calIcon("trash"), S.removeSketches, title, removeSketches));
+  }
   if (l !== graphicsLayer) {
     if (!group && LEGEND_TYPES.has(l.type)) tools.appendChild(toolButton(k + ":legend", calIcon("legend"), S.showLegend, title, () => { u.legend = !u.legend; renderLayers({ focusKey: k + ":legend" }); }, u.legend));
     tools.appendChild(toolButton(k + ":transp", calIcon("transparency"), S.adjustTransparency, title, () => { u.transp = !u.transp; renderLayers({ focusKey: k + ":transp" }); }, u.transp));
@@ -2508,8 +2519,8 @@ function layerRow(l, owner, depth, pos, count) {
     tools.appendChild(toolButton(k + ":remove", calIcon("trash"), S.removeLayer, title, () => removeLayer(l, owner, pos)));
   }
   li.appendChild(tools);
-  if (!u.collapsed && l !== graphicsLayer) {
-    if (u.legend && !group) {
+  if (!u.collapsed) {
+    if (u.legend && !group && l !== graphicsLayer) {
       const box = document.createElement("div"); box.className = "lyr-legend";
       extra.appendChild(box);
       const row = { el: null, gone: false, destroy() { this.gone = true; dropEl(this.el); } }; rowWidgets.push(row);
@@ -2528,7 +2539,7 @@ function layerRow(l, owner, depth, pos, count) {
       row.append(lo, r, hi);
       extra.appendChild(row);
     }
-    if (u.info) { const box = document.createElement("div"); box.className = "lyr-info"; extra.appendChild(box); fillLayerInfo(l, box); }
+    if (u.info && l !== graphicsLayer) { const box = document.createElement("div"); box.className = "lyr-info"; extra.appendChild(box); fillLayerInfo(l, box); }
     if (extra.childNodes.length) li.appendChild(extra);
   }
   if (group && u.open) {
@@ -2541,6 +2552,17 @@ function layerRow(l, owner, depth, pos, count) {
 }
 // Remove all layers (Map layers, as in MapMaker): every layer in the list goes; sketches stay. It asks first, because
 // the list can include a spreadsheet the person added, which isn't anywhere else until the map is saved.
+// Remove on the sketch layer deletes every sketch. Sketches can't be added again as a layer from the collection can,
+// so it asks first.
+function removeSketches() {
+  const n = graphicsLayer.graphics.length;
+  if (!n || !window.confirm(t("removeSketchesConfirm", { n }))) return;
+  endSketchOps(); setSelection([]);
+  graphicsLayer.removeAll();
+  markDirty(); updateToolBadges();
+  toast(t("removedSketches", { n }));
+  if (!$("layersPanel").hidden) { renderLayers(); const h = $("layersH"); if (h) h.focus(); }
+}
 function removeAllLayers() {
   const list = siblingsOf("map");
   if (!list.length || !window.confirm(t("removeAllConfirm", { n: list.length }))) return;
@@ -2600,6 +2622,7 @@ function startDrag(e, l, owner, li) {
   h.addEventListener("pointermove", move); h.addEventListener("pointerup", up); h.addEventListener("pointercancel", cancel);
 }
 function updateScaleStates() { rowRefs.forEach((f) => f()); }
+let sketchRowShown = false;
 function renderLayers(opts) {
   { const ra = $("layersRemoveAll"); if (ra) ra.hidden = F.removeAllLayers === false || !siblingsOf("map").length; }
   opts = opts || {};
@@ -2610,7 +2633,9 @@ function renderLayers(opts) {
   rowWidgets = []; rowRefs = [];
   list.innerHTML = "";
   const top = siblingsOf("map");
-  list.appendChild(layerRow(graphicsLayer, "map", 0, -1, 0));
+  // The sketch layer is listed once something has been sketched: a map with no sketches has no sketch layer to show.
+  sketchRowShown = graphicsLayer.graphics.length > 0;
+  if (sketchRowShown) list.appendChild(layerRow(graphicsLayer, "map", 0, -1, 0));
   top.forEach((l, i) => list.appendChild(layerRow(l, "map", 0, i, top.length)));
   if (!top.length && !graphicsLayer.graphics.length) { const p = document.createElement("li"); p.className = "empty"; p.textContent = S.noLayers; list.appendChild(p); }
   if (focusKey) { const el = list.querySelector('[data-key="' + focusKey + '"]'); if (el) el.focus(); }
@@ -3756,7 +3781,7 @@ function buildDocument() {
     webmap: currentSource ? { itemId: currentSource.itemId, title: currentSource.title } : null,
     layerStates: currentSource ? sourceLayers().map((l) => ({ id: l.id, title: l.title, visible: l.visible !== false, opacity: l.opacity })) : [],
     portalLayers: [...portalLayers.values()].map((l) => ({ ...l.__item, visible: l.visible !== false, opacity: l.opacity })),
-    sketchVisible: graphicsLayer.visible !== false,
+    sketchVisible: graphicsLayer.visible !== false, sketchOpacity: graphicsLayer.opacity,
     graphics: graphicsLayer.graphics.toArray().map((g) => { straighten(g); return { geometry: flatGeometryJson(g.geometry), attributes: { ...g.attributes } }; }),
     layers: dataLayers.map((fl) => ({ ...fl._srcDef, visible: fl.visible !== false, opacity: fl.opacity, showLabels: fl.labelsVisible !== false, definitionExpression: hasFilter(fl) ? filterText(fl) : undefined }))
   };
@@ -3778,6 +3803,7 @@ async function loadDocument(doc) {
   for (const ld of doc.layers || []) { try { addDataLayer(ld, { silent: true }); } catch (e) { console.warn("Skipped a data layer", e); } }
   for (const gj of doc.graphics || []) { try { addSketchGraphic(gj); } catch (e) { console.warn("Skipped a sketch", e); } }
   graphicsLayer.visible = doc.sketchVisible !== false;
+  graphicsLayer.opacity = typeof doc.sketchOpacity === "number" ? doc.sketchOpacity : 1;
   keepSketchOnTop();
   bookmarks = doc.bookmarks || []; updateToolBadges();
   setTitle(doc.title);
@@ -3835,7 +3861,7 @@ async function buildWebMapJson(toFile) {
   unsavedLayers = added.filter((x) => !x).length;
   const ctx = { baseMap: await currentBaseMapJson(toFile), sourceLayers: sourceLayersJson(toFile), portalLayers: added.filter(Boolean),
     extent: ext ? ext.toJSON() : null, scale: mode === "2d" ? mapView.scale : null, rotation: mode === "2d" ? mapView.rotation || 0 : 0,
-    appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false, widgets: timeWidgetsJson(),
+    appVersion: APP_VERSION, sketchTitle: S.sketchLayer, sketchVisible: graphicsLayer.visible !== false, sketchOpacity: graphicsLayer.opacity, widgets: timeWidgetsJson(),
     sketchIcon: (a) => { const v = vectorSymbol(styleOf(a)); try { return v ? v.toJSON() : null; } catch (e) { return null; } },   // the vector symbol itself, as Map Viewer saves it
     order: activeMap().layers.toArray().filter((l) => l !== graphicsLayer && l !== previewLayer).map((l) => l.id) };
   // A web scene is saved as a web scene (3.0): its ground, lighting and kind of scene, the camera, and the bookmarks as slides.
@@ -4320,7 +4346,7 @@ function renderVersions() {
     ["Charts", CHARTS_VERSION, "A chart set up on a layer in Map Viewer, drawn by the SDK's chart component under the map: Map layers, then the layer's Chart button. Selecting on the chart highlights those features on the map. The chart's own toolbar has its legend, selection, only what is in view, zoom and saving."],
     ["Elevation profile", PROFILE_VERSION, "The height of the land and the sea floor along a line, from Esri's World Elevation TopoBathy 3D service (up to 512 points along the line). A line you draw takes the shortest way round the Earth between the places you click (a great circle), so on the flat map a long line is a curve; a line you choose on the map is followed as it is drawn. The app's own chart, the full width under the map: earth colours that darken with depth, the sea and a sea-level line where the line goes below it, and a dot on the map at the place the pointer is at on the chart."],
     ["Compass", COMPASS_VERSION, "MapMaker's compass rose: turns with the map in 2D and 3D; select it to face north."],
-    ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides. 3.4: a map saved to a file while in 3D opens in 3D again, seen from the same place."],
+    ["Saved map (.amap file and ArcGIS Online)", WEBMAP_WRITER_VERSION, "An ArcGIS web map (Web Map Specification " + WEBMAP_SPEC_VERSION + "): sketches, spreadsheet data, layers and their filters, basemap, view, bookmarks and a time-aware map's time settings. The same JSON is stored in ArcGIS Online. 3.0: a 3D scene is saved as a web scene (Web Scene Specification " + WEBSCENE_SPEC_VERSION + ") in the same kind of file, with its camera and its bookmarks as slides. 3.4: a map saved to a file while in 3D opens in 3D again, seen from the same place. 3.5: the sketch layer's transparency."],
     ["3D maps", "1.1", "3D maps (ArcGIS web scenes) from the collection or a link (webscene=<id>) open in 3D and stay there; their slides are the bookmarks, and a bookmark turns layers on and off as its slide does (not the slide's basemap or lighting). A web map whose item has the tag atlas-2d-only stays in 2D."],
     ["Loading", "1.1", "What is downloaded to start: a map opened from a link is fetched once, starts downloading straight away and replaces no default basemap; the code for Legend, Measure, Coordinates, Swipe, the table, Elevation and Sketch is downloaded when the tool is first opened. All of these are the SDK's components (or the app's own code), not its widgets, which SDK 6 removes."],
     ["Sketch measuring", "1.1", "While drawing: tooltips, the length of each side (segment labels) and snapping to other sketches are on from the start; each can be turned off in the toolbar's Settings. Lengths and areas are shown with no decimal places."],
