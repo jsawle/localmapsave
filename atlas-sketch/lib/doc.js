@@ -4,7 +4,7 @@
 
 export const DOC_TYPE = "MapMakerLocalDocument";   // the older .mmap format (read only)
 export const DOC_VERSION = 4;          // last version of the older format; reads 2, 3 and Map Studio's 4
-export const WEBMAP_WRITER_VERSION = "3.4";        // 3.4: a map saved while in 3D reopens in 3D ("atlas3d": its camera); a spreadsheet layer keeps Columns in 3D ("atlasColumns3d"). 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill). 3.2: areas have a fill colour, outline transparency and width, and can take a styled fill
+export const WEBMAP_WRITER_VERSION = "3.5";        // 3.5: the sketch layer's transparency. 3.4: a map saved while in 3D reopens in 3D ("atlas3d": its camera); a spreadsheet layer keeps Columns in 3D ("atlasColumns3d"). 2.0 = the saved file (.amap; .mmap before 1.7) is a web map; spec-only properties. 2.1: layer order, labels on/off. 2.2: locked maps ("atlasLocked": true). 2.3: time settings. 3.0: a web scene opened in 3D is saved as a web scene (Web Scene Specification), and a 2D-only map keeps "atlas2dOnly": true. 3.1: sketch styles (a point's vector symbol, line patterns and arrows, fill). 3.2: areas have a fill colour, outline transparency and width, and can take a styled fill
 export const WEBMAP_SPEC_VERSION = "2.31";
 export const WEBSCENE_SPEC_VERSION = "1.40";
 export const ITEM_LAYER_PREFIX = "__item_";        // layers added from the collection
@@ -217,6 +217,7 @@ export function sanitizeDoc(raw) {
     portalLayers: (Array.isArray(raw.portalLayers) ? raw.portalLayers : []).slice(0, 50).filter((p) => p && HEX32.test(p.itemId || ""))
       .map((p) => ({ itemId: p.itemId, type: str(p.type, 60), title: str(p.title, 200), visible: p.visible !== false, opacity: clamp(p.opacity, 0, 1, 1) })),
     sketchVisible: raw.sketchVisible !== false,
+    sketchOpacity: finite(raw.sketchOpacity) ? Math.max(0, Math.min(1, raw.sketchOpacity)) : 1,
     graphics, layers,
     bookmarks: cleanBookmarks(raw.bookmarks)
   };
@@ -290,7 +291,8 @@ function styleKey(kind, a) {
 /** Sketch graphics -> up to four feature-collection layers (points, lines, areas, text). */
 // texts that look the same share one label class
 const textStyleKey = (a) => [a.color, a.size, a.font || "", a.bold === 0 ? 0 : 1, a.italic ? 1 : 0, a.haloColor || "#ffffff", a.haloSize == null ? 1.5 : a.haloSize].join("|");
-export function sketchToOperationalLayers(graphics, title, visible, icon) {
+export function sketchToOperationalLayers(graphics, title, visible, icon, opacity) {
+  const op01 = finite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1;
   const groups = { point: [], polyline: [], polygon: [], text: [] };
   for (const g of graphics) { const k = g.attributes.kind === "text" ? "text" : geometryKind(g.geometry); groups[k].push(g); }
   const names = { point: "points", polyline: "lines", polygon: "areas", text: "text" };
@@ -329,7 +331,7 @@ export function sketchToOperationalLayers(graphics, title, visible, icon) {
     }
     out.push({
       id: SKETCH_LAYER_PREFIX + names[k], title: (title || "Sketches") + (k === "point" ? "" : " (" + names[k] + ")"),
-      layerType: "ArcGISFeatureLayer", visibility: visible !== false, opacity: 1, showLegend: false, showLabels: k === "text",
+      layerType: "ArcGISFeatureLayer", visibility: visible !== false, opacity: op01, showLegend: false, showLabels: k === "text",
       featureCollection: { showLegend: false, layers: [{ layerDefinition, featureSet: { geometryType: ESRI_GEOM[gkind], features: feats }, nextObjectId: feats.length + 1,
         popupInfo: sketchPopupInfo(list.some((g) => g.attributes.imageUrl)) }] }
     });
@@ -448,7 +450,7 @@ export function cleanTimeWidgets(widgets) {
 }
 export function docToWebMap(doc, ctx) {
   const dataOps = (doc.layers || []).map((ld) => dataDefToOperationalLayer(ld, ld.visible, ld.opacity));
-  const sketchOps = sketchToOperationalLayers(doc.graphics || [], ctx.sketchTitle, ctx.sketchVisible, ctx.sketchIcon);
+  const sketchOps = sketchToOperationalLayers(doc.graphics || [], ctx.sketchTitle, ctx.sketchVisible, ctx.sketchIcon, ctx.sketchOpacity);
   let ops = []
     .concat((ctx.sourceLayers || []).filter((op) => !isOwnLayerJson(op)))
     .concat(ctx.portalLayers || [])
@@ -502,6 +504,11 @@ export function docToWebMap(doc, ctx) {
 // whatever the file is called or wherever it's copied. The mark is the one property in a saved map that the Web Map
 // Specification doesn't define; other ArcGIS apps ignore it. Anyone editing the file's text can remove it.
 export const COLUMNS_3D_PROP = "atlasColumns3d";   // on a spreadsheet layer: drawn as columns in the 3D view (lab)
+/** The sketch layer's opacity in a saved map: its sketch layers share one (the first with a number), 1 when none says. */
+export function sketchOpacityOf(sketchOps) {
+  const o = (sketchOps || []).find((x) => x && finite(x.opacity));
+  return o ? Math.max(0, Math.min(1, o.opacity)) : 1;
+}
 export const LOCK_PROP = "atlasLocked";
 export function isLockedMap(raw) { return !!raw && typeof raw === "object" && !Array.isArray(raw) && raw[LOCK_PROP] === true; }
 export function isLockedText(text) { try { return isLockedMap(JSON.parse(text)); } catch (e) { return false; } }
@@ -609,6 +616,7 @@ export function readWebMap(raw, opts) {
   }
   const sketchOps = own.filter((o) => o.id.startsWith(SKETCH_LAYER_PREFIX));
   const sketchVisible = !sketchOps.length || sketchOps.some((o) => o.visibility !== false);
+  const sketchOpacity = sketchOpacityOf(sketchOps);
   const foreign = [];
   for (const op of foreignIn) {
     const c = trusted ? op : cleanForeignLayer(op, budget, 0, !!(opts && opts.scene));
@@ -653,7 +661,7 @@ export function readWebMap(raw, opts) {
   const totalIn = own.filter((o) => o.id.startsWith(DATA_LAYER_PREFIX)).reduce((n, o) => n + (((o.featureCollection || {}).layers || [])[0]?.featureSet?.features?.length || 0), 0);
   const totalOut = layers.reduce((n, l) => n + l.features.length, 0);
   if (totalIn > totalOut) skipped += totalIn - totalOut;
-  return { ok: true, webmap, graphics, layers, bookmarks, sketchVisible, skipped };
+  return { ok: true, webmap, graphics, layers, bookmarks, sketchVisible, sketchOpacity, skipped };
 }
 
 
