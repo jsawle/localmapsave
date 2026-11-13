@@ -19,20 +19,4 @@ jobs:
         run: node atlas/tests/run.mjs
       - name: Class map review checks
         run: node class-marking/tools/test.mjs
-      - name: Lab filter tests
-        run: node atlas-sketch/tests/filter.test.mjs
-      - name: Scene file tests
-        run: node atlas-sketch/tests/scenes.test.mjs
-      - name: Units tests
-        run: node atlas-sketch/tests/units.test.mjs
-      - name: Config and language file tests
-        run: node atlas-sketch/tests/config.test.mjs
-      - name: Atlas 5.0 sketch layers in the saved file
-        run: node atlas-sketch/tests/sketch-layers.test.mjs
-      - name: Atlas 5.0 columns in 3D (lab)
-        run: node atlas-sketch/tests/columns.test.mjs
-      - name: The app's code parses as a module
-        # "node --check app.js" passes a .js file with a syntax error in it; checked as .mjs it does not
-        run: cp atlas-sketch/app.js "$RUNNER_TEMP/app.mjs" && node --check "$RUNNER_TEMP/app.mjs"
-      - name: Lab copy parses
-        run: node --check atlas-sketch/app.js
+      # Atlas 5.0 (formerly atlas-sketch/) has its own tests in jsawle/AtlasLab.

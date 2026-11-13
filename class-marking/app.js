@@ -1,12 +1,12 @@
 // Class map review (MapMaker Labs): check a class's .amap hand-ins against an answer map.
 // Everything runs in the browser. Student files are only read: their own layers are listed, never loaded,
 // and only their sketches are drawn, by this app, with its own symbols.
-import { readHandIn, assess, CHECKS_VERSION } from "./tools/checks.mjs?v=0.2.0";
-import { keyFromAnswerMap, studentFromFile, classCsv, placeStatus, KEYS_VERSION } from "./tools/keys.mjs?v=0.2.0";
-import { readWebMap, WEBMAP_WRITER_VERSION } from "../atlas-sketch/lib/doc.js?v=0.2.0";
-import { instructionsFor, AI_VERSION } from "./tools/ai.mjs?v=0.2.0";
+import { readHandIn, assess, CHECKS_VERSION } from "./tools/checks.mjs?v=0.2.1";
+import { keyFromAnswerMap, studentFromFile, classCsv, placeStatus, KEYS_VERSION } from "./tools/keys.mjs?v=0.2.1";
+import { readWebMap, WEBMAP_WRITER_VERSION } from "./lib/doc.js?v=0.2.1";
+import { instructionsFor, AI_VERSION } from "./tools/ai.mjs?v=0.2.1";
 
-const APP_VERSION = "0.2.0";
+const APP_VERSION = "0.2.1";
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); for (const k of kids) e.append(k); return e; };
 const say = (msg) => { $("live").textContent = ""; setTimeout(() => { $("live").textContent = msg; }, 50); };

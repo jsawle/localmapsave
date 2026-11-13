@@ -1,10 +1,13 @@
 # Class map review (MapMaker Labs)
 
-A MapMaker Labs app that helps a teacher review a class's hand-in folder of `.amap` files. It's not part of Atlas: nothing here is loaded by `atlas/` or `atlas-sketch/`.
+A MapMaker Labs app that helps a teacher review a class's hand-in folder of `.amap` files. It's not part of Atlas: nothing here is loaded by `atlas/` or by Atlas 5.0 ([jsawle/AtlasLab](https://github.com/jsawle/AtlasLab)).
 
 **Try it:** `https://jsawle.github.io/localmapsave/class-marking/`. Pick a sample class, or your own hand-in folder and answer map.
 
-## The app (0.2.0)
+## The app (0.2.1)
+
+0.2.1: no visible change. Atlas 5.0 moved to its own repository, so the saved-map reader this app used from `../atlas-sketch/lib/doc.js` is now a copy in `lib/doc.js`.
+
 
 1. **Choose the hand-ins:** a folder, or some files. Other files in the folder are skipped and counted. A file with "answer" in its name is taken as the answer map.
 2. **Choose your answer map:** any map saved from MapMaker, with a point on each right place and, if there is one, a line for the route. Points that look like notes ("Pattern", "Why…?") are left out; tick them to count them. Set how close counts (50 km by default).
