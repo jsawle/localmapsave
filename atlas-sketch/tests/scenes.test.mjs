@@ -24,7 +24,7 @@ const doc = {
 };
 const ws = docToWebScene(doc, { baseMap: source.baseMap, sourceLayers: source.operationalLayers, portalLayers: [], appVersion: "5.0.0-test", sketchTitle: "Sketch", sketchVisible: true, camera, scene: source });
 
-ok(WEBMAP_WRITER_VERSION === "3.5", "the saved-map writer is 3.5", WEBMAP_WRITER_VERSION);
+ok(WEBMAP_WRITER_VERSION === "3.6", "the saved-map writer is 3.6", WEBMAP_WRITER_VERSION);
 ok(looksLikeWebScene(ws), "a saved scene is recognised as a web scene");
 ok(!looksLikeWebScene(docToWebMap(doc, { baseMap: source.baseMap, sourceLayers: [], portalLayers: [] })), "a saved web map is not");
 ok(ws.version === WEBSCENE_SPEC_VERSION && ws.viewingMode === "global" && ws.ground.layers[0].id === "elev", "it has the spec version, the kind of scene and the source's ground");
@@ -35,7 +35,7 @@ ok(!("bookmarks" in ws) && !("extent" in (ws.initialState || {})), "no web map b
 ok(ws.initialState.viewpoint.camera.tilt === 65 && ws.initialState.viewpoint.camera.position.z === 1500, "the camera is the initial view: tilt and height kept");
 ok(ws.initialState.environment.weather.type === "sunny" && ws.heightModelInfo.heightUnit === "meter", "lighting, weather and height model come from the opened scene");
 ok(ws.presentation.slides.length === 2 && ws.presentation.slides[0].title.text === "Downtown" && ws.presentation.slides[0].viewpoint.camera.heading === 30, "bookmarks are slides, each with its camera");
-ok(JSON.stringify(ws.presentation.slides[0].visibleLayers) === '[{"id":"bld"}]', "a slide lists the layers that were on", ws.presentation.slides[0].visibleLayers);
+ok(JSON.stringify(ws.presentation.slides[0].visibleLayers) === '[{"id":"bld"},{"id":"__sketch_points"}]', "a slide lists the layers that were on, and the sketch layer its bookmark doesn't mention stays on (3.6)", ws.presentation.slides[0].visibleLayers);
 ok(ws.presentation.slides[1].viewpoint.camera.position.spatialReference.wkid === 4326 && ws.presentation.slides[1].viewpoint.camera.tilt === 0, "a bookmark with no camera looks straight down at its place");
 ok(ws.operationalLayers.some((o) => String(o.id).startsWith("__sketch_") && o.featureCollection), "the sketch is a feature collection layer in the scene");
 ok(ws.operationalLayers.slice(0, 2).map((o) => o.id).join() === "bld,pts", "the scene's own layers are kept, in order");

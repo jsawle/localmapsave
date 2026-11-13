@@ -228,7 +228,10 @@ def main():
         check(0 < n_both < 19, "a second condition (Battle Victor is %s) narrows it: %s" % (VICTOR, both))
         page.click("#filterApply"); page.wait_for_selector("#layersPanel:not([hidden])"); page.wait_for_timeout(2500)
         de1 = page.evaluate(LYR + ".definitionExpression")
-        check(de1.startswith("(Dates IN (") and de1.endswith("AND (Victor = '%s')" % VICTOR) and "'April 19, 1775'," not in de1 and drawn() == n_both, "Apply saves both on the layer")
+        for _ in range(20):   # the map redraws the layer after Apply; on a slow day that takes longer than a fixed wait
+            if drawn() == n_both: break
+            page.wait_for_timeout(1000)
+        check(de1.startswith("(Dates IN (") and de1.endswith("AND (Victor = '%s')" % VICTOR) and "'April 19, 1775'," not in de1 and drawn() == n_both, "Apply saves both on the layer (%s drawn, %s counted; …%s)" % (drawn(), n_both, de1[-70:]))
         open_battles()
         check(page.evaluate("document.querySelectorAll('#filterConds .flt-cond').length") == 2 and [val("op"), val("op", 1), val("value", 1)] == ["isOneOf", "is", VICTOR] and len(chips()) == 19 and page.is_hidden("#filterBase"), "opened again, both are there as conditions to change, not as code")
         page.click("#filterClear"); page.wait_for_timeout(2500)

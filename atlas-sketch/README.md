@@ -1,6 +1,6 @@
 # Atlas 5.0 (beta)
 
-**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.30**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
+**Atlas 5.0** is the white-label Atlas / MapMaker app with local save, adding your own data, filtering and Map Viewer's sketch tools. The MapMaker that is live today (the Atlas Instant App) is 4.0. This folder is 5.0, version **5.0.0-beta.31**, on ArcGIS Maps SDK for JavaScript 5.2. It grew from a lab copy of the earlier white-label app (`../atlas/`, 1.14.8, kept as it is): Sketch uses the SDK's Sketch component, which is Map Viewer's drawing toolbar, instead of the app's own tool buttons. The full description, versions table and known limits are in the `sketch-mapviewer` branch's `atlas/README.md` (pull request #27).
 
 | Link | What you get |
 |---|---|
@@ -8,12 +8,37 @@
 | `…/atlas-sketch/?config=mapmaker` | MapMaker's groups, units, colours and wording |
 | `…/atlas-sketch/?config=test` | The same as `mapmaker` (kept so earlier links still work) |
 | `…/atlas-sketch/?config=mapmaker-live` | The MapMaker config reading the **live** MapMaker group (`36443e9570294a1f883b5d2c5abfe6b5`), for comparing with what is live |
-| `…/atlas-sketch/?config=lab` | The MapMaker config with lab features switched on. Now: columns in 3D |
+| `…/atlas-sketch/?config=lab` | The MapMaker config with lab features switched on. Now: columns in 3D, more than one sketch layer |
 | `…/atlas-sketch/?config=example-es` | Spanish-language version: a 37-line config plus the shared `locales/es.json` |
 
 Apart from Sketch, the two apps are the same: CSV 3.4, the Coordinates fixes, and saving (1.14.5 / 1.15.0-sketch.6). **Lab only for now (1.15.0-sketch.7): locked maps.** *Save a locked copy* writes a map that Save in this app never changes (a teacher's class map, a student's hand-in); the mark is inside the file. Opening one is just looking; Save makes your own copy. Any other map file saves back to itself on any device. 1.15.0-sketch.8 rewords the message after saving a locked copy: it used to say nobody could save over it, but Save as can still replace a locked map that wasn't opened in that session. Two people saving the same unlocked map on a shared drive: whoever saves last wins, with no warning. 1.15.0-sketch.9: picking a file in the save box that Chrome can't write (someone else's, or read-only) used to do nothing at all, because Chrome reports it the same way as Cancel. The app now says nothing was saved and to choose another name or folder. Found by the simulated Chromebook test (`../atlas/tests/chromebook-sim/`). 1.15.0-sketch.10 (with main 1.14.7): the Save panel's notes become explanations on each tile, and Sign in is a tile beside Print. The main app gets this in its own pull request once it's been tried here.
 
 1.15.0-sketch.11 has the same code-review fixes as the main app's 1.14.8 (a message when the map library doesn't load, save notes shown one after the other, the close-tab warning for an unadded spreadsheet).
+
+## Sketch layers: move them, and make more than one (5.0.0-beta.31)
+
+Saved-map format 3.6; Sketch layers part 1.0.
+
+**All configs**
+- A sketch layer is **moved in the drawing order like any other layer** (drag, or the arrow keys on its handle). Before, sketches were always on top.
+- A layer you add later (from the collection, or a spreadsheet) goes **under the sketch layers that are on top**, so new data doesn't cover sketches. A sketch layer you have moved down stays where you put it.
+- The layer order is saved and put back when the map is opened, sketch and spreadsheet layers included. (Before, spreadsheet layers came back above the map's own layers whatever their place had been.)
+
+**Lab (`?config=lab`, `features.sketchLayers`): more than one sketch layer**
+- The first sketch still needs nothing: it goes on "My sketches", made for you.
+- **Add layer > New sketch layer**: name it, and Sketch opens drawing on it.
+- **Sketch > Drawing on**: says which layer the tools draw on and lets you switch; "New sketch layer…" is at the end of the list.
+- In Map layers each sketch layer has its own row and tools, with **Rename**. Remove takes a further layer away with its sketches (it asks first if it has any). "My sketches" can be emptied, not removed.
+- A further layer is listed even when empty; "My sketches" only once it has a sketch.
+
+**In the file.** "My sketches" is saved exactly as before. A further layer's parts have ids `__sketch_<key>_points` and so on, and carry its key and name in an app property (`atlasSketchLayer`). Map Viewer and the marking app still see ordinary sketch layers; the marking app reads them as one set. A map with several sketch layers opens with them in any config, with the Drawing on picker, but only the lab config can make new ones.
+
+**Not in this version**
+- Moving a sketch from one layer to another.
+- Clicking a sketch on another layer to edit it: choose its layer in Drawing on first. (With Sketch closed, clicking any sketch opens its pop-up as before.)
+- The marking app reporting per sketch layer.
+
+Tests: `tests/sketch-layers.test.mjs` (22, the file format) and `tests/live-sketch-layer.py` (45, in the browser).
 
 ## The sketch layer in Map layers (5.0.0-beta.30)
 

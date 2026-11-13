@@ -27,6 +27,8 @@ jobs:
         run: node atlas-sketch/tests/units.test.mjs
       - name: Config and language file tests
         run: node atlas-sketch/tests/config.test.mjs
+      - name: Atlas 5.0 sketch layers in the saved file
+        run: node atlas-sketch/tests/sketch-layers.test.mjs
       - name: Atlas 5.0 columns in 3D (lab)
         run: node atlas-sketch/tests/columns.test.mjs
       - name: The app's code parses as a module

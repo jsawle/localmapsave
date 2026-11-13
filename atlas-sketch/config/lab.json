@@ -1,5 +1,8 @@
 {
   "configVersion": 8,
   "extends": "mapmaker",
-  "features": { "columns3d": true }
+  "features": {
+    "columns3d": true,
+    "sketchLayers": true
+  }
 }
